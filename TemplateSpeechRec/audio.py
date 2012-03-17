@@ -69,13 +69,29 @@ def _get_edge_sample_avg(smoothed_avgs):
     sample_diffs = smoothed_avgs[1]-smoothed_avgs[0]
     return np.arange(start_sample, end_sample+.1,smoothed_diffs)
 
-def _get_labels(label_start_times,labels,feature_samples,sr):
+def _get_labels(label_start_times,labels,
+                feature_start_sample,
+                feature_end_sample,
+                feature_diff,sr):
     # label_start_times and labels should have the same length feature
     # samples is an array of what sample each feature in a spectrogram
     # or edgegram corresponds to
     # label_start_times are the absolute times when features start
     # labels are the labels themselves, we will construct an array the same size as feature_samples but whose entries are the label_start_times
     # sr is the sampling rate
+    feature_transitions = int(sr * label_times)
+    feature_labels = np.empty(feature_samples.shape,
+                              dtype=labels.dtype)
+    
+    cur_feature_idx = 0
+    # skip the first index becase we are intrerest in the intervals
+    for ls_time_idx in xrange(1,label_start_times.shape[0]):
+        # convert times to indices
+        # feature_start_sample + k*feature_diff < sr*label_start_times[ls_time_idx]
+        next_feature_idx = int(ceil((sr*label_start_times[ls_time_idx]-feature_start_sample)/feature_diff))
+        feature_labels[cur_feature_idx:]
+        
+    
     pass
 
 def _spectrograms(s,num_window_samples, 
