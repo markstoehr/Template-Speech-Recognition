@@ -14,17 +14,134 @@ import numpy as np
 from scipy import linalg
 from scipy.fftpack import fft
 from scipy.signal.windows import hanning
+from scipy.signal import convolve
 
 
-def do_feature_processing(s,spectrogram_parameters,
-                          kernel_parameters,
-                          preemphasis=.95):
+class SpectrogramClass:
+    def __init__(self,num_window_samples,num_window_step_samples,
+                 sample_rate,fft_length,freq_cutoff):
+        self.num_window_samples = num_window_samples
+        self.num_window_step_samples = num_window_step_samples
+        self.sample_rate = sample_rate
+        self.fft_length = fft_length
+        self.freq_cutoff = freq_cutoff
+
+
+
+def do_feature_processing(s,sample_rate,num_window_samples,
+                          num_window_step_samples,fft_length,
+                          freq_cutoff,kernel_length,
+                           preemph=.95):
+    s_avgs = _get_windows_sample_avg(s,num_window_samples,num_window_step_samples)
+    s_avgs = _get_smoothed_sample_avg(s_avgs,kernel_length)
+    s_avgs = _get_edge_sample_avg(s_avgs)
+    s = _preemphasis(s,preemph)
+    S = _spectrograms(s,num_window_samples, 
+                      num_window_step_samples,
+                      fft_length,freq_cutoff,
+                      sample_rate)
+    # correct for the shape
+    # we want each row of S to correspond to a frequency
+    # and we want the bottom row to represent the lowest
+    # frequency
+    S = np.log(S.transpose())
+    #S = S[::-1,:]
+    # smooth the spectrogram
+    smoothing_kernel = make_gaussian_kernel(kernel_length)
+    S_smoothed = convolve(S,smoothing_kernel,mode = "same")
+    S_subsampled = S_smoothed[::2,:]
+    # compute the edgemap
+    E = _edge_map(S_subsampled)
+    return E, s_avgs
+
+def _edge_map(S):
+    """ function to do the edge processing
+    somewhat complicated we have eight different directions
+    for the edges to run
+    consider the direction [1,0]
+
+    indices range over [0,...,F-1],[0,...,T-1]
+    in this case the entry
+    E[0,0] = 0 if S[2,0] - S[1,0] < max(S[1,0]-S[0,0],
+                                        S[3,0]-S[2,0])
+            
+    E[i,j] = 0 if S[i+2,j]-S[i+1,j] < max(S[i+1,j]-S[i,j],
+                                          S[i+2,j]-S[i+1,j])
+
+    T_diff = T[1:,:]-T[:-1,:]
+    T_bigger_left = (T_diff[1:-1,:] - T_diff[:-2,:])>0.
+    T_bigger_right = (T_diff[1:-1,:]-T_diff[2:,:])>0.
     
-    pass
+    T_other_diff = -T_diff
+    T_other_big_left = (T_other_diff[1:-1,:])
+    S[2:-1,:] - S[1:-2,:]
+    in the case [-1,0]
+    E[0,0]=0 if S[1,0]-S[2,0] < max(S[0,0]-S[1,0],
+                                    S[2,0]-S[3,0])
+    
+    E[i,j] = 0 if S[i+1,j]-S[i+2,j] < max(S[i,j]-S[i+1,j],
+                                          S[i+1,j]-S[i+2,j])
+                                    
+    [0,1]
+    E[i,j]
+    """
+    edge_diffs = _get_edge_diffs(S)
+    edge_maxima = _get_edge_maxima(edge_diffs)
+    edge_threshold = _get_edge_threshold(edge_maxima,.7)
+    
+    edge_orientations = np.array([[-1,-1],
+                                  [-1,0],
+                                  [-1,1],
+                                  [0,-1],
+                                  [0,1],
+                                  [1,-1],
+                                  [1,0],
+                                  [1,1]])
 
-def _preemphasis(s):
-    return np.concatenate([s[0],
-                           s[1:]- preemphasis*s[:-1]]) 
+
+def _get_edge_diffs(S):
+    # edge [0,-1]
+    top_bottom = S[:,:-1] - S[:,1:]
+    
+    # edge [0,1]
+    bottom_top = -top_bottom
+    # edge [-1,0]
+    left_right = S[:-1,:] - S[1:,:]
+    # edge [1,0]
+    right_left = -left_right
+    # edge [-1,-1]
+    lefttop_rightbot = S[:-1,:-1] - S[1:,1:]
+    # edge [1,1]
+    rightbot_lefttop = - lefttop_rightbot
+    # edge [1,-1]
+    righttop_leftbot = S[1:,:-1] - S[:-1,1:]
+    # edge [-1,1]
+    leftbot_righttop=-righttop_leftbot
+    
+
+    
+
+def _preemphasis(s,preemph=.95):
+    return np.concatenate([[s[0]],
+                           s[1:]- preemph*s[:-1]]) 
+
+
+def make_gaussian_kernel(size,fwhm=3):
+    """ Make a square gaussian kernel.
+
+    size is the length of a side of the square
+    fwhm is full-width-half-maximum, which
+    can be thought of as an effective radius.
+
+    code is (slightly) modified from:
+    http://mail.scipy.org/pipermail/scipy-user/2006-June/008366.html
+    """
+    x = np.arange(0, size, 1, np.float64)
+    y = x[:,np.newaxis]
+    x0 = y0 = size // 2
+    g=np.exp(-4*np.log(2) * ((x-x0)**2 + (y-y0)**2) / fwhm**2)
+    return g/g.sum()
+
 
 def _preemphasis_times(s,sr):
     return 1./sr * np.arange(len(s));
@@ -36,13 +153,12 @@ def _get_windows(s,num_window_samples,num_window_step_samples):
     # will be last_win_idx*num_window_step_samples
     # so its the largest integer such that 
     # last_win_idx*num_window_step_samples + num_window_samples -1 <= len(s)-1
-
     # division computes floor implicitly
     last_win_idx = (len(s)-num_window_samples)/num_window_step_samples
     num_windows = last_win_idx + 1
     window_idx = np.arange(num_window_samples)
-    return tiles(np.arange(num_window_samples),
-                    (num_windws,1))\
+    return np.tile(np.arange(num_window_samples),
+                    (num_windows,1))\
                     + num_window_step_samples\
                     *np.arange(num_windows).reshape((num_windows,1))
 
@@ -69,7 +185,8 @@ def _get_edge_sample_avg(smoothed_avgs):
     sample_diffs = smoothed_avgs[1]-smoothed_avgs[0]
     return np.arange(start_sample, end_sample+.1,smoothed_diffs)
 
-def _get_labels(label_start_times,labels,
+def _get_labels(label_start_times,label_end_times,
+                labels,
                 feature_start_sample,
                 feature_end_sample,
                 feature_diff,sr):
@@ -82,17 +199,17 @@ def _get_labels(label_start_times,labels,
     feature_transitions = int(sr * label_times)
     feature_labels = np.empty(feature_samples.shape,
                               dtype=labels.dtype)
+    num_feature_labels = feature_labels.shape[0]
+    last_time = label_end_times[-1]
+    feature_end_idx = label_end_times/last_time \
+        * (num_feature_labels-1)
+    feature_transitions = np.concatenate([np.array([0]),feature_end_idx.astype(int)])
+    for ls_time_idx in xrange(len(feature_transitions)-1):
+        start_idx = feature_transitions[ls_time_idx]
+        end_idx = feature_transitions[ls_time_idx+1]
+        feature_labels[start_idx:end_idx] =labels[ls_time_idx]
+    return feature_labels, feature_transitions
     
-    cur_feature_idx = 0
-    # skip the first index becase we are intrerest in the intervals
-    for ls_time_idx in xrange(1,label_start_times.shape[0]):
-        # convert times to indices
-        # feature_start_sample + k*feature_diff < sr*label_start_times[ls_time_idx]
-        next_feature_idx = int(ceil((sr*label_start_times[ls_time_idx]-feature_start_sample)/feature_diff))
-        feature_labels[cur_feature_idx:]
-        
-    
-    pass
 
 def _spectrograms(s,num_window_samples, 
                   num_window_step_samples,
@@ -102,8 +219,10 @@ def _spectrograms(s,num_window_samples,
     s=_preemphasis(s)
     windows = _get_windows(s,num_window_samples,num_window_step_samples)
     swindows = np.vectorize(lambda i: s[i])(windows)
-    freq_idx = freq_cutoff/(float(sample_rate)/num_window_samples)
-    return np.abs(fft(hanning(num_window_samples) * swindows,)[:,:freq_idx])
+    freq_idx = int(freq_cutoff/(float(sample_rate)/fft_length))
+    return np.abs(fft(hanning(num_window_samples) * swindows,fft_length)[:,:freq_idx])
+
+
     
     # 
     
