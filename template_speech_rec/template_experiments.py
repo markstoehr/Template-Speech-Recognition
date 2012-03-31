@@ -68,7 +68,7 @@ class Experiment:
 
     def get_pattern_times(self,E,phns,phn_times,s,
                      context=False,template_length=32):
-                feature_start, \
+        feature_start, \
             feature_step, num_features =\
             esp._get_feature_label_times(s,
                                      self.num_window_samples,
@@ -166,12 +166,17 @@ class Experiment:
         """ gets the detection scores for later processing
         
         """
-        template_length = template.shape[1]
+        template_height,template_length = template.shape
         num_detections = E.shape[1]-template_length+1
         E_background, estimated_background_idx = self._get_E_background(E,num_detections,bgd_length, mean_background,
                                                                         edge_feature_row_breaks,
                                                                         edge_orientations)
         E_stack= self._get_E_stack(E,template.shape,num_detections)
+        # perform thresholding for the stack of E features
+        for frame_idx in xrange(E_stack.shape[1]):
+            E_segment = E_stack[:,frame_idx].reshape(template_height,template_length)
+            esp.threshold_edgemap(E_segment,.30,edge_feature_row_breaks)
+            esp.spread_edgemap(E_segment,edge_feature_row_breaks,edge_orientations)
         bg_stack = np.tile(E_background,(template.shape[1],1))
         T_stack = np.tile(template.transpose().reshape(np.prod(template.shape),1),
                           (1,num_detections))
