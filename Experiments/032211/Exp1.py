@@ -291,9 +291,8 @@ for idx in xrange(len(all_patterns_context_bgds)):
 
 mean_background = .3*np.random.rand(template_height) + .1
 bg_len = 26
-pattern_thresholds = []
-negative_maxima = np.array(50)
-num_negative_maxima = 0
+true_pos_thresholds = []
+false_pos = []
 num_frames = 0
 for path_idx in xrange(exp.num_data):
     if path_idx % 10 ==0:
@@ -325,35 +324,21 @@ for path_idx in xrange(exp.num_data):
             pattern_array[pattern_times[i][0]-template_length/3:pattern_times[i][0]+template_length/3] = True
             pattern_maxima = np.logical_and(scores_maxima,pattern_array)
             if pattern_maxima.any():
-                pattern_thresholds.append(np.max(scores[pattern_maxima]))
+                true_pos_thresholds.append( np.max(scores[pattern_maxima]))
             else:
                 # this was a false negative
                 pattern_thresholds.append(-np.inf)
             # remove the maxima that are contained within the pattern radius
             # at end of for loop only maxima left will be related to false positives
             scores_maxima[patterns[i][0]:patterns[i][1]] = False
-        new_neg_maxima = scores[scores_maxima].shape[0]
-        if new_neg_maxima:
-            new_neg_maxima
+        new_false_pos = scores[scores_maxima].shape[0]
+        # check if there were false positives
+        if new_false_pos:
+            # will do a clustering here
+            # clustered_false_pos = ps.cluster_false_positives(new_false_pos)
+            # would want to  do an incremental sorting
+            # otherwise we just save them to the array
+            false_pos.append(list(new_false_pos))
             
             
             
-            
-            
-            esp.threshold_edgemap(patterns[i],.30,edge_feature_row_breaks)
-            esp.spread_edgemap(patterns[i],edge_feature_row_breaks,edge_orientations)
-            if bgds[i].shape[1] > 0:
-                esp.threshold_edgemap(bgds[i],.30,edge_feature_row_breaks)
-                esp.spread_edgemap(bgds[i],edge_feature_row_breaks,edge_orientations)
-                # compute background mean
-                bgds[i] = np.mean(bgds[i],axis=1)
-                # impose floor and ceiling constraints on values
-                bgds[i] = np.maximum(np.minimum(bgds[i],.4),.05)
-            else:
-                bgds[i] = np.random.rand(patterns[i].shape[0]).reshape(patterns[i].shape[0],1)
-                bgds[i] = np.mean(bgds[i],axis=1)
-                bgds[i] = np.maximum(np.minimum(bgds[i],.4),.05)
-                empty_bgds.append(pattern_num)
-        pattern_num += len(patterns)
-        all_patterns.extend(patterns)
-        all_bgds.extend(bgds)
