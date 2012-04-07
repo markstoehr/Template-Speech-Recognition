@@ -25,10 +25,10 @@ num_window_samples = 320
 fft_length = 512
 num_window_step_samples = 80
 freq_cutoff = 3000
-s_files_path_file = "exp1_path_files_s.txt"
-phns_files_path_file = "exp1_path_files_phns.txt"
-phn_times_files_path_file = "exp1_path_files_phn_times.txt"
-data_dir = "/home/mark/projects/Template-Speech-Recognition/template_speech_rec/Template_Data_Files"
+s_files_path_file = "exp2_path_files_s.txt"
+phns_files_path_file = "exp2_path_files_phns.txt"
+phn_times_files_path_file = "exp2_path_files_phn_times.txt"
+data_dir = "/home/mark/projects/Template-Speech-Recognition/Experiments/032211/Data/Estimate2/"
 pattern = np.array(('aa','r'))
 kernel_length = 7
 
@@ -52,10 +52,11 @@ bg_len = 26
 true_pos_thresholds = []
 false_pos = []
 num_frames = 0
-for path_idx in xrange(exp.num_data):
-    if path_idx % 10 ==0:
-        print "on path", path_idx
+for path_idx in xrange(14,exp.num_data):
+    print "on path", path_idx
     phns = exp.get_phns(path_idx)
+    if not exp.has_pattern(phns):
+        continue
     s = exp.get_s(path_idx)
     E,edge_feature_row_breaks,\
         edge_orientations= exp.get_edgemap_no_threshold(s)
@@ -80,11 +81,11 @@ for path_idx in xrange(exp.num_data):
         pattern_array =np.empty(scores.shape[0],dtype=bool)
         pattern_array[:]=False
         # consider something a detection if its within a third of the template length around the start of the pattern
-        pattern_array[pattern_times[i][0]-template_length/3:pattern_times[i][0]+template_length/3] = True
+        pattern_array[pattern_times[i][0]-int(np.ceil(template_length/3)):pattern_times[i][0]+int(np.ceil(2*template_length/5.))] = True
         pattern_maxima = np.logical_and(scores_maxima,pattern_array)
         if pattern_maxima.any():
             true_pos_thresholds.append( 
-                np.max(scores[pattern_maxima]))
+                (np.max(scores[pattern_maxima]),path_idx))
         else:
             # this was a false negative
             pattern_thresholds.append(-np.inf)
@@ -98,4 +99,4 @@ for path_idx in xrange(exp.num_data):
         # clustered_false_pos = ps.cluster_false_positives(new_false_pos)
         # would want to  do an incremental sorting
         # otherwise we just save them to the array
-        false_pos.append(list(scores[scores_maxima]))
+        false_pos.append((list(scores[scores_maxima]),path_idx))

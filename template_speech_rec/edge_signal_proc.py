@@ -265,28 +265,51 @@ def get_edgemap_no_threshold(s,sample_rate,
     return _edge_map_no_threshold(S_subsampled)
 
 def threshold_edgemap(E,quantile_level,
-                    edge_feature_row_breaks):
+                      edge_feature_row_breaks,
+                      report_level=False,
+                      abst_threshold=-np.inf*np.ones(8)):
+    # see whether to report the level of the edge thresholds
+    if report_level:
+        edge_thresholds = np.empty(8)
+    # allocate an empty array for the thresholded edges
+    E_new = np.empty(E.shape)
     for edge_feat_idx in xrange(1,edge_feature_row_breaks.shape[0]):
         start_idx = edge_feature_row_breaks[edge_feat_idx-1]
         end_idx = edge_feature_row_breaks[edge_feat_idx]
-        E[start_idx:end_idx,:] = \
-            threshold_edge_block(E[start_idx:end_idx,:],quantile_level)
+        if report_level:
+            E_new[start_idx:end_idx,:],edge_thresholds[edge_feat_idx-1] = \
+                threshold_edge_block(E[start_idx:end_idx,:],quantile_level,report_level,
+                                     abst_threshold[edge_feat_idx-1])
+        else:
+            E_new[start_idx:end_idx,:] = \
+                threshold_edge_block(E[start_idx:end_idx,:],
+                                     quantile_level,
+                                     report_level,
+                                     abst_threshold[edge_feat_idx-1])
+    if report_level:
+        return E_new, edge_thresholds
 
 
-def threshold_edge_block(E_block,quantile_level):
-    maxima_idx = E_block > -np.inf
-    maxima_vals = E_block[maxima_idx].flat.copy()
+
+def threshold_edge_block(E_block,quantile_level,
+                         report_level,
+                         abst_threshold):
+    maxima_idx = E_block > abst_threshold
+    maxima_vals = E_block[maxima_idx].ravel().copy()
     maxima_vals.sort()
     tau_quant = maxima_vals[int(quantile_level*maxima_vals.shape[0])].copy()
     # zero out everything less than the quantile
     A = E_block[maxima_idx]
     # get the indices for the significant edges
-    sig_idx = E_block[maxima_idx] < tau_quant
+    sig_idx = E_block[maxima_idx] > tau_quant
     A[np.logical_not(sig_idx)] = 0.
     A[sig_idx] =1
     E_block[maxima_idx] = A
     E_block[np.logical_not(maxima_idx)]=0
-    return E_block
+    if report_level:
+        return E_block,tau_quant
+    else:
+        return E_block
 
 
 def _compute_max_edges(Cand_max,Cmp1,Cmp2):

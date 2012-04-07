@@ -306,7 +306,7 @@ for path_idx in xrange(exp.num_data):
         phn_times = exp.get_phn_times(path_idx)
         # get the backgrounds for all detection spots
         P,C=exp.get_detection_scores(E,mean_template,
-                                     bgd_length, 
+                                     bg_len, 
                                      mean_background,
                                      edge_feature_row_breaks,
                                      edge_orientations)
