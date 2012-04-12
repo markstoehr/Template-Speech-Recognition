@@ -351,25 +351,26 @@ def _compute_max_and_threshold(Cand_max,Cmp1,Cmp2,
     Cand_max[maxima_idx] = A
     return Cand_max
 
-def spread_edgemap(T,edge_feature_row_breaks,edge_orientation):
+def spread_edgemap(T,edge_feature_row_breaks,edge_orientation,spread_length=3):
     for break_idx in xrange(1,edge_feature_row_breaks.shape[0]):
         start_idx = edge_feature_row_breaks[break_idx-1]
         end_idx = edge_feature_row_breaks[break_idx]
         T[start_idx:end_idx,:] = \
             _spread_edges(T[start_idx:end_idx],
-                          edge_orientation[break_idx-1,:])
+                          edge_orientation[break_idx-1,:],
+                          spread_length)
 
-def _spread_edges(T,direction):
-    Z = np.zeros(T.shape+np.array((4,4)))
-    Z[2:-2,2:-2] = T.copy()
+def _spread_edges(T,direction,spread_length):
+    Z = np.zeros(T.shape+np.array((2*spread_length,2*spread_length)))
+    Z[spread_length:-spread_length,spread_length:-spread_length] = T.copy()
     T_spread = np.zeros(T.shape)
     F_len = T.shape[0]
     T_len = T.shape[1]
-    for k in [-2,-1,0,1,2]:
-        T_spread = np.maximum(T_spread,Z[2+k*direction[0]:
-                                             2+F_len+k*direction[0],
-                                         2+k*direction[1]:
-                                             2+T_len+k*direction[1]])
+    for k in xrange(-spread_length,spread_length+1):
+        T_spread = np.maximum(T_spread,Z[spread_length+k*direction[0]:
+                                             spread_length+F_len+k*direction[0],
+                                         spread_length+k*direction[1]:
+                                             spread_length+T_len+k*direction[1]])
     return T_spread
 
 
@@ -491,7 +492,7 @@ d                                          S[i+2,j]-S[i+1,j])
     return E,edge_feature_row_breaks, edge_orientations
 
 
-def _edge_map(S,quantile_level):
+def _edge_map(S,quantile_level,spread_length=3):
     """ function to do the edge processing
     somewhat complicated we have eight different directions
     for the edges to run

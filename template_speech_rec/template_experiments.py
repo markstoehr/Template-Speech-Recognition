@@ -1,5 +1,6 @@
 import numpy as np
 import edge_signal_proc as esp
+import test_template as tt
 
 class Experiment:
     def __init__(self,sample_rate,freq_cutoff,
@@ -160,9 +161,34 @@ class Experiment:
                             pattern_time[0]]\
                         for pattern_time in pattern_times]
 
+    def get_detection_scores_slow(self,E,template,bgd_length,mean_background,
+                                  edge_feature_row_breaks,
+                                  edge_orientations,
+                                  abst_threshold=-np.inf *np.ones(8),
+                                  spread_length=3):
+        template_height,template_length = template.shape
+        num_detections = E.shape[1]-template_length+1
+        E_background, estimated_background_idx = self._get_E_background(E,num_detections,bgd_length, mean_background,
+                                                                        edge_feature_row_breaks,
+                                                                        edge_orientations,
+                                                                        abst_threshold=abst_threshold,
+                                                                        spread_length=spread_length)
+        Ps = np.zeros(num_detections)
+        Cs = np.zeros(num_detections)
+        for frame_idx in xrange(num_detections):
+            E_segment = E[:,frame_idx:frame_idx+template_length].copy()
+            esp.threshold_edgemap(E_segment,.30,edge_feature_row_breaks,abst_threshold=abst_threshold)
+            esp.spread_edgemap(E_segment,edge_feature_row_breaks,edge_orientations,spread_length=spread_length)
+            Ps[frame_idx],Cs[frame_idx] = tt.score_template_background_section(template,E_background[:,frame_idx],E_segment)
+        return Ps,Cs
+            
+
+
     def get_detection_scores(self,E,template,bgd_length, mean_background,
                              edge_feature_row_breaks,
-                             edge_orientations):
+                             edge_orientations,
+                             abst_threshold=-np.inf *np.ones(8),
+                             spread_length=3):
         """ gets the detection scores for later processing
         
         """
@@ -170,13 +196,16 @@ class Experiment:
         num_detections = E.shape[1]-template_length+1
         E_background, estimated_background_idx = self._get_E_background(E,num_detections,bgd_length, mean_background,
                                                                         edge_feature_row_breaks,
-                                                                        edge_orientations)
+                                                                        edge_orientations,
+                                                                        abst_threshold=abst_threshold,
+                                                                        spread_length=spread_length)
         E_stack= self._get_E_stack(E,template.shape,num_detections)
+        print "E_stack has shape",E_stack.shape
         # perform thresholding for the stack of E features
         for frame_idx in xrange(E_stack.shape[1]):
             E_segment = E_stack[:,frame_idx].reshape(template_height,template_length)
-            esp.threshold_edgemap(E_segment,.30,edge_feature_row_breaks)
-            esp.spread_edgemap(E_segment,edge_feature_row_breaks,edge_orientations)
+            esp.threshold_edgemap(E_segment,.30,edge_feature_row_breaks,abst_threshold=abst_threshold)
+            esp.spread_edgemap(E_segment,edge_feature_row_breaks,edge_orientations,spread_length=spread_length)
         bg_stack = np.tile(E_background,(template.shape[1],1))
         T_stack = np.tile(template.transpose().reshape(np.prod(template.shape),1),
                           (1,num_detections))
@@ -208,7 +237,9 @@ class Experiment:
         
     def _get_E_background(self,E,num_detections,bgd_length,mean_background,
                           edge_feature_row_breaks,
-                          edge_orientations):
+                          edge_orientations,
+                          abst_threshold=-np.inf*np.ones(8),
+                          spread_length=3):
         """ Get the background for the whole utterance
         background is computed over a window of length
         bgd_length, and then that's conidered background
@@ -241,15 +272,21 @@ class Experiment:
             cur_bgd = E[:,d:d+bgd_length].copy()
             E_bgd[:,d+bgd_length] = self._get_bgd(cur_bgd,
                                                     edge_feature_row_breaks,
-                                                    edge_orientations)
+                                                    edge_orientations,
+                                                  abst_threshold=abst_threshold,
+                                                  spread_length=spread_length)
         return E_bgd,np.arange(num_bgds) +bgd_length+1
 
 
     def _get_bgd(self,E_bgd_window,
                  edge_feature_row_breaks,
-                 edge_orientations):
-        esp.threshold_edgemap(E_bgd_window,.30,edge_feature_row_breaks)
-        esp.spread_edgemap(E_bgd_window,edge_feature_row_breaks,edge_orientations)
+                 edge_orientations,
+                 abst_threshold=-np.inf*np.ones(8),
+                 spread_length=3):
+        esp.threshold_edgemap(E_bgd_window,.30,edge_feature_row_breaks,
+                              abst_threshold=abst_threshold)
+        esp.spread_edgemap(E_bgd_window,edge_feature_row_breaks,edge_orientations,
+                           spread_length=spread_length)
         E_bgd_window = np.mean(E_bgd_window,axis=1)
         E_bgd_window = np.maximum(np.minimum(E_bgd_window,.4),.1)
         return E_bgd_window
