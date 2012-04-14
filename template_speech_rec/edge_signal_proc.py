@@ -294,14 +294,14 @@ def threshold_edgemap(E,quantile_level,
 def threshold_edge_block(E_block,quantile_level,
                          report_level,
                          abst_threshold):
-    maxima_idx = E_block > abst_threshold
+    maxima_idx = E_block > -np.inf
     maxima_vals = E_block[maxima_idx].ravel().copy()
     maxima_vals.sort()
     tau_quant = maxima_vals[int(quantile_level*maxima_vals.shape[0])].copy()
     # zero out everything less than the quantile
     A = E_block[maxima_idx]
     # get the indices for the significant edges
-    sig_idx = E_block[maxima_idx] > tau_quant
+    sig_idx = E_block[maxima_idx] > max(tau_quant,abst_threshold)
     A[np.logical_not(sig_idx)] = 0.
     A[sig_idx] =1
     E_block[maxima_idx] = A
