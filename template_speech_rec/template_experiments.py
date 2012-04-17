@@ -181,7 +181,28 @@ class Experiment:
             esp.spread_edgemap(E_segment,edge_feature_row_breaks,edge_orientations,spread_length=spread_length)
             Ps[frame_idx],Cs[frame_idx] = tt.score_template_background_section(template,E_background[:,frame_idx],E_segment)
         return Ps,Cs
-            
+
+    def get_detection_scores_mix(self,E,bm,bgd_length,mean_background,
+                                  edge_feature_row_breaks,
+                                  edge_orientations,
+                                  abst_threshold=-np.inf *np.ones(8),
+                                  spread_length=3):
+        """  Do detection for mixture models
+
+        Parameters:
+        ===========
+        bm - bernoulli mixture model
+        """
+        mix_scores = []
+        for mix_id in range(bm.num_mix):
+            mix_Ps,mix_Cs = self.get_detection_scores_slow(E,bm.templates[mix_id],bgd_length,mean_background,
+                                  edge_feature_row_breaks,
+                                  edge_orientations,
+                                  abst_threshold=-np.inf *np.ones(8),
+                                  spread_length=3)
+            mix_scores.append( mix_Ps+mix_Cs + np.log( bm.weights[mix_id]))
+        mix_scores = np.array(mix_scores)
+        return np.amax(mix_scores,axis=0)            
 
 
     def get_detection_scores(self,E,template,bgd_length, mean_background,
