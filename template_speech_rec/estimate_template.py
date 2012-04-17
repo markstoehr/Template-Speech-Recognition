@@ -1,7 +1,8 @@
 import numpy as np
 
-def simple_estimate_template(pattern_examples):
-    template_length = int(_get_template_length(pattern_examples))
+def simple_estimate_template(pattern_examples,template_length=None):
+    if not template_length:
+        template_length = int(_get_template_length(pattern_examples))
     num_examples = len(pattern_examples)
     template_height = pattern_examples[0].shape[0]
     registered_templates = _register_all_templates(num_examples,
