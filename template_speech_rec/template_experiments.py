@@ -340,3 +340,4 @@ class Experiment:
                     (neg_pattern_time <= pattern_time[0]+length/2):
                 return True
         return False
+
