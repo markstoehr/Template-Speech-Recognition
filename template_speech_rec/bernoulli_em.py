@@ -41,6 +41,7 @@ class Bernoulli_Mixture:
         self.log_templates = np.log(self.templates)
         self.log_invtemplates = np.log(1-self.templates)
 
+        
     def threshold_templates(self):
         self.templates = np.maximum(np.minimum(self.templates,.95),.05)
 
