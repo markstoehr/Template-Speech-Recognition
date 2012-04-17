@@ -25,10 +25,13 @@ num_window_samples = 320
 fft_length = 512
 num_window_step_samples = 80
 freq_cutoff = 3000
-s_files_path_file = "exp2_path_files_s.txt"
-phns_files_path_file = "exp2_path_files_phns.txt"
-phn_times_files_path_file = "exp2_path_files_phn_times.txt"
-data_dir = "/home/mark/projects/Template-Speech-Recognition/Experiments/032211/Data/Estimate2/"
+exp_path_files_dir = '/var/tmp/stoehr/Projects/hacky_move/Template-Speech-Recognition/Experiments/032211/'
+s_files_path_file = exp_path_files_dir+"exp2_path_files_s.txt"
+phns_files_path_file = exp_path_files_dir+"exp2_path_files_phns.txt"
+phn_times_files_path_file = exp_path_files_dir+"exp2_path_files_phn_times.txt"
+data_dir = "/var/tmp/stoehr/Projects/hacky_move/Template-Speech-Recognition/Experiments/032211/Data/Estimate2/"
+#data_dir = "/var/tmp/stoehr/Projects/hacky_move/Template-Speech-Recognition/template_speech_rec/Template_Data_Files"
+#data_dir = "/home/mark/projects/Template-Speech-Recognition/template_speech_rec/Template_Data_Files"
 pattern = np.array(('aa','r'))
 kernel_length = 7
 
