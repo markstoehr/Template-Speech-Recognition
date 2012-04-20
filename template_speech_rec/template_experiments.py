@@ -67,7 +67,7 @@ class Experiment:
     def has_pattern(self,phns):
         return esp.has_pattern(self.pattern,phns)
 
-    def get_pattern_times(self,E,phns,phn_times,s,
+    def get_pattern_times(self,phns,phn_times,s,
                      context=False,template_length=32):
         feature_start, \
             feature_step, num_features =\
