@@ -1,3 +1,87 @@
+##########################
+#
+#  parts_model.py
+#
+#
+##########################
+
+import sys, os
+sys.path.append('/home/mark/projects/Template-Speech-Recognition')
+import template_speech_rec.template_experiments as t_exp
+import template_speech_rec.parts_model as pm
+import template_speech_rec.template_experiments as t_exp
+reload(t_exp)
+import numpy as np
+import template_speech_rec.edge_signal_proc as esp
+import template_speech_rec.estimate_template as et
+import template_speech_rec.test_template as tt
+import template_speech_rec.process_scores as ps
+from pylab import imshow, plot, figure, show
+import template_speech_rec.bernoulli_em as bem
+import template_speech_rec.parts_model as pm
+import cPickle
+
+
+
+data_dir = '/home/mark/projects/Template-Speech-Recognition/Experiments/042212/'
+
+mean_template = np.load(data_dir + 'mean_template042212.npy')
+#bgd = np.load(data_dir + 'mean_background042212')
+bgd = .4 * np.ones(mean_template.shape[0])
+
+parts_model = pm.PartsTriple(mean_template,.4,.4,.4)
+
+
+
+t1 = parts_model.front_length == parts_model.front.shape[1]
+t2 = parts_model.front_length-parts_model.front_def_radius == parts_model.middle_start
+t3 = np.all(parts_model.front[:,:parts_model.front_length] == mean_template[:,:int(.4*mean_template.shape[1])])
+t4 = np.all(parts_model.back[:,-parts_model.back_length:] == mean_template[:,-int(.4*mean_template.shape[1]):])
+#
+# check that the deformed_max_length is correct
+#
+#
+
+t5 = parts_model.deformed_max_length -parts_model.front_def_radius - parts_model.back_def_radius == mean_template.shape[1]
+
+
+# broke this agggghhhhh!
+input_fl = open(data_dir + 'part_testing042212.pkl','rb')
+save_dict = cPickle.load(input_fl)
+input_fl.close()
+
+bg_len=save_dict['bg_len']
+E=save_dict('E')
+phns=save_dict('phns')
+edge_feature_row_breaks=save_dict('edge_feature_row_breaks')
+edge_orientations=save_dict('edge_orientations')
+phn_times=save_dict('phn_times')
+exp=save_dict('exp')
+phn_times=save_dict('phn_times')
+pattern_times=save_dict('pattern_times')
+patterns=save_dict('patterns')
+bgds=save_dict('bgds')
+s=save_dict('s')
+
+
+reload(pm)
+parts_model = pm.PartsTriple(mean_template,.4,.4,.4)
+
+front_displace = 3
+back_displace = -1
+deformed_template = parts_model.get_deformed_template(front_displace,back_displace,bgd)
+
+#
+# first test is just that the first frames and last frames
+#  as determined by the deformation radius should be background
+
+def_template = parts_model.get_deformed_template(0,0,bgd)
+t1 = def_template
+
+parts_model.fit_template(E,E_loc,front_displace,back_displace)
+
+
+
 ################################
 #
 #  template_experiments.py
