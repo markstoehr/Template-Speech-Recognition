@@ -117,7 +117,7 @@ class Experiment:
                                               feature_label_transitions)
         if context:
             return [E[:,max(pattern_time[0]-template_length/4,0):\
-                            min(pattern_time[0]+template_length+1+ (template_length)/4,E.shape[0])]\
+                            min(pattern_time[0]+template_length+1+ (template_length)/4,E.shape[1])]\
                         for pattern_time in pattern_times]
         else:
             return [E[:,pattern_time[0]:pattern_time[1]+1]\
@@ -125,7 +125,7 @@ class Experiment:
          
     
     def get_pattern_bgds(self,E,phns,phn_times,s,bg_len,
-                         context=False,template_length=32):
+                         context=False,template_length=33):
         """
         Parameters
         ----------
@@ -160,6 +160,47 @@ class Experiment:
             return [E[:,max(pattern_time[0]-bg_len,0):\
                             pattern_time[0]]\
                         for pattern_time in pattern_times]
+
+    def get_pattern_fronts_backs(self,E,phns,phn_times,s,bg_len,
+                                 context=False,part_radius=5):
+        """
+        Parameters
+        ----------
+        E: array
+            edgemap features
+        phns: array
+            strings representing the labels for the utterance
+        phn_times: array
+            times when the
+        """
+        feature_start, \
+            feature_step, num_features =\
+            esp._get_feature_label_times(s,
+                                     self.num_window_samples,
+                                     self.num_window_step_samples)
+        feature_labels, \
+            feature_label_transitions \
+            = esp._get_labels(phn_times,
+                          phns,
+                          feature_start,
+                          feature_step,
+                          num_features,
+                          self.sample_rate)
+        pattern_times = esp.get_pattern_times(self.pattern,
+                                              phns,
+                                              feature_label_transitions)
+        if context:
+            return [(E[:,max(pattern_time[0]-part_radius,0):\
+                             min(pattern_time[0]+part_radius,E.shape[0])],\
+                         E[:,max(pattern_time[1]-part_radius,0):\
+                                 min(pattern_time[1]+part_radius,E.shape[0])],\
+                    pattern_time) for pattern_time in pattern_times]
+        else:
+            return [(E[:,max(pattern_time[0]-part_radius,0):\
+                             min(pattern_time[0]+part_radius,E.shape[1])],\
+                         E[:,max(pattern_time[1]-part_radius,0):\
+                                 min(pattern_time[1]+part_radius,E.shape[1])],\
+                        pattern_time,part_radius) for pattern_time in pattern_times]
 
     def get_detection_scores_slow(self,E,template,bgd_length,mean_background,
                                   edge_feature_row_breaks,
