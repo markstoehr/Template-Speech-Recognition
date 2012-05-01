@@ -335,3 +335,181 @@ for path_idx in xrange(exp.num_data):
         false_pos.append((scores[scores_maxima],np.arange(scores.shape[0])[scores_maxima],
                           np.max(scores[scores_maxima]),
                           path_idx))
+
+
+
+
+for path_idx in xrange(exp.num_data):
+    print "on path", path_idx
+    phns = exp.get_phns(path_idx)
+    #if not exp.has_pattern(phns):
+    #    continue
+    phn_times = exp.get_phn_times(path_idx)
+    s = exp.get_s(path_idx)
+    E,edge_feature_row_breaks,\
+        edge_orientations= exp.get_edgemap_no_threshold(s)
+    feature_start, \
+        feature_step, num_features =\
+        esp._get_feature_label_times(s,
+                                         exp.num_window_samples,
+                                         exp.num_window_step_samples)
+    feature_labels, \
+        feature_label_transitions \
+        = esp._get_labels(phn_times,
+                      phns,
+                      feature_start, feature_step, 
+                      num_features,
+                      exp.sample_rate)
+        # add the number of frames, this helps us compute the
+        # false positive rate for a given unit of time
+    num_frames = num_frames + E.shape[1]
+    phn_times = exp.get_phn_times(path_idx)
+        # get the backgrounds for all detection spots
+    P,C=exp.get_detection_scores_slow(E,mean_template,
+                                 bg_len, 
+                                 mean_bgd,
+                                 edge_feature_row_breaks,
+                                 edge_orientations,
+                                 abst_threshold=abst_threshold,
+                                 spread_length=3)
+    scores=P+C
+    print "Computed Scores"
+    all_scores[path_idx] = scores.copy()
+    # select the object
+    pattern_times = exp.get_pattern_times(E,phns,phn_times,s)
+    patterns = exp.get_patterns(E,phns,phn_times,s)
+    bgds = exp.get_pattern_bgds(E,phns,phn_times,s,bg_len)
+    # find the maxima
+    scores_maxima = ps.get_maxima(scores,maxima_radius)
+    maxima_idx = np.arange(scores.shape[0])[scores_maxima]
+    # see if we pick up the patterns 
+    for i in xrange(len(pattern_times)):
+        esp.threshold_edgemap(patterns[i],.30,edge_feature_row_breaks,abst_threshold=abst_threshold)
+        esp.spread_edgemap(patterns[i],edge_feature_row_breaks,edge_orientations,spread_length=3)
+        esp.threshold_edgemap(bgds[i],.30,edge_feature_row_breaks,abst_threshold=abst_threshold)
+        esp.spread_edgemap(bgds[i],edge_feature_row_breaks,edge_orientations,spread_length=spread_length)
+        # compute background mean
+        bgds[i] = np.mean(bgds[i],axis=1)
+        # impose floor and ceiling constraints on values
+        bgds[i] = np.maximum(np.minimum(bgds[i],.4),.05)
+        registered_example = np.empty((template_height,template_length))
+        et._register_template(patterns[i],registered_example,template_height,template_length)
+        P_reg,C_reg = tt.score_template_background_section(mean_template,bgds[i],registered_example)        
+        pattern_array =np.empty(scores.shape[0],dtype=bool)
+        pattern_array[:]=False
+        # consider something a detection if its within a third of the template length around the start of the pattern
+        pattern_array[pattern_times[i][0]-int(np.ceil(template_length/3)):pattern_times[i][0]+int(np.ceil(2*template_length/5.))] = True
+        pattern_maxima = np.logical_and(scores_maxima,pattern_array)
+        if pattern_maxima.any():
+            max_true_threshold = np.max(scores[pattern_maxima])
+            true_pos_thresholds.append( 
+                (max_true_threshold,np.arange(scores.shape[0])[scores == max_true_threshold][0],P_reg+C_reg,path_idx))
+        else:
+            # this was a false negative
+            true_pos_thresholds.append((-np.inf,P_reg+C_reg,path_idx))
+            # remove the maxima that are contained within the pattern radius
+            # at end of for loop only maxima left will be related to false positives
+        scores_maxima[pattern_times[i][0]-template_length/3:pattern_times[i][0]+template_length/3] = False
+    new_false_pos = scores[scores_maxima].shape[0]
+    # check if there were false positives
+    if new_false_pos:
+        # will do a clustering here
+        # clustered_false_pos = ps.cluster_false_positives(new_false_pos)
+        # would want to  do an incremental sorting
+        # otherwise we just save them to the array
+        # have a tuple that gives the scores their locations and the path id
+        false_pos.append((scores[scores_maxima],np.arange(scores.shape[0])[scores_maxima],
+                          np.max(scores[scores_maxima]),
+                          path_idx))
+
+
+
+#
+# compute the scores with a different maxima neighborhood size
+#
+#
+
+
+for path_idx in xrange(exp.num_data):
+    print "on path", path_idx
+    phns = exp.get_phns(path_idx)
+    #if not exp.has_pattern(phns):
+    #    continue
+    phn_times = exp.get_phn_times(path_idx)
+    s = exp.get_s(path_idx)
+    E,edge_feature_row_breaks,\
+        edge_orientations= exp.get_edgemap_no_threshold(s)
+    feature_start, \
+        feature_step, num_features =\
+        esp._get_feature_label_times(s,
+                                         exp.num_window_samples,
+                                         exp.num_window_step_samples)
+    feature_labels, \
+        feature_label_transitions \
+        = esp._get_labels(phn_times,
+                      phns,
+                      feature_start, feature_step, 
+                      num_features,
+                      exp.sample_rate)
+        # add the number of frames, this helps us compute the
+        # false positive rate for a given unit of time
+    num_frames = num_frames + E.shape[1]
+    phn_times = exp.get_phn_times(path_idx)
+        # get the backgrounds for all detection spots
+    P,C=exp.get_detection_scores_slow(E,mean_template,
+                                 bg_len, 
+                                 mean_bgd,
+                                 edge_feature_row_breaks,
+                                 edge_orientations,
+                                 abst_threshold=abst_threshold,
+                                 spread_length=3)
+    scores=all_scores[path_idx].copy()
+    print "Computed Scores"
+    
+    # select the object
+    pattern_times = exp.get_pattern_times(E,phns,phn_times,s)
+    patterns = exp.get_patterns(E,phns,phn_times,s)
+    bgds = exp.get_pattern_bgds(E,phns,phn_times,s,bg_len)
+    # find the maxima
+    scores_maxima = ps.get_maxima(scores,maxima_radius)
+    maxima_idx = np.arange(scores.shape[0])[scores_maxima]
+    # see if we pick up the patterns 
+    for i in xrange(len(pattern_times)):
+        esp.threshold_edgemap(patterns[i],.30,edge_feature_row_breaks,abst_threshold=abst_threshold)
+        esp.spread_edgemap(patterns[i],edge_feature_row_breaks,edge_orientations,spread_length=3)
+        esp.threshold_edgemap(bgds[i],.30,edge_feature_row_breaks,abst_threshold=abst_threshold)
+        esp.spread_edgemap(bgds[i],edge_feature_row_breaks,edge_orientations,spread_length=spread_length)
+        # compute background mean
+        bgds[i] = np.mean(bgds[i],axis=1)
+        # impose floor and ceiling constraints on values
+        bgds[i] = np.maximum(np.minimum(bgds[i],.4),.05)
+        registered_example = np.empty((template_height,template_length))
+        et._register_template(patterns[i],registered_example,template_height,template_length)
+        P_reg,C_reg = tt.score_template_background_section(mean_template,bgds[i],registered_example)        
+        pattern_array =np.empty(scores.shape[0],dtype=bool)
+        pattern_array[:]=False
+        # consider something a detection if its within a third of the template length around the start of the pattern
+        pattern_array[pattern_times[i][0]-int(np.ceil(template_length/3)):pattern_times[i][0]+int(np.ceil(2*template_length/5.))] = True
+        pattern_maxima = np.logical_and(scores_maxima,pattern_array)
+        if pattern_maxima.any():
+            max_true_threshold = np.max(scores[pattern_maxima])
+            true_pos_thresholds.append( 
+                (max_true_threshold,np.arange(scores.shape[0])[scores == max_true_threshold][0],P_reg+C_reg,path_idx))
+        else:
+            # this was a false negative
+            true_pos_thresholds.append((-np.inf,P_reg+C_reg,path_idx))
+            # remove the maxima that are contained within the pattern radius
+            # at end of for loop only maxima left will be related to false positives
+        scores_maxima[pattern_times[i][0]-template_length/3:pattern_times[i][0]+template_length/3] = False
+    new_false_pos = scores[scores_maxima].shape[0]
+    # check if there were false positives
+    if new_false_pos:
+        # will do a clustering here
+        # clustered_false_pos = ps.cluster_false_positives(new_false_pos)
+        # would want to  do an incremental sorting
+        # otherwise we just save them to the array
+        # have a tuple that gives the scores their locations and the path id
+        false_pos.append((scores[scores_maxima],np.arange(scores.shape[0])[scores_maxima],
+                          np.max(scores[scores_maxima]),
+                          path_idx))
+
