@@ -11,6 +11,15 @@ def simple_estimate_template(pattern_examples,template_length=None):
                                                    pattern_examples)
     return template_height,template_length,registered_templates, np.minimum(np.maximum(np.mean(registered_templates,axis=0),.05),.95)
 
+def get_template_subsample_mask(T,threshold):
+    """
+    Make a coarsened version of the template
+    no need to do any spreading since that
+    has already been done, hence we just need to subsample
+    """
+    return T > threshold
+
+
 def _register_all_templates(num_examples,
                             template_height,
                             template_length,

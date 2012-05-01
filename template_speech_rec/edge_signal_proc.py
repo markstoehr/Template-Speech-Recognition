@@ -202,6 +202,8 @@ def get_spectrogram_features(s,sample_rate,num_window_samples,
                       num_window_step_samples,
                       fft_length,freq_cutoff,
                       sample_rate)
+    freq_idx = int(freq_cutoff/(float(sample_rate)/fft_length))
+    S = S[:,:freq_idx]
     # correct for the shape
     # we want each row of S to correspond to a frequency
     # and we want the bottom row to represent the lowest
@@ -226,6 +228,8 @@ def get_edgemap_features(s,sample_rate,num_window_samples,
                       fft_length,freq_cutoff,
                       sample_rate)
     print "Frequency cutoff was", freq_cutoff
+    freq_idx = int(freq_cutoff/(float(sample_rate)/fft_length))
+    S = S[:,:freq_idx]
     # correct for the shape
     # we want each row of S to correspond to a frequency
     # and we want the bottom row to represent the lowest
@@ -251,6 +255,8 @@ def get_edgemap_no_threshold(s,sample_rate,
                       num_window_step_samples,
                       fft_length,freq_cutoff,
                       sample_rate)
+    freq_idx = int(freq_cutoff/(float(sample_rate)/fft_length))
+    S = S[:,:freq_idx]
     # correct for the shape
     # we want each row of S to correspond to a frequency
     # and we want the bottom row to represent the lowest
@@ -735,13 +741,64 @@ def _spectrograms(s,num_window_samples,
     s=_preemphasis(s)
     windows = _get_windows(s,num_window_samples,num_window_step_samples)
     swindows = np.vectorize(lambda i: s[i])(windows)
-    freq_idx = int(freq_cutoff/(float(sample_rate)/fft_length))
-    return np.abs(fft(hanning(num_window_samples) * swindows,fft_length)[:,:freq_idx])
+    return np.abs(fft(hanning(num_window_samples) * swindows,fft_length)[:,:fft_length/2+1])
 
 
+def audspec(spectrogram,sample_rate,nbands=40,
+            min_freq=0,max_freq=4000,
+            sumpower=1,bwidth=1.0):
+    nfreqs, nframes = spectrogram.size
+    nfft = (nfreqs-1)*2
+    wts = fft2melmx(nfft,sample_rate,nbands,bwdith,
+                    minfreq,maxfreq)
+
+def fft2melmx(nfft,sr,nfilts,width,minfrq,
+              maxfrq):
+    """
+    Copied nearly directly from Dan Ellis' code:
+    http://labrosa.ee.columbia.edu/matlab/rastamat/fft2melmx.m
     
-    # 
+    Parameters:
+    ===========
+    nfft: int
+        number of samples for the fourier transform
+    sr: int
+        number of samples per second
+    """
+    wts = np.zeros((nfilts,nfft))
+    # center frequencies for the mel bins
+    fftfrqs = np.arange(nfft)/nfft*sr
+    minmel = hz2mel_num(minfrq)
+    maxmel = hz2mel_num(maxfrq)
     
+
+def hz2mel_num(freq):
+    """
+    Copied from Dan Ellis' code
+    http://labrosa.ee.columbia.edu/matlab/rastamat/hz2mel.m
+    """
+    f_0 = 0.
+    f_sp = 200/3.
+    brkfrq = 1000.
+    if  freq < brkfrq:
+        return (freq - f_0)/f_sp
+    else:
+        brkpt = (brkfrq - f_0)/f_sp
+        step = 0.068751777420949123 # np.log(6.4)/27
+        return brkpt + np.log(freq/brkfrq)/step
+    
+
+def htk_hz2mel(freq):
+    """
+    Copied from Dan Ellis' code
+    http://labrosa.ee.columbia.edu/matlab/rastamat/hz2mel.m
+    Based on the mel frequency bin computations from the htk kit
+    """
+    return 2595. * np.log10(1+freq/700.)
+
+def _mel_filter_freq():    
+    pass
+ 
 
 def edge_map_times(N, window_length, hop_length,
                    kernel_length):

@@ -1,3 +1,232 @@
+##########################
+#
+#  parts_model.py
+#
+#
+##########################
+
+import sys, os
+sys.path.append('/home/mark/projects/Template-Speech-Recognition')
+import template_speech_rec.template_experiments as t_exp
+import template_speech_rec.parts_model as pm
+import template_speech_rec.template_experiments as t_exp
+reload(t_exp)
+import numpy as np
+import template_speech_rec.edge_signal_proc as esp
+import template_speech_rec.estimate_template as et
+import template_speech_rec.test_template as tt
+import template_speech_rec.process_scores as ps
+from pylab import imshow, plot, figure, show
+import template_speech_rec.bernoulli_em as bem
+import template_speech_rec.parts_model as pm
+import cPickle
+
+
+
+data_dir = '/home/mark/projects/Template-Speech-Recognition/Experiments/042212/'
+
+mean_template = np.load(data_dir + 'mean_template042212.npy')
+#bgd = np.load(data_dir + 'mean_background042212')
+bgd = .4 * np.ones(mean_template.shape[0])
+
+parts_model = pm.PartsTriple(mean_template,.4,.4,.4)
+
+
+
+t1 = parts_model.front_length == parts_model.front.shape[1]
+t2 = parts_model.front_length-parts_model.front_def_radius == parts_model.middle_start
+t3 = np.all(parts_model.front[:,:parts_model.front_length] == mean_template[:,:int(.4*mean_template.shape[1])])
+t4 = np.all(parts_model.back[:,-parts_model.back_length:] == mean_template[:,-int(.4*mean_template.shape[1]):])
+#
+# check that the deformed_max_length is correct
+#
+#
+
+t5 = parts_model.deformed_max_length -parts_model.front_def_radius - parts_model.back_def_radius == mean_template.shape[1]
+
+
+# broke this agggghhhhh!
+input_fl = open(data_dir + 'part_testing042212.pkl','rb')
+save_dict = cPickle.load(input_fl)
+input_fl.close()
+
+bg_len=save_dict['bg_len']
+E=save_dict('E')
+phns=save_dict('phns')
+edge_feature_row_breaks=save_dict('edge_feature_row_breaks')
+edge_orientations=save_dict('edge_orientations')
+phn_times=save_dict('phn_times')
+exp=save_dict('exp')
+phn_times=save_dict('phn_times')
+pattern_times=save_dict('pattern_times')
+patterns=save_dict('patterns')
+bgds=save_dict('bgds')
+s=save_dict('s')
+
+
+reload(pm)
+parts_model = pm.PartsTriple(mean_template,.4,.4,.4)
+
+front_displace = 3
+back_displace = -1
+deformed_template = parts_model.get_deformed_template(front_displace,back_displace,bgd)
+
+#
+# first test is just that the first frames and last frames
+#  as determined by the deformation radius should be background
+
+def_template = parts_model.get_deformed_template(0,0,bgd)
+test_values  = []
+test_values.append(
+    np.all(def_template[:,parts_model.front_def_radius] == mean_template[:,0]))
+test_values.append(
+    np.all(def_template[:,parts_model.front_def_radius:parts_model.front_def_radius+parts_model.front_length] == mean_template[:,:parts_model.front_length]))
+test_values.append(
+    np.all(def_template[:,parts_model.front_def_radius:parts_model.front_def_radius+parts_model.front_length+1] == mean_template[:,:parts_model.front_length+1]))
+
+test_values.append(
+    np.all(def_template[:,parts_model.front_def_radius:parts_model.front_def_radius+mean_template.shape[1]] == mean_template))
+
+# check whether the background parts are properly defined
+
+test_values.append(
+    np.all(def_template[:,:parts_model.front_def_radius] == np.tile(bgd,(parts_model.front_def_radius,1)).transpose()))
+
+test_values.append(
+    np.all(def_template[:,-parts_model.back_def_radius:] == np.tile(bgd,(parts_model.back_def_radius,1)).transpose()))
+
+
+#
+# Looking at whether we fit the template to actual data
+#
+
+
+
+def_template = parts_model.get_deformed_template(-parts_model.front_def_radius,0,bgd)
+
+
+
+
+assert not np.all (def_template[:,0] == bgd)
+
+assert np.all (def_template[:,parts_model.front_length-parts_model.front_def_radius] == def_template[:,parts_model.front_length])
+
+assert np.all (def_template[:,parts_model.front_length-parts_model.front_def_radius:parts_model.front_length] == def_template[:,parts_model.front_length:parts_model.front_length+parts_model.front_def_radius])
+
+
+E = np.random.rand(parts_model.height,60)
+E_loc = 20
+front_displace = -parts_model.front_def_radius
+
+fit_loc = parts_model.get_fit_loc(E_loc,front_displace)
+
+assert fit_loc == E_loc
+
+E_chunk = parts_model.get_hyp_segment(E,E_loc,front_displace)
+
+assert np.all (E_chunk == E[:,E_loc:E_loc+parts_model.deformed_max_length])
+
+for front_displace in range(-parts_model.front_def_radius,parts_model.front_def_radius+1):
+    E_chunk = parts_model.get_hyp_segment(E,E_loc,front_displace)
+    start_idx = E_loc+parts_model.front_def_radius+front_displace
+    end_idx = start_idx + parts_model.deformed_max_length
+    assert np.all (E_chunk == E[:,start_idx:end_idx])
+
+#
+# Now we need a method for scoring templates and seeing
+# what that comes out to
+#
+
+
+
+
+fit_loc = parts_model.fit_template(E,E_loc,front_displace,back_displace)
+
+
+#
+# Testing the ability to make a coarse template
+#
+
+
+
+
+import sys, os
+sys.path.append('/home/mark/projects/Template-Speech-Recognition')
+import template_speech_rec.template_experiments as t_exp
+import template_speech_rec.parts_model as pm
+import template_speech_rec.template_experiments as t_exp
+reload(t_exp)
+import numpy as np
+import template_speech_rec.edge_signal_proc as esp
+import template_speech_rec.estimate_template as et
+import template_speech_rec.test_template as tt
+import template_speech_rec.process_scores as ps
+from pylab import imshow, plot, figure, show
+import template_speech_rec.bernoulli_em as bem
+import template_speech_rec.parts_model as pm
+import cPickle
+
+
+
+data_dir = '/home/mark/projects/Template-Speech-Recognition/Experiments/042212/'
+
+mean_template = np.load(data_dir + 'mean_template042212.npy')
+#bgd = np.load(data_dir + 'mean_background042212')
+bgd = .4 * np.ones(mean_template.shape[0])
+
+parts_model = pm.PartsTriple(mean_template,.4,.4,.4)
+sample_rate = 16000
+num_window_samples = 320
+fft_length = 512
+num_window_step_samples = 80
+freq_cutoff = 3000
+exp_path_files_dir = '/home/mark/projects/Template-Speech-Recognition/Experiments/032211/'
+s_files_path_file = exp_path_files_dir+"exp1_path_files_s.txt"
+phns_files_path_file = exp_path_files_dir+"exp1_path_files_phns.txt"
+phn_times_files_path_file = exp_path_files_dir+"exp1_path_files_phn_times.txt"
+
+# /home/mark/projects
+data_dir = "/home/mark/projects/Template-Speech-Recognition/template_speech_rec/Template_Data_Files"
+#data_dir = "/"
+#data_dir = "/var/tmp/stoehr/Projects/edges/WavFilesTrain/"
+pattern = np.array(('aa','r'))
+kernel_length = 7
+
+
+exp = t_exp.Experiment(sample_rate,freq_cutoff,
+                       num_window_samples,
+                       num_window_step_samples,
+                       fft_length,s_files_path_file,
+                       phns_files_path_file,
+                       phn_times_files_path_file,
+                       data_dir,pattern,kernel_length)
+
+
+
+#
+# testing the j0 facilities
+#
+#
+
+
+
+path_idx = 0
+phns = exp.get_phns(path_idx)
+# check if this datum has what we need
+s = exp.get_s(path_idx)
+E,edge_feature_row_breaks,\
+    edge_orientations= exp.get_edgemap_no_threshold(s)
+phn_times = exp.get_phn_times(path_idx)
+
+T_mask = et.get_template_subsample_mask(mean_template,.8)
+
+j0_detections = tt.get_j0_detections(T_mask,E)
+
+et.get_template_subsample_mask
+
+
+
+
 ################################
 #
 #  template_experiments.py
