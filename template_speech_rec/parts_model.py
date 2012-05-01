@@ -10,13 +10,17 @@
 #       list that you don't know how long it is
 
 import numpy as np
+import test_template as tt
+import edge_signal_proc as esp
+
 
 class PartsTriple:
     def __init__(self,base_template,front_fraction,middle_fraction,back_fraction):
         # create an overlapping part model
+        self.base_template = base_template
         self.height,length = base_template.shape
         self.front_length = int(front_fraction * length)
-        self.front = base_template[:,:self.front_length]
+        self.front = base_template[:,:self.front_length].copy()
         self.front_start = 0        
         #
         # Get the back now
@@ -25,7 +29,7 @@ class PartsTriple:
         # = length-back_start = end_idx-back_start +1
         
         self.back_length = int(back_fraction*length)
-        self.back = base_template[:,-self.back_length:]
+        self.back = base_template[:,-self.back_length:].copy()
         self.back_start = length - self.back_length
         #
         #  middle section
@@ -33,7 +37,7 @@ class PartsTriple:
         self.middle_length = int(middle_fraction*length)
         self.middle_start = length/2 - self.middle_length/2
         self.middle = base_template[:,self.middle_start:\
-                                          self.middle_start+self.middle_length]
+                                          self.middle_start+self.middle_length].copy()
         # def limits are deformation limits
         #   should be such that
         # front+min_def+front_length should be equal to middle_start
@@ -41,32 +45,84 @@ class PartsTriple:
         self.front_def_radius = self.front_length-self.middle_start
         # back_start+max_def = middle_start+middle_length
         self.back_def_radius = self.middle_start+self.middle_length - self.back_start
-        # the front can start at position
-        #   - self.front_def_radius
-        # and the back can end at
-        #   self.back_start+self.back_def_radius + self.back_length -1
-        # reset the starting points for all parts 
-        # to account for the radius of deformation
-        self.front_start += self.front_def_radius
-        self.middle_start += self.front_def_radius
-        self.back_start += self.front_def_radius
-
         # this determines how long the match is
-        self.deformed_max_length = self.back_start + self.back_length + self.back_def_radius
+        self.deformed_max_length = self.back_start + self.front_def_radius+self.back_def_radius+self.back_length-1
 
 
     def get_deformed_template(self,front_displace,back_displace,bgd):
+        front_displace
         deformed_template = np.zeros((self.height,
                                       self.deformed_max_length))
+        front_start = 0
+        front_end = front_start + self.front_length
+        middle_start = self.middle_start -front_displace
+        middle_end = middle_start + self.middle_length
+        back_start = self.back_start + back_displace - front_displace
+        back_end = back_start + self.back_length
+        assert (middle_start <= front_end)
+        assert (back_start <= middle_end)
+        # set the location of the background
+        if back_end < self.deformed_max_length:
+            deformed_template[:,back_end:] \
+                = np.tile(bgd,
+                          (self.deformed_max_length-back_end,1)).transpose()
+        deformed_template[:,front_start:front_end] = self.front.copy()
+        #print "front_min:",np.min(deformed_template[:,front_start:front_end])
+        deformed_template[:,back_start:back_end] = self.back.copy()
+        #print "back_min:",np.min(deformed_template[:,back_start:back_end])
+        # now handle overlaps between the front and middle
+        # then the overlaps between the middle and back
+        front_overlap = front_end - middle_start
+        if front_overlap > 0:
+            deformed_template[:,front_end-front_overlap:front_end]=(
+                self.front[:,-front_overlap:]
+                + self.middle[:,:front_overlap])/2.
+        
+        back_overlap = middle_end- back_start
+        if back_overlap >0:
+            deformed_template[:,middle_end-back_overlap:middle_end]=(
+                self.middle[:,-back_overlap:]
+                + self.back[:,:back_overlap])/2.
+            
+        # set the undeformed middle section
+        deformed_template[:,middle_start+front_overlap:middle_end-back_overlap] = self.middle[:,front_overlap:-back_overlap].copy()
         return deformed_template
+
+
+    def get_hyp_segment(self,E,E_loc,
+                            edge_feature_row_breaks,
+                            abst_threshold,
+                            edge_orientations,
+                            spread_length=3):
+        E_segment = E[:,E_loc:
+                            E_loc+self.deformed_max_length].copy()
+        esp.threshold_edgemap(E_segment,.30,edge_feature_row_breaks,abst_threshold=abst_threshold)
+        esp.spread_edgemap(E_segment,edge_feature_row_breaks,edge_orientations,spread_length=spread_length)
+        return E_segment
+
+    def get_fit_loc(self,E_loc,front_displace):
+        return E_loc +front_displace
+
+
+    def get_hyp_segment_bgd(self,E,E_loc,
+                            edge_feature_row_breaks,
+                            abst_threshold,
+                            edge_orientations,
+                            spread_length=3,bg_len=26):
+        E_segment = E[:,E_loc-self.front_def_radius-bg_len:
+                            E_loc-self.front_def_radius]
+        esp.threshold_edgemap(E_segment,.30,edge_feature_row_breaks,abst_threshold=abst_threshold)
+        esp.spread_edgemap(E_segment,edge_feature_row_breaks,edge_orientations,spread_length=spread_length)
+
         
     
+    def score_def_template(self,hyp_segment,def_template,bgd):
+        P,C = tt.score_template_background_section(def_template,bgd,hyp_segment)
+        return P+C
+    
     def fit_template(E,E_loc,bgd):
-        # question arises should it go in front of the point
-        # or should we restrict it to only go after?
-        # we need an experiment to determine this question
-        # what we'll do for now is simply let it go with
-        # this point
+        # will find the best fit for a given level of displacement
+        
         pass
 
 
