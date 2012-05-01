@@ -9,19 +9,37 @@ def get_utterance_score(T,U,bg_len,maxima_radius=3):
     end_idx = end_idx - maxima_radius
     return scores[maxima_radius:-maxima_radius], scores_maxima,start_idx,end_idx
 
+def get_j0_detections(T_mask,U):
+    num_detections = U.shape[1]-T_mask.shape[1]
+    j0_detections = np.empty(num_detections)
+    for t in xrange(num_detections):
+        j0_detections[t] = np.sum(U[:,t:t+num_detections][T_mask])
+    return j0_detections
+        
+       
+    
+    
 
-def score_template_background_section(T,bgd,E):
+
+def score_template_background_section(template,bgd,E,front_bgd_pad=0,back_bgd_pad=0):
     # check that the length of the example utterance
     # is the same as the template length
-    assert (E.shape[1] == T.shape[1])
+    assert (E.shape[1] == template.shape[1])
+    T = np.hstack((np.tile(bgd,(front_bgd_pad,1)).transpose(),
+                   template,
+                   np.tile(bgd,(back_bgd_pad,1)).transpose()
+                   ))
     template_length = T.shape[1]
     U_bgd = np.tile(bgd,(template_length,1)).transpose()
-    T_inv = 1 - T
-    U_bgd_inv = 1 - U_bgd
+    T_inv = 1. - T
+    U_bgd_inv = 1. - U_bgd
     C_exp_inv_long = T_inv/U_bgd_inv
     # get the C_k
     C = np.log(C_exp_inv_long).sum()
-    return (E*np.log(T/U_bgd / C_exp_inv_long)).sum(),C 
+    expW = (T/U_bgd) / C_exp_inv_long
+    return (E*np.log(expW)).sum(),C 
+
+
 
 
 def cmp_score_to_label(scores,scores_maxima,start_idx,pattern_times,detect_radius):
