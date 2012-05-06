@@ -463,7 +463,7 @@ class Experiment_Iterator(Experiment):
             self.paths =  base_exp.paths   
         self.num_data = len(self.paths)    
         # file is not currently being read so we begin with a -1 pointer
-        self.cur_data_pointer = self.num_data-1
+        self.cur_data_pointer = -1
     
     def next(self,wait_for_positive_example=False,
              get_patterns=False, get_patterns_context=False,
@@ -481,22 +481,23 @@ class Experiment_Iterator(Experiment):
         self.pattern_contexts
         """
         if self.cur_data_pointer >= self.num_data-1:
-            print "Beginning new iteration through "
-            self.cur_data_pointer = 1
+            print "Reached end of data use reset method"
+            return False
         else:
             self.cur_data_pointer +=1
         self.phns = self.get_phns(self.cur_data_pointer)
         if wait_for_positive_example:
             cur_data_pointer = self.cur_data_pointer
             no_positives = True
-            for i in xrange(1,self.num_data): 
-                self.cur_data_pointer = (cur_data_pointer + i) % self.num_data
+            for i in xrange(1,self.num_data-cur_data_pointer): 
+                self.cur_data_pointer = cur_data_pointer + i
                 self.phns = self.get_phns(self.cur_data_pointer)
                 if self.has_pattern(self.phns):
                     no_positives = False
                     break
             if no_positives:
-                return "Error: no positive examples found"
+                print "Error: no positive examples left"
+                return False
         self.s = self.get_s(self.cur_data_pointer)
         E,edge_feature_row_breaks,\
             edge_orientations= self.get_edgemap_no_threshold(self.s)
@@ -517,13 +518,14 @@ class Experiment_Iterator(Experiment):
                                                    self.phn_times,
                                                    self.s,
                                                    context=False,template_length=32)
+        return True
 
     def reset_exp(self):
         """
         Reset the data pointer so we start with the first data point
         changes the internal variable self.cur_data_pointer
         """
-        self.cur_data_pointer = self.num_data
+        self.cur_data_pointer = -1
 
 
 class AverageBackground:
