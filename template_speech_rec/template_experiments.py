@@ -1,57 +1,70 @@
 import numpy as np
 import edge_signal_proc as esp
 import test_template as tt
+import random
+
+
+
 
 class Experiment:
-    def __init__(self,sample_rate,freq_cutoff,
-                 num_window_samples,
-                 num_window_step_samples,
-                 fft_length,s_files_path_file,
-                 phns_files_path_file,
-                 phn_times_files_path_file,
-                 data_dir,pattern,kernel_length):
+    def __init__(self,pattern,data_paths_file,bg_len=26,
+                 sample_rate=16000,freq_cutoff=3000,
+                 num_window_samples=320,
+                 num_window_step_samples=80,
+                 fft_length=512,
+                 data_dir='',kernel_length=7,
+                 spread_length=3,
+                 abst_threshold=.0001*np.ones(8),
+                 do_random=True):
+        """
+        Parameters:
+        -----------
+        data_paths_file: string
+            The format of this file should be just the front of 
+            the paths without _s.txt, _phns.txt, _phn_times.txt
+            which need to be added in the algorithm
+        sample_rate:
+            
+        freq_cutoff:
+            
+        num_window_samples:
+            
+        num_window_step_samples:
+        fft_length:
+        data_dir:
+
+        
+        """
+        self.bg_len = bg_len
+        self.spread_length = spread_length
+        self.abst_threshold = abst_threshold
         self.kernel_length = kernel_length
         self.pattern = pattern
         self.data_dir = data_dir
         # make sure that the data dir ends with /
-        if self.data_dir[-1] != '/':
-            self.data_dir += '/'
         self.sample_rate=sample_rate
         self.freq_cutoff = freq_cutoff
         self.num_window_samples = num_window_samples
         self.num_window_step_samples = num_window_step_samples
         self.fft_length = fft_length
         # assume that the files were generated intelligently so there is a correspondence between the labels
-        self.s_paths = [s_path for s_path in \
-                            open(s_files_path_file,'r').read().split('\n') \
-                            if s_path !='']
-        self.phns_paths = [phns_path for phns_path in \
-                               open(phns_files_path_file,'r').read().split('\n') \
-                               if phns_path !='']
-        self.phn_times_paths = [phn_times_path for phn_times_path in \
-                                    open(phn_times_files_path_file,'r').read().split('\n') \
-                                    if phn_times_path != '']
-        self.num_data = len(self.s_paths)
-        # test the correspondence
-        assert (len(self.s_paths) == len(self.phns_paths))
-        assert (len(self.phn_times_paths) == len(self.phns_paths))
-        for f in range(len(self.s_paths)):
-            assert (self.s_paths[f].split('_')[0] ==\
-                        self.phns_paths[f].split('_')[0])
-            assert (self.phn_times_paths[f].split('_')[0] ==\
-                        self.phns_paths[f].split('_')[0])
-    
+        self.data_paths_file = data_paths_file
+        self.paths =  open(data_paths_file,'r').read().strip('\n').split('\n')
+        self.num_data = len(self.paths)    
+        if do_random:
+            random.shuffle(self.paths)
+
 
     def get_s(self,idx):
-        return np.loadtxt(self.data_dir+self.s_paths[idx])
+        return np.loadtxt(self.paths[idx] + '_s.txt')
 
     def get_phns(self,idx):
         return np.array([phn for phn in \
-                    open(self.data_dir+self.phns_paths[idx],'r').read().split('\n') \
+                    open(self.paths[idx]+'_phns.txt','r').read().split('\n') \
                     if phn != ''])
 
     def get_phn_times(self,idx):
-        return np.loadtxt(self.data_dir+self.phn_times_paths[idx])
+        return np.loadtxt(self.paths[idx]+'_phn_times.txt')
 
 
 
@@ -403,3 +416,135 @@ class Experiment:
                 return True
         return False
 
+
+class Experiment_Iterator(Experiment):
+    def __init__(self,base_exp,pattern=None,
+                 data_paths=None, 
+                 sample_rate=16000,freq_cutoff=3000,
+                 num_window_samples=320,
+                 num_window_step_samples=80,
+                 fft_length=512,
+                 data_dir='',kernel_length=7,
+                 spread_length=None,
+                 abst_threshold=None,
+                 bg_len=None):
+        self.base_exp = base_exp
+        if abst_threshold:
+            self.abst_threshold = abst_threshold
+        else:
+            self.abst_threshold = base_exp.abst_threshold
+        if spread_length:
+            self.spread_length = spread_length
+        else:
+            self.spread_length = base_exp.spread_length
+        if bg_len:
+            self.bg_len = bg_len
+        else:
+            self.bg_len = base_exp.bg_len
+        if kernel_length:
+            self.kernel_length = kernel_length
+        else:
+            self.kernel_length = base_exp.kernel_length        
+        if pattern:
+            self.pattern = pattern
+        else:
+            self.pattern = base_exp.pattern
+        self.data_dir = base_exp.data_dir
+        # make sure that the data dir ends with /
+        self.sample_rate=base_exp.sample_rate
+        self.freq_cutoff = base_exp.freq_cutoff
+        self.num_window_samples = base_exp.num_window_samples
+        self.num_window_step_samples = base_exp.num_window_step_samples
+        self.fft_length = base_exp.fft_length
+        # assume that the files were generated intelligently so there is a correspondence between the labels
+        if data_paths:
+            self.paths = data_paths
+        else:
+            self.paths =  base_exp.paths   
+        self.num_data = len(self.paths)    
+        # file is not currently being read so we begin with a -1 pointer
+        self.cur_data_pointer = self.num_data-1
+    
+    def next(self,wait_for_positive_example=False,
+             get_patterns=False, get_patterns_context=False,
+             get_bgds=False,get_pattern_times=False):
+        """
+        Processes the next speech utterance, or the next speech
+        utterance that is a positive example.
+
+        Sets the variables:
+        self.E
+        self.s
+        self.phns
+        self.phn_times
+        self.patterns
+        self.pattern_contexts
+        """
+        if self.cur_data_pointer >= self.num_data-1:
+            print "Beginning new iteration through "
+            self.cur_data_pointer = 1
+        else:
+            self.cur_data_pointer +=1
+        self.phns = self.get_phns(self.cur_data_pointer)
+        if wait_for_positive_example:
+            cur_data_pointer = self.cur_data_pointer
+            no_positives = True
+            for i in xrange(1,self.num_data): 
+                self.cur_data_pointer = (cur_data_pointer + i) % self.num_data
+                self.phns = self.get_phns(self.cur_data_pointer)
+                if self.has_pattern(self.phns):
+                    no_positives = False
+                    break
+            if no_positives:
+                return "Error: no positive examples found"
+        self.s = self.get_s(self.cur_data_pointer)
+        E,edge_feature_row_breaks,\
+            edge_orientations= self.get_edgemap_no_threshold(self.s)
+        self.E =E
+        self.edge_feature_row_breaks = edge_feature_row_breaks
+        self.edge_orientations = edge_orientations
+        self.phn_times = self.get_phn_times(self.cur_data_pointer)
+        # select the object
+        if get_patterns:
+            self.patterns = self.get_patterns(self.E,self.phns,self.phn_times,self.s)
+        if get_patterns_context:
+            self.patterns_context = self.get_patterns(self.E,self.phns,self.phn_times,self.s,context=True,template_length=33)
+        if get_bgds:
+            self.bgds = self.get_pattern_bgds(self.E,self.phns,self.phn_times,self.s,self.bg_len)
+        if get_pattern_times:
+            self.pattern_times = get_pattern_times(self,
+                                                   self.phns,
+                                                   self.phn_times,
+                                                   self.s,
+                                                   context=False,template_length=32)
+
+    def reset_exp(self):
+        """
+        Reset the data pointer so we start with the first data point
+        changes the internal variable self.cur_data_pointer
+        """
+        self.cur_data_pointer = self.num_data
+
+
+class AverageBackground:
+    def __init__(self):
+        self.num_frames = 0
+        self.processed_frames = False
+    # Method to add frames
+    def add_frames(self,E,edge_feature_row_breaks,
+                   edge_orientations,abst_threshold):
+        new_E = E.copy()
+        esp.threshold_edgemap(new_E,.30,edge_feature_row_breaks,abst_threshold=abst_threshold)
+        esp.spread_edgemap(new_E,edge_feature_row_breaks,edge_orientations,spread_length=3)
+        if not self.processed_frames:
+            self.E = np.mean(new_E,axis=1)
+            self.processed_frames = True
+        else:
+            self.E = (self.E * self.num_frames + np.sum(new_E,axis=1))/(self.num_frames+new_E.shape[1])
+        self.num_frames += new_E.shape[1]
+        
+
+
+def get_exp_iterator(base_experiment,train_percent=.7):
+    last_train_idx = int(base_experiment.num_data*.7)
+    return Experiment_Iterator(base_experiment,data_paths=base_experiment.paths[:last_train_idx]),Experiment_Iterator(base_experiment,data_paths=base_experiment.paths[last_train_idx:])
