@@ -1,4 +1,16 @@
-* Overview
+* Software Changes
+The main things that are being altered are that experiments should be
+much easier to write than they currently are. The scripts are
+excessively complicated, thus we are rewriting things to be able to
+construct iterators more easily.  We also need to make the import
+statements to happen in a less complicated manner. Curretnly we import
+things in a very complicated way in order to get simple handles on all
+the functions Main idea is to use objects.  
+
+We might want to put a symbolic link inside my system to /usr/lib/bin,
+so that I can easily import statements without having to write too much
+python code
+* Experiment Theory and Discussion
 Experiment's purpose is to estimate a parts model. We are going to follow the discussion given in amit
 ** Methods
 We describe different methods and essentially questions that we want
@@ -81,3 +93,33 @@ match statistic is distributed according to a chi-square random
 variable, which gives a natural measure of goodness-of-fit and a
 p-value for whether a curve fits.
 
+** Clustering Notes
+We consider a convexication of Bernoulli Mixture modeling Namely we
+consider the problem as
+
+ 
+\[ \min\sum_{k=1}^n \sum_{i=1}^n \pi_{i,k}L(x_k;\theta_i) +
+\sum_{j=1}^n\sum_{l<j} d(x_i,x_j)D(\theta_j,\theta_l)
+\] 
+
+where we constrain $\sum_{i=1}^n\pi_{i,k}=1$ for each $k=1,\ldots,n$
+and they are all non-negative. The main thing to be concerned about is
+the distance $D(\theta_j,\theta_l)$ which could be a KL-divergence and
+$d(x_i,x_j)$ is a weighting function so that only divergences between
+models are penalized for points that are close together
+
+We can then do a convex formulation of the hidden markov model problem
+here we write that we have a discrete set of observations
+$(x_1,x_2,\ldots,x_T)$, then we could write 
+
+\[\min\sum_{t=1}^TL(x_t;\theta_t) +\sum_{i=1}^T\sum_{j<i}D(\theta_i,\theta_j) + \sum_{j=1}^TD(\theta_{j-1},\theta_j)\log s_j
+\]
+
+** Optimizing for p-value tests
+Our main purpose is to be able to do $p$-value tests and to do
+multiclass classification. We want to train a graphical model such
+that these two tasks are easy.  This is much different than having to
+learn the actual distribution itself. Perhaps by limiting ourselves to
+just these goals we can make the problem easy enough to be
+tractable. We want that decision boundary to be chosen carefully and
+reflect the problem structure
