@@ -1,0 +1,125 @@
+* Software Changes
+The main things that are being altered are that experiments should be
+much easier to write than they currently are. The scripts are
+excessively complicated, thus we are rewriting things to be able to
+construct iterators more easily.  We also need to make the import
+statements to happen in a less complicated manner. Curretnly we import
+things in a very complicated way in order to get simple handles on all
+the functions Main idea is to use objects.  
+
+We might want to put a symbolic link inside my system to /usr/lib/bin,
+so that I can easily import statements without having to write too much
+python code
+* Experiment Theory and Discussion
+Experiment's purpose is to estimate a parts model. We are going to follow the discussion given in amit
+** Methods
+We describe different methods and essentially questions that we want
+to answer with the research.  
+*** Different Lengths
+How does the base template respond to different lengths for the detection, what
+are the distribution of points and detections inside the vincinity of the template
+*** Fit of different portions of the template
+If we look only at certain sections of the template how well do they do in a false-alarm/
+false-negative sense, what is the predictive power of the different components?
+How well do we do if we use only the most extreme points
+*** Simple deformation
+Find the paper again and write
+** Deformable Models Notes
+We have started to look at work on building pattern deformation
+models, there are interesting papers that directly tackle the question
+of fitting a template to noisy, deformed images.  Some papers on topic
+are collected in my deformable models folder.  One of these is a
+minimax testing hypothesis paper, where the question is one wants to
+test whether some curve is a deformation of a given curve in question.
+*** Papers
+**** Amit, 2005
+We have an edge map $p_{e,y}$ for each position $y\in G$ where $G$ is
+a reference grid. We assume that the edges are conditionally
+independent with marginal probabilities at each point $x$ may be
+written as $\theta p_e(x) = P(X_e(x)=1\mid \theta)$ which is
+$p_e,(\theta^-1 x)$ if $\theta^-1x\in G$ and $p_e,bgd$ otherwise
+**** Bigot 2012 Geometric PCA
+"Geometric PCA of curves and images" Statistical analysis of the
+consistency of kernel PCA in the setting where images are registered
+(gives a concrete defition of what that means) and analyzes things
+using stationary vector fields
+**** Bigot 2009 M Estimation
+"meanimage2.dvi" 
+The problem of defining appropriate distances between shapes or images and modeling the
+variability of natural images by group transformations is at the heart of modern image analysis.
+A current trend is the study of probabilistic and statistical aspects of deformation models, and the
+development of consistent statistical procedure for the estimation of template images. In this paper,
+we consider a set of images randomly warped from a mean template which has to be recovered.
+For this, we define an appropriate statistical parametric model to generate random diffeomorphic
+deformations in two-dimensions. Then, we focus on the problem of estimating the mean pattern
+when the images are observed with noise. This problem is challenging both from a theoretical
+and a practical point of view. M-estimation theory enables us to build an estimator defined as
+a minimizer of a well-tailored empirical criterion. We prove the convergence of this estimator
+and propose a gradient descent algorithm to compute this M-estimator in practice. Simulations of
+template extraction and an application to image clustering and classification are also provided.
+
+**** Bigot 2011 Random Lie
+This paper considers the problem of estimating a mean pattern in the setting of Grenan-
+der’s pattern theory. Shape variability in a data set of curves or images is modeled by the
+random action of elements in a compact Lie group on an infinite dimensional space. In the
+case of observations contaminated by an additive Gaussian white noise, it is shown that
+estimating a reference template in the setting of Grenander’s pattern theory falls into the
+category of deconvolution problems over Lie groups. To obtain this result, we build an esti-
+mator of a mean pattern by using Fourier deconvolution and harmonic analysis on compact
+Lie groups. In an asymptotic setting where the number of observed curves or images tends
+to infinity, we derive upper and lower bounds for the minimax quadratic risk over Sobolev
+balls. This rate depends on the smoothness of the density of the random Lie group elements
+representing shape variability in the data, which makes a connection between estimating a
+mean pattern and standard deconvolution problems in nonparametric statistics.
+**** Bigot 2011
+"On the consistency of Fr ́chet means in deformable models for curve
+and image analysis" The model they consider are curves satisfying
+$Y_j^l=f_j(t_l)+\sigma\varepsilon_j^l$ where $j=1,\ldots,J$ and
+$l=1,\ldots,n$.  $f_j(t_l)$ are random regression functions on some
+convex domain $\Omega\subset\mathbb{R}^d$, with the $t_l$'s non-random
+(deterministic design).  One is curious what happens as the number of
+design points $n$ goes to infinity and/or the number of images goes to
+infinity.  The models considered are of the type $f_j(t)=f(\psi_j(t))$.
+The paper is under 1010.0427
+**** Bigot 2010
+"A Deconvolution Approach To Estimation of A Common Shape in a Shifted
+Curves Model" An estimator for a mean pattern when one uses a brownian
+motion and semi-parametric model for a given curve.  The model looks
+at random shifts to a curve and then uses deconvolution.
+**** Dalalyan Collir 2011
+"Curve Registration by Non-Parametric goodness-of-fit testing"
+Brownian motion model for curves. Under a null hypothesis a template
+match statistic is distributed according to a chi-square random
+variable, which gives a natural measure of goodness-of-fit and a
+p-value for whether a curve fits.
+
+** Clustering Notes
+We consider a convexication of Bernoulli Mixture modeling Namely we
+consider the problem as
+
+ 
+\[ \min\sum_{k=1}^n \sum_{i=1}^n \pi_{i,k}L(x_k;\theta_i) +
+\sum_{j=1}^n\sum_{l<j} d(x_i,x_j)D(\theta_j,\theta_l)
+\] 
+
+where we constrain $\sum_{i=1}^n\pi_{i,k}=1$ for each $k=1,\ldots,n$
+and they are all non-negative. The main thing to be concerned about is
+the distance $D(\theta_j,\theta_l)$ which could be a KL-divergence and
+$d(x_i,x_j)$ is a weighting function so that only divergences between
+models are penalized for points that are close together
+
+We can then do a convex formulation of the hidden markov model problem
+here we write that we have a discrete set of observations
+$(x_1,x_2,\ldots,x_T)$, then we could write 
+
+\[\min\sum_{t=1}^TL(x_t;\theta_t) +\sum_{i=1}^T\sum_{j<i}D(\theta_i,\theta_j) + \sum_{j=1}^TD(\theta_{j-1},\theta_j)\log s_j
+\]
+
+** Optimizing for p-value tests
+Our main purpose is to be able to do $p$-value tests and to do
+multiclass classification. We want to train a graphical model such
+that these two tasks are easy.  This is much different than having to
+learn the actual distribution itself. Perhaps by limiting ourselves to
+just these goals we can make the problem easy enough to be
+tractable. We want that decision boundary to be chosen carefully and
+reflect the problem structure
