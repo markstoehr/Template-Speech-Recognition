@@ -550,3 +550,67 @@ class AverageBackground:
 def get_exp_iterator(base_experiment,train_percent=.7):
     last_train_idx = int(base_experiment.num_data*.7)
     return Experiment_Iterator(base_experiment,data_paths=base_experiment.paths[:last_train_idx]),Experiment_Iterator(base_experiment,data_paths=base_experiment.paths[last_train_idx:])
+
+
+class SlidingWindowJ0:
+    def __init__(self,E,template,
+                 window_length=None,
+                 j0_threshold=.75,
+                 quantile=.75,use_quantile_threshold=True):
+        """
+        Begins with a mask for the j0 statistics and
+        will compute it for a sliding window given a 
+        
+        Parameters:
+        -----------
+        E: ndarray
+            raw features for edges before any thresholding
+            and spreading have been performed
+
+        template: ndarray
+            template for doing detection
+        
+        Optional Parameters:
+        --------------------
+        window_length=None
+            Can be set to an integer that will be the sliding
+            window length
+
+        j0_threshold=.75
+            Threshold for which edges will be used in the 
+            mask for computing j0
+
+        quantile=.75
+            Which quantil to use for computing which
+            edge features are in the j0 computation
+
+        use_quantile_threshold=True
+            whether or not to use a quantile in setting the template
+        """
+        # get the length of the window for the sliding window
+        if window_length:
+            self.window_length = window_length
+        else:
+            self.window_length = template.shape[1]
+        self.template_length = template.shape[1]
+        # get the list of indices to use in the J0
+        # self.mask has been set
+        self.get_mask(template,j0_threshold,
+                 quantile,use_quantile_threshold)
+        self.num_detections = E.shape[1] - self.window_length
+        self.j0_scores = np.empty(num_detections)
+        self.j0_maxima = []
+
+
+    def get_mask(self,template,j0_threshold,
+                 quantile,use_quantile_threshold):
+        if use_quantile_threshold:
+            self.template_mask_threshold = np.max(np.sort(template.ravel())[int(self.template_length*quantile)],
+                                              j0_threshold)
+        else:
+            self.template_mask_threshold = j0_threshold
+        self.mask = template >= self.template_mask_threshold
+        
+    def next(self):
+        
+        
