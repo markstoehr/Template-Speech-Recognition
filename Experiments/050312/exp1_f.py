@@ -6,7 +6,7 @@
 
 root_path = '/var/tmp/stoehr/Projects/Template-Speech-Recognition/'
 
-import sys, os
+import sys, os, cpickle
 sys.path.append(root_path)
 
 #import template_speech_rec.data_loading as dl
@@ -32,6 +32,11 @@ texp = template_exp.\
 
 train_data_iter, tune_data_iter =\
     template_exp.get_exp_iterator(texp,train_percent=.7)
+
+output = open('data_iter050712.pkl','wb')
+cpickle.dump(train_data_iter,output)
+cpickle.dump(tune_data_iter,output)
+output.close()
 
 
 all_patterns = []
@@ -93,14 +98,18 @@ np.save('template_shape050612',template_shape)
 # lengths have on the experimental results
 # also use simpler template experiments code functions
 
+all_patterns_context = []
+tune_data_iter.spread_length = 3
 
-for datum_id in xrange(train_data_iter.num_data):
+for datum_id in xrange(tune_data_iter.num_data):
     if datum_id % 10 == 0:
         print datum_id
-    if train_data_iter.next(wait_for_positive_example=True,
-                         get_patterns=True):
-        all_patterns.extend(train_data_iter.patterns)
-
+    if tune_data_iter.next(wait_for_positive_example=True,
+                         get_patterns_context=True):
+        all_patterns_context.extend(tune_data_iter.patterns_context)
+        sw = SlidingWindow(tune_data_iter.E,mean_template,
+                           )
+        
         E_avg.add_frames(train_data_iter.E,
                          train_data_iter.edge_feature_row_breaks,
                          train_data_iter.edge_orientations,
