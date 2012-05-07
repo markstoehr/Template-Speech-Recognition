@@ -63,11 +63,26 @@ class Experiment:
                     open(self.paths[idx]+'_phns.txt','r').read().split('\n') \
                     if phn != ''])
 
+
     def get_phn_times(self,idx):
         return np.loadtxt(self.paths[idx]+'_phn_times.txt')
 
 
-
+    def frame_to_phn_idx(self,frame_num,s,phn_times,phns):
+        feature_start, \
+            feature_step, num_features =\
+            esp._get_feature_label_times(s,
+                                     self.num_window_samples,
+                                     self.num_window_step_samples)
+        feature_labels, \
+            feature_label_transitions \
+            = esp._get_labels(phn_times,
+                          phns,
+                          feature_start,
+                          feature_step,
+                          num_features,
+                          self.sample_rate)
+        feature_label_transitions < frame_num
         
     def get_edgemap_no_threshold(self,s):
         return esp.get_edgemap_no_threshold(s,self.sample_rate,
@@ -505,6 +520,20 @@ class Experiment_Iterator(Experiment):
         self.edge_feature_row_breaks = edge_feature_row_breaks
         self.edge_orientations = edge_orientations
         self.phn_times = self.get_phn_times(self.cur_data_pointer)
+        self.feature_start, \
+            self.feature_step, self.num_features =\
+            esp._get_feature_label_times(self.s,
+                                         self.num_window_samples,
+                                         self.num_window_step_samples)
+        self.feature_labels, \
+            self.feature_label_transitions \
+            = esp._get_labels(self.phn_times,
+                              self.phns,
+                              self.feature_start,
+                              self.feature_step,
+                              self.num_features,
+                              self.sample_rate)
+
         # select the object
         if get_patterns:
             self.patterns = self.get_patterns(self.E,self.phns,self.phn_times,self.s)
@@ -553,10 +582,16 @@ def get_exp_iterator(base_experiment,train_percent=.7):
 
 
 class SlidingWindowJ0:
-    def __init__(self,E,template,
+    def __init__(self,E,template,edge_feature_row_breaks,
+                 edge_orientations,spread_length=3,
+                 abst_threshold=.0001 * np.ones(8),
+                 edge_quantile=.3,
                  window_length=None,
                  j0_threshold=.75,
-                 quantile=.75,use_quantile_threshold=True):
+                 quantile=.75,use_quantile_threshold=True,
+                 pattern_times=None,
+                 feature_label_transitions=None,
+                 phns=None):
         """
         Begins with a mask for the j0 statistics and
         will compute it for a sliding window given a 
@@ -588,6 +623,11 @@ class SlidingWindowJ0:
             whether or not to use a quantile in setting the template
         """
         # get the length of the window for the sliding window
+        self.edge_feature_row_breaks = edge_feature_row_breaks
+        self.edge_orientations = edge_orientations
+        self.spread_length = spread_length
+        self.abst_threshold = abst_threshold
+        self.edge_quantile = edge_quantile
         if window_length:
             self.window_length = window_length
         else:
@@ -598,19 +638,106 @@ class SlidingWindowJ0:
         self.get_mask(template,j0_threshold,
                  quantile,use_quantile_threshold)
         self.num_detections = E.shape[1] - self.window_length
-        self.j0_scores = np.empty(num_detections)
+        self.j0_scores = np.empty(self.num_detections)
         self.j0_maxima = []
+        self.cur_window_id = -1
+        if pattern_times:
+            self.pattern_times = pattern_times
+            # array to put the labeled_positives data
+            self.labeled_positives = []
+            self.false_alarms = []
+        else:
+            self.pattern_times = None
+        if feature_label_transitions:
+            self.feature_label_transitions = feature_label_transitions
+            self.do_label_window=True
+        else:
+            self.feature_label_transitions = None
+            self.do_label_window=False
+        if phns:
+            self.phns = phns
+        else:
+            self.phns = None
+
 
 
     def get_mask(self,template,j0_threshold,
                  quantile,use_quantile_threshold):
         if use_quantile_threshold:
-            self.template_mask_threshold = np.max(np.sort(template.ravel())[int(self.template_length*quantile)],
+            self.template_mask_threshold = max(np.sort(template.ravel())[int(np.prod(template.shape)*quantile)],
                                               j0_threshold)
         else:
             self.template_mask_threshold = j0_threshold
         self.mask = template >= self.template_mask_threshold
         
     def next(self):
+        if self.cur_window_id < self.num_detections-1:
+            self.cur_window_id+=1
+        else:
+            print "Error: End of utterance reached, reset window"
+            if self.pattern_times:
+                self.compute_roc()                    
+            return 
+        self.cur_window = self.E[:,self.cur_window_id\
+                                  :self.cur_window_id+\
+                                  self.window_length].copy()
+        esp.threshold_edgemap(self.cur_window,self.edge_quantile,
+                              self.edge_feature_row_breaks,
+                              abst_threshold=self.abst_threshold)
+        esp.spread_edgemap(self.cur_window,
+                           self.edge_feature_row_breaks,
+                           self.edge_orientations,
+                           spread_length=self.spread_length)
+        self.j0_scores[self.cur_window_id] =\
+            np.sum(cur_window[self.mask])
+        if self.cur_window_id >=2:
+            if self.j0_scores[self.cur_window_id-1]>\
+                    max(self.j0_scores[self.cur_window_id],
+                        self.j0_scores[self.cur_window_id-2]):
+                self.j0_maxima.append(cur_window_id-1)
         
+    def reset(self):
+        self.cur_window = -1
         
+
+    def compute_roc(self):
+        print "Computing the ROC for the j0"
+        self.j0_maxima_array = np.array(self.j0_maxima)
+        # Find the true positives and false negatives
+        j0_maxima_array_bool = np.empty(self.num_detections,dtype=bool)
+        j0_maxima_array_bool[:] = False
+        j0_maxima_array_bool[self.j0_maxima_array] = True
+        for p_id in xrange(len(pattern_times)):
+            pattern = pattern_times[p_id]
+            positives_array = np.empty(self.num_detections,
+                                       dtype=bool)
+            positives_array[:] = False
+            positives_array[pattern[0]- self.window_length/3:pattern[0]+self.window_length/3] = True
+            positives_array = np.logical_and(positives_array,
+                                                     j0_maxima_array_bool)
+            if np.any(positives_array):
+                pos_scores = self.j0_scores[positives_array]
+                pos_ex = {"score": np.max(pos_scores),
+                          "position": pattern[0] - np.argmax(pos_scores)-pos_scores.shape[0]/2,
+                          "pattern_length":pattern[1]-pattern[0],}
+                if self.do_label_window:
+                    pos_phn_id = np.sum(self.feature_label_transitions <= pattern[0])
+                    pos_ex["label_window"] = phns[pos_phn_id-1:pos_phn_id+len(self.pattern)+1]                
+                self.labeled_positives.append(pos_ex)
+            else:
+                print "Error: no positive peaks"
+                return
+            # we get rid of all the possible negatives here
+            j0_maxima_array_bool[pattern[0]- self.window_length/3\
+                                     :pattern[0]+self.window_length/3]\
+                                     = False
+        # now check for false alarms
+        new_false_alarms = np.arange(self.num_detections)[j0_maxima_array_bool]
+        for fa in new_false_alarms:
+            fa_dict = {"score": self.j0_scores[fa]}
+            if self.do_label_window:
+                phn_id = np.sum(self.feature_label_transitions <= fa)
+                pos_ex["label_window"] = phns[phn_id-1:phn_id+len(self.pattern)+1]                
+            self.false_alarms.append(fa_dict)
+            
+                
