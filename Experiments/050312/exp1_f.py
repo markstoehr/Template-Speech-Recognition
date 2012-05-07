@@ -6,7 +6,7 @@
 
 root_path = '/var/tmp/stoehr/Projects/Template-Speech-Recognition/'
 
-import sys, os, cpickle
+import sys, os, cPickle
 sys.path.append(root_path)
 
 #import template_speech_rec.data_loading as dl
@@ -34,8 +34,8 @@ train_data_iter, tune_data_iter =\
     template_exp.get_exp_iterator(texp,train_percent=.7)
 
 output = open('data_iter050712.pkl','wb')
-cpickle.dump(train_data_iter,output)
-cpickle.dump(tune_data_iter,output)
+cPickle.dump(train_data_iter,output)
+cPickle.dump(tune_data_iter,output)
 output.close()
 
 
@@ -56,6 +56,15 @@ for datum_id in xrange(train_data_iter.num_data):
                          train_data_iter.abst_threshold)
     else:
         break
+
+
+output = open('train_data_iter050712.pkl','wb')
+cPickle.dump(train_data_iter,output)
+output.close()
+
+output = open('tune_data_iter050712.pkl','wb')
+cPickle.dump(tune_data_iter,output)
+output.close()
 
     
 
@@ -101,13 +110,23 @@ np.save('template_shape050612',template_shape)
 all_patterns_context = []
 tune_data_iter.spread_length = 3
 
+
+#
+# just testing out the code right now
+#
+#
+datum_id = 0
+has_pos = tune_data_iter.next(get_patterns_context=True)
+sw = template_exp.SlidingWindowJ0(tune_data_iter.E,mean_template,
+                                  quantile=.49)
+
 for datum_id in xrange(tune_data_iter.num_data):
     if datum_id % 10 == 0:
         print datum_id
     if tune_data_iter.next(wait_for_positive_example=True,
                          get_patterns_context=True):
         all_patterns_context.extend(tune_data_iter.patterns_context)
-        sw = SlidingWindow(tune_data_iter.E,mean_template,
+        sw = template_exp.SlidingWindow(tune_data_iter.E,mean_template,
                            )
         
         E_avg.add_frames(train_data_iter.E,
@@ -118,4 +137,18 @@ for datum_id in xrange(tune_data_iter.num_data):
         break
 
     
-
+    
+feature_start, \
+    feature_step, num_features =\
+    esp._get_feature_label_times(tune_data_iter.s,
+                                 tune_data_iter.num_window_samples,
+                                 tune_data_iter.num_window_step_samples)
+feature_labels, \
+    feature_label_transitions \
+    = esp._get_labels(tune_data_iter.phn_times,
+                      tune_data_iter.phns,
+                      feature_start,
+                      feature_step,
+                      num_features,
+                      tune_data_iter.sample_rate)
+feature_label_transitions <= 200
