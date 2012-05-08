@@ -14,6 +14,7 @@ import numpy as np
 import template_speech_rec.template_experiments as template_exp
 import template_speech_rec.edge_signal_proc as esp
 import template_speech_rec.estimate_template as et
+import template_speech_rec.test_template as tt
 
 
 reload(template_exp)
@@ -49,7 +50,6 @@ for datum_id in xrange(train_data_iter.num_data):
     if train_data_iter.next(wait_for_positive_example=True,
                          get_patterns=True):
         all_patterns.extend(train_data_iter.patterns)
-
         E_avg.add_frames(train_data_iter.E,
                          train_data_iter.edge_feature_row_breaks,
                          train_data_iter.edge_orientations,
@@ -101,6 +101,30 @@ np.save('template_shape050612',template_shape)
 #
 #
 
+use_paths = tune_data_iter.paths[:]
+
+reload(template_exp)
+texp = template_exp.\
+    Experiment(pattern=np.array(('aa','r')),
+               data_paths_file=root_path+'Data/WavFilesTrainPaths_feverfew',
+               spread_length=3,
+               abst_threshold=.0001*np.ones(8),
+               fft_length=512,num_window_step_samples=80,
+               freq_cutoff=3000,sample_rate=16000,
+               num_window_samples=320,kernel_length=7
+               )
+
+
+
+
+train_data_iter, tune_data_iter =\
+    template_exp.get_exp_iterator(texp,train_percent=.7)
+
+train_data_iter2, tune_data_iter =\
+    template_exp.get_exp_iterator(texp,train_percent=.7)
+
+
+tune_data_iter.paths = use_paths[:]
 
 #
 # Run the detection experiment to get a sense of the effect that
@@ -120,22 +144,80 @@ has_pos = tune_data_iter.next(get_patterns_context=True)
 sw = template_exp.SlidingWindowJ0(tune_data_iter.E,mean_template,
                                   quantile=.49)
 
+
+tune_data_iter.reset_exp()
+
+all_patterns_context = []
+false_alarms = []
 for datum_id in xrange(tune_data_iter.num_data):
     if datum_id % 10 == 0:
         print datum_id
-    if tune_data_iter.next(wait_for_positive_example=True,
-                         get_patterns_context=True):
+    if tune_data_iter.next(compute_patterns_context=True,compute_pattern_times=True):
         all_patterns_context.extend(tune_data_iter.patterns_context)
-        sw = template_exp.SlidingWindow(tune_data_iter.E,mean_template,
-                           )
-        
-        E_avg.add_frames(train_data_iter.E,
-                         train_data_iter.edge_feature_row_breaks,
-                         train_data_iter.edge_orientations,
-                         train_data_iter.abst_threshold)
+        negative_examples = np.empty(tune_data_iter.E.shape[1],dtype=bool)
+        negative_examples[:] = True
+        for pattern_time in tune_data_iter.pattern_times:
+            negative_examples[pattern_time[0]-template_length/3\
+                                  :pattern_time[0]+template_length/3] = False
+        neg_E = tune_data_iter.E[:,negative_examples]
+        detections = get_detections(neg_E,mean_template,
+                                    tune_data_iter.bg_len,
+                                    mean_background,
+                                    tune_data_iter.edge_feature_row_breaks,
+                                    tune_data_iter.edge_orientations)
+        false_alarms.extend(suppress_detections(detections,mean_template,
+                                                tune_data_iter.phns,
+                                                tune_data_iter.pattern,
+                                                datum_id,
+                                                tune_data_iter.feature_label_transitions,
+                                                ))
     else:
         break
 
+
+
+def get_detections(neg_E,mean_template,bg_len,mean_bgd,
+                   edge_feature_row_breaks,edge_orientations,
+                   spread_length=3,abst_threshold = .0001*np.ones(8)):
+    num_detections = neg_E.shape[1] - mean_template.shape[1]
+    detections = []
+    for d in xrange(num_detections):
+        E_segment = neg_E[:,d:d+mean_template.shape[1]].copy()
+        esp.threshold_edgemap(E_segment,.30,edge_feature_row_breaks,abst_threshold=abst_threshold)
+        esp.spread_edgemap(E_segment,edge_feature_row_breaks,edge_orientations,spread_length=spread_length)        
+        if d > bg_len:
+            bg = np.maximum(np.minimum(np.mean(neg_E[:,d-bg_len:d],
+                                               axis=1),
+                                       .4),
+                            .01)
+        else:
+            bg = mean_bgd.copy()                            
+        P,C =  tt.score_template_background_section(mean_template,
+                                                    bg,E_segment)
+        detections.append((P+C,d))
+    return detections
+
+def suppress_detections(detections,mean_template,phns,pattern,
+                        label_transitions,path_id):
+    # these are all the allowable detection points, they are removed as we go through the list of top points
+    potential_detections = np.empty(len(detections),dtype=bool)
+    potential_detections[:] = True
+    # what is returned
+    false_alarms = []
+    detections.sort()
+    for d in detections:
+        if potential_detections[d[1]]:
+            phn_id = np.sum(label_transitions<=d)
+            false_alarms.append({"score": d[0],
+                                 "frame": d[1],
+                                 "path_id": path_id,
+                                 "phn_context":phns[max(0,phn_id-1):
+                                                        min(phns.shape[0],phn_id+pattern.shape[0]+1)],
+                                 })
+    return false_alarms
+    
+    false_alarms = []
+    
     
     
 feature_start, \
