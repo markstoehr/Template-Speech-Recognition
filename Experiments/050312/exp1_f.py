@@ -248,8 +248,31 @@ for datum_id in xrange(tune_data_iter.num_data):
     else:
         break
 
+import bisect
 
+def get_false_alarm_scores(false_alarms):
+    false_alarm_scores = []
+    for fa in false_alarms:
+        bisect.insort_left(false_alarm_scores,fa["score"])
+    return np.array(false_alarm_scores)
 
+false_alarm_scores = get_false_alarm_scores(false_alarms)
+
+from scipy.stats.kde import gaussian_kde
+false_alarm_kernel = gaussian_kde(false_alarm_scores)
+
+output = open('fa_kernel050712.pkl','wb')
+cPickle.dump(false_alarm_kernel,output)
+output.close()
+
+# the following give the range of the false alarm
+# scores so that way I can analyze the kde
+"""
+>>> np.min(false_alarm_scores)
+-1934.7173335108891
+>>> np.max(false_alarm_scores)
+43256.541110007151
+"""
 
 def get_new_false_alarms(E,phns,pattern,
                          pattern_times,template,
