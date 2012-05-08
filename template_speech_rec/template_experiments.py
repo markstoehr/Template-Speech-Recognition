@@ -96,7 +96,7 @@ class Experiment:
         return esp.has_pattern(self.pattern,phns)
 
     def get_pattern_times(self,phns,phn_times,s,
-                     context=False,template_length=32):
+                     template_length=32):
         feature_start, \
             feature_step, num_features =\
             esp._get_feature_label_times(s,
@@ -481,8 +481,8 @@ class Experiment_Iterator(Experiment):
         self.cur_data_pointer = -1
     
     def next(self,wait_for_positive_example=False,
-             get_patterns=False, get_patterns_context=False,
-             get_bgds=False,get_pattern_times=False):
+             compute_patterns=False, compute_patterns_context=False,
+             compute_bgds=False,compute_pattern_times=False):
         """
         Processes the next speech utterance, or the next speech
         utterance that is a positive example.
@@ -535,18 +535,17 @@ class Experiment_Iterator(Experiment):
                               self.sample_rate)
 
         # select the object
-        if get_patterns:
+        if compute_patterns:
             self.patterns = self.get_patterns(self.E,self.phns,self.phn_times,self.s)
-        if get_patterns_context:
+        if compute_patterns_context:
             self.patterns_context = self.get_patterns(self.E,self.phns,self.phn_times,self.s,context=True,template_length=33)
-        if get_bgds:
+        if compute_bgds:
             self.bgds = self.get_pattern_bgds(self.E,self.phns,self.phn_times,self.s,self.bg_len)
-        if get_pattern_times:
-            self.pattern_times = get_pattern_times(self,
-                                                   self.phns,
-                                                   self.phn_times,
-                                                   self.s,
-                                                   context=False,template_length=32)
+        if compute_pattern_times:
+            self.pattern_times = self.get_pattern_times(
+                                                        self.phns,
+                                                        self.phn_times,
+                                                        self.s,template_length=32)
         return True
 
     def reset_exp(self):
