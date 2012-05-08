@@ -144,8 +144,8 @@ class Experiment:
                                               phns,
                                               feature_label_transitions)
         if context:
-            return [E[:,max(pattern_time[0]-template_length/4,0):\
-                            min(pattern_time[0]+template_length+1+ (template_length)/4,E.shape[1])]\
+            return [E[:,max(pattern_time[0]-template_length/3,0):\
+                            min(pattern_time[0]+template_length+1+ (template_length)/3,E.shape[1])]\
                         for pattern_time in pattern_times]
         else:
             return [E[:,pattern_time[0]:pattern_time[1]+1]\
