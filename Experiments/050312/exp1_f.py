@@ -144,6 +144,12 @@ has_pos = tune_data_iter.next(get_patterns_context=True)
 sw = template_exp.SlidingWindowJ0(tune_data_iter.E,mean_template,
                                   quantile=.49)
 
+#
+# Original version of the code
+#
+#
+#
+
 
 tune_data_iter.reset_exp()
 
@@ -174,6 +180,101 @@ for datum_id in xrange(tune_data_iter.num_data):
     else:
         break
 
+
+#
+#
+# New version of the code meant specifically to make this
+# stuff easier
+#
+#
+#
+
+
+tune_data_iter.reset_exp()
+
+all_patterns_context = []
+false_alarms = []
+for datum_id in xrange(tune_data_iter.num_data):
+    if datum_id % 10 == 0:
+        print datum_id
+    if tune_data_iter.next(compute_patterns_context=True,compute_pattern_times=True):
+        all_patterns_context.extend(tune_data_iter.patterns_context)
+        false_alarms.extend(get_new_false_alarms(tune_data_iter.E,
+                                                 tune_data_iter.phns,
+                                                 tune_data_iter.pattern,
+                                                 tune_data_iter.pattern_times,
+                                                 mean_template,
+                         tune_data_iter.bg_len,mean_background,
+                         tune_data_iter.edge_feature_row_breaks,
+                         tune_data_iter.edge_orientations,
+                         tune_data_iter.feature_label_transitions,
+                         datum_id,
+                         ))
+    else:
+        break
+
+
+#
+#
+#
+# new version of the code that will enable
+# me to set the j0 threshold so I don't have to muck around
+# with all these detections
+#
+#
+#
+
+tune_data_iter.reset_exp()
+
+all_patterns_context = []
+false_alarms = []
+for datum_id in xrange(tune_data_iter.num_data):
+    if datum_id % 10 == 0:
+        print datum_id
+    if tune_data_iter.next(wait_for_positive_example=True,
+                           compute_patterns_context=True,compute_pattern_times=True):
+        all_patterns_context.extend(tune_data_iter.patterns_context)
+        false_alarms.extend(get_new_false_alarms(tune_data_iter.E,
+                                                 tune_data_iter.phns,
+                                                 tune_data_iter.pattern,
+                                                 tune_data_iter.pattern_times,
+                                                 mean_template,
+                         tune_data_iter.bg_len,mean_background,
+                         tune_data_iter.edge_feature_row_breaks,
+                         tune_data_iter.edge_orientations,
+                         tune_data_iter.feature_label_transitions,
+                         datum_id,
+                         ))
+    else:
+        break
+
+
+
+
+def get_new_false_alarms(E,phns,pattern,
+                         pattern_times,template,
+                         bg_len,bgd,
+                         edge_feature_row_breaks,
+                         edge_orientations,
+                         label_transitions,
+                         path_id,
+                         ):
+    template_length = template.shape[1]
+    negative_examples = np.empty(E.shape[1],dtype=bool)
+    negative_examples[:] = True
+    for pattern_time in pattern_times:
+        negative_examples[pattern_time[0]-template_length/3\
+                              :pattern_time[0]+template_length/3] = False
+    neg_E = E[:,negative_examples]
+    detections = get_detections(neg_E,template,
+                                bg_len,
+                                bgd,
+                                edge_feature_row_breaks,
+                                edge_orientations)
+    return suppress_detections(detections,
+                               template,
+                               phns,pattern,
+                               label_transitions,path_id)
 
 
 def get_detections(neg_E,mean_template,bg_len,mean_bgd,
@@ -218,19 +319,15 @@ def suppress_detections(detections,mean_template,phns,pattern,
     
     false_alarms = []
     
-    
-    
-feature_start, \
-    feature_step, num_features =\
-    esp._get_feature_label_times(tune_data_iter.s,
-                                 tune_data_iter.num_window_samples,
-                                 tune_data_iter.num_window_step_samples)
-feature_labels, \
-    feature_label_transitions \
-    = esp._get_labels(tune_data_iter.phn_times,
-                      tune_data_iter.phns,
-                      feature_start,
-                      feature_step,
-                      num_features,
-                      tune_data_iter.sample_rate)
-feature_label_transitions <= 200
+
+
+
+#
+#
+#
+#
+#
+#
+#
+#
+#
