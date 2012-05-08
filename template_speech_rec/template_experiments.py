@@ -494,6 +494,21 @@ class Experiment_Iterator(Experiment):
         self.phn_times
         self.patterns
         self.pattern_contexts
+
+        Parameters:
+        ------------
+        wait_for_positive_example: bool
+            cycle through the paths until one comes across a positive example
+
+        compute_patterns: bool
+            whether to get a list of pattern occurrences from the label set
+
+        compute_patterns_context: bool
+            whether to get the patterns with their surrounding context in a list
+            for easier processing later
+
+        compute_bgds: bool
+            
         """
         if self.cur_data_pointer >= self.num_data-1:
             print "Reached end of data use reset method"
