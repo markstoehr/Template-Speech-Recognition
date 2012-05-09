@@ -24,6 +24,28 @@ false-negative sense, what is the predictive power of the different components?
 How well do we do if we use only the most extreme points
 *** Simple deformation
 Find the paper again and write
+*** More complex algorithm
+Here we consider three parts that are initialized from the original
+part model and that template is 33 long, we consider a front, middle
+and back part that is 13 long in each section. We do adaptive background estimates
+
+0:32
+16
+
+templates
+0:k
+t/2-k/2:t/2+k/2
+T-k:T
+
+0:k,k
+
+0:12
+
+We estimate four positions and at these four positions we are going to
+place parts, in this case the parts are going to be length 13 - so
+they are quite long. If we then going to place the parts onto the context-ridden main entries
+
+
 ** Deformable Models Notes
 We have started to look at work on building pattern deformation
 models, there are interesting papers that directly tackle the question
@@ -38,6 +60,36 @@ a reference grid. We assume that the edges are conditionally
 independent with marginal probabilities at each point $x$ may be
 written as $\theta p_e(x) = P(X_e(x)=1\mid \theta)$ which is
 $p_e,(\theta^-1 x)$ if $\theta^-1x\in G$ and $p_e,bgd$ otherwise
+
+***** Training a one part model
+Only data $X_{U+x}$ are considered where these are in some subwindow
+$U$ Let $Z$ denote a random variable for the location of the feature
+$x$ and let $W$ be the support of the probability model around $Z$ and
+let $T = x-Z$ is a hidden variable of shifts, we note that $x$ is just
+the start point to start looking for where the parts may be located.
+
+***** Training Algorithm
+Initialize 
+$$Q^(0)_s = \frac{1}{m}\sum_jX^{(j)}(s),s\in W$$ then we put
+$$p^{(0)}_{bgd}=\frac{1}{m(|U|-|W|)}\sum_{s\in U\setminus W}\sum_j X^{(j)}(s)$$
+$$\pi^{(0)}(t)=1/|V|,t\in V$$
+Step 1:
+For each training point $j$ and shift $t\in V$ compute
+$$P(t\mid X_U^{(j)},Q^{(l)},p_{bgd}^{(l)},\pi^{(l)})
+=\frac{P(X_U^{(j)}\mid t,Q^{(l)},p_{bgd}^{(l)}) \pi^{(l)}(t)}
+{\sum_{t'}P(X_U^{(j)}\mid t',Q^{(l)},p_{bgd}^{(l)}) \pi^{(l)}(t') } $$
+
+We then have our re-estimate step:
+$$\pi^{(l+1)}(t) = \frac{1}{m} \sum_j P(t\mid
+X_U^{(j)},Q^{(j)},p_{bgd}^{(l)}, \pi^{(l)})$$
+$$Q_s^{(l+1)} = \frac{1}{m} \sum_{t\in V} \sum_j P(t\mid X_U^{(j)},
+Q^{(l)}, p_{bgd}^{(l)}, \pi^{(l)}) X^{(j)}(t+s), s\in W$$
+$$ p_{bgd}^{(l+1)} = \frac{1}{m(|U|-|W|)} \sum_{t\in V} \sum_j
+\sum_{s\in U\setminus (t+W)} P(t\mid X_U^{(j)}, Q^{(l)},
+p_{bgd}^{(l)}, \pi^{(l)}) X^{(j)}(t+s)$$
+
+
+
 **** Bigot 2012 Geometric PCA
 "Geometric PCA of curves and images" Statistical analysis of the
 consistency of kernel PCA in the setting where images are registered
