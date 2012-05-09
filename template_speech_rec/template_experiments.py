@@ -482,7 +482,9 @@ class Experiment_Iterator(Experiment):
     
     def next(self,wait_for_positive_example=False,
              compute_patterns=False, compute_patterns_context=False,
-             compute_bgds=False,compute_pattern_times=False):
+             compute_bgds=False,
+             compute_pattern_times=False,
+             max_template_length = 40):
         """
         Processes the next speech utterance, or the next speech
         utterance that is a positive example.
@@ -553,7 +555,7 @@ class Experiment_Iterator(Experiment):
         if compute_patterns:
             self.patterns = self.get_patterns(self.E,self.phns,self.phn_times,self.s)
         if compute_patterns_context:
-            self.patterns_context = self.get_patterns(self.E,self.phns,self.phn_times,self.s,context=True,template_length=33)
+            self.patterns_context = self.get_patterns(self.E,self.phns,self.phn_times,self.s,context=True,template_length=max_template_length)
         if compute_bgds:
             self.bgds = self.get_pattern_bgds(self.E,self.phns,self.phn_times,self.s,self.bg_len)
         if compute_pattern_times:
