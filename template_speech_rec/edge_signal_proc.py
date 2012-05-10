@@ -153,6 +153,37 @@ def get_pattern_times(pattern,labels,feature_label_transitions):
                                   feature_label_transitions[l+pattern_length]))
     return pattern_times
 
+def get_pattern_part_times(pattern,labels,feature_label_transitions):
+    """
+    Parameters
+    ----------
+    pattern:
+       array of strings that represents the pattern we are
+       looking for
+    labels:
+        array of strings that contains the labels for the sequence
+    feature_label_transitions:
+        array of positive integers that says at which edge map
+        feature the next label starts
+       
+    Output
+    ------
+    pattern_times:
+       tuples where the zeroth entry is the start frame of the pattern and the 1th entry
+       is the next frame after the last frame of the pattern
+    """
+    pattern_length = pattern.shape[0]
+    pattern_part_times = []
+    for l in xrange(labels.shape[0]-pattern_length):
+        if np.all(labels[l:l+pattern_length] == pattern):
+            part_times = []
+            for pattern_part_id in xrange(pattern_length):
+                part_times.append((feature_label_transitions[l],
+                                   feature_label_transitions[l+1]))
+            pattern_part_times.append(part_times)
+    return pattern_part_times
+
+
 def get_pattern_negative(pattern,labels,feature_label_transitions,length):
     """
     Parameters
