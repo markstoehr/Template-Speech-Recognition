@@ -151,6 +151,38 @@ class Experiment:
             return [E[:,pattern_time[0]:pattern_time[1]+1]\
                         for pattern_time in pattern_times]
          
+        
+    def get_pattern_parts(self,E,phns,phn_times,s):
+        """
+        Parameters
+        ----------
+        E: array
+            edgemap features
+        phns: array
+            strings representing the labels for the utterance
+        phn_times: array
+            times when the
+        """
+        feature_start, \
+            feature_step, num_features =\
+            esp._get_feature_label_times(s,
+                                     self.num_window_samples,
+                                     self.num_window_step_samples)
+        feature_labels, \
+            feature_label_transitions \
+            = esp._get_labels(phn_times,
+                          phns,
+                          feature_start,
+                          feature_step,
+                          num_features,
+                          self.sample_rate)
+        pattern_part_times = esp.get_pattern_part_times(self.pattern,
+                                                        phns,
+                                                        feature_label_transitions)
+        return [[E[:,phn_time[0]:phn_time[1]+1] for phn_time in part_time]\
+                    for part_time in pattern_part_times]
+         
+
     
     def get_pattern_bgds(self,E,phns,phn_times,s,bg_len,
                          context=False,template_length=33):
@@ -479,11 +511,40 @@ class Experiment_Iterator(Experiment):
         self.num_data = len(self.paths)    
         # file is not currently being read so we begin with a -1 pointer
         self.cur_data_pointer = -1
+
+    def count_num_positive(self):
+        self.num_positives = 0
+        for cur_example in xrange(self.num_data):
+            if self.has_pattern(self.get_phns(cur_example)):
+                self.num_positives+=1
+        return self.num_positives
+
+    def get_phn_set(self):
+        self.phn_set = set()
+        for cur_example in xrange(self.num_data):
+            self.phn_set.update(self.get_phns(cur_example))
+        return self.phn_set
+
+    def get_diphone_counts(self):
+        # get dictionary for counts
+        self.diphone_counts = {}
+        for phn1 in self.phn_set:
+            for phn2 in self.phn_set:
+                self.diphone_counts[(phn1,phn2)] = 0
+        for cur_example in xrange(self.num_data):
+            phns = self.get_phns(cur_example)
+            for phn_id in xrange(len(phns)-1):
+                self.diphone_counts[(phns[phn_id-1],
+                                     phns[phn_id])] += 1
+        return self.diphone_counts
+                
+
     
     def next(self,wait_for_positive_example=False,
              compute_patterns=False, compute_patterns_context=False,
              compute_bgds=False,
              compute_pattern_times=False,
+             compute_pattern_parts=False,
              max_template_length = 40):
         """
         Processes the next speech utterance, or the next speech
@@ -563,6 +624,8 @@ class Experiment_Iterator(Experiment):
                                                         self.phns,
                                                         self.phn_times,
                                                         self.s,template_length=32)
+        if compute_pattern_parts:
+            self.pattern_parts = self.get_pattern_parts(self.E,self.phns,self.phn_times,self.s)
         return True
 
     def reset_exp(self):
