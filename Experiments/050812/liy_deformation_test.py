@@ -158,11 +158,26 @@ for d in xrange(len(def_range)):
     
 tpm_liy.get_length_range()
 
-optimal_detection_scores = -np.inf * np.ones((len(tuning_patterns_context),def_range[1]-def_range[0]))
-optimal_detection_idx = np.zeros((len(tuning_patterns_context),def_range[1]-def_range[0]))
-for c_id in xrange(len(tuning_patterns_context)):
+pattern_contexts= []
+
+for datum_id in xrange(tune_data_iter.num_data):
+    if datum_id % 10 == 0:
+        print datum_id
+    if tune_data_iter.next(wait_for_positive_example=True,
+                            compute_patterns_context=True,
+                            max_template_length=40):
+        # the context length is 11
+        pattern_contexts.extend(tune_data_iter.patterns_context)
+    else:
+        break
+
+
+
+optimal_detection_scores = -np.inf * np.ones((len(pattern_contexts),def_range[1]-def_range[0]))
+optimal_detection_idx = np.zeros((len(pattern_contexts),def_range[1]-def_range[0]))
+for c_id in xrange(len(pattern_contexts)):
     print c_id
-    cur_context = tuning_patterns_context[c_id]
+    cur_context = pattern_contexts[c_id]
     num_detections = cur_context.shape[1] - tpm_liy.length_range[1]
     win_length = tpm_liy.length_range[1]
     for d in xrange(num_detections):
@@ -178,5 +193,38 @@ for c_id in xrange(len(tuning_patterns_context)):
                 optimal_detection_scores[c_id,deformation-def_range[0]] = score
                 optimal_detection_idx[c_id,deformation-def_range[0]] = d
             
-                                                   
+np.save('optimal_detection_scores_liy051112',optimal_detection_scores)
+np.save('optimal_detection_idx_liy051112',optimal_detection_idx)
+np.save('def_range_liy051112',np.array(def_range))
+
+# get the pattern lengths
+# see if the mixture model is able to pick up on the noise
+# also see how well template does on each of the patterns being considered
+# register the examples and see if the examples that are hits for the
+# registered examples is reflective for which are the hits if
+# the examples are not registered
+
+tune_data_iter.reset_exp()
+liy_tune_patterns = []
+
+for datum_id in xrange(tune_data_iter.num_data):
+    if datum_id % 10 == 0:
+        print datum_id
+    if tune_data_iter.next(wait_for_positive_example=True,
+                            compute_patterns=True,
+                            max_template_length=40):
+        liy_tune_patterns.extend(tune_data_iter.patterns)
+    else:
+        break
+
+# we want to relate information about the detection scores
+# to statistics collected about the 
+# liy_tune_patterns, so we need to make sure the lengths
+# are right
+
+assert len(liy_tune_patterns) == optimal_detection_scores.shape[0]
+
+output = open('liy_tune_patterns051112','wb')
+cPickle.dump(liy_tune_patterns,output)
+output.close()
 
