@@ -69,6 +69,7 @@ texp = template_exp.\
 train_data_iter, tune_data_iter =\
     template_exp.get_exp_iterator(texp,train_percent=.6)
 
+train_data_iter.reset_exp()
 all_patterns = []
 all_pattern_parts = []
 E_avg = template_exp.AverageBackground()            
