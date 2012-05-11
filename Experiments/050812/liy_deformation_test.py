@@ -12,7 +12,10 @@ import template_speech_rec.test_template as tt
 
 
 class TwoPartModel:
-    def __init__(self,template,part_length,bg,parts = None):
+    def __init__(self,template,bg,
+                 part_length,
+                 parts=None,
+                 part_starts=None):
         # handle the case where parts are given along with
         # the problem versus the case where they are not given
         if parts:
@@ -20,7 +23,10 @@ class TwoPartModel:
         else:
             self.parts = np.array([template[:,:part_length],
                           template[:,-part_length:]])
-        self.part_starts = np.array([0,
+        if part_starts:
+            self.part_starts = part_starts
+        else:
+            self.part_starts = np.array([0,
                                 template.shape[1] - part_length])
         self.part_length = part_length
         self.get_length_range()
@@ -43,6 +49,7 @@ class TwoPartModel:
     def get_length_range(self):
         self.length_range = np.array((min([p.shape[1] for p in self.parts]),sum([p.shape[1] for p in self.parts])))
     def get_min_max_def(self):
+        
         pass
 
 
@@ -88,10 +95,41 @@ for datum_id in xrange(train_data_iter.num_data):
 
 
 
-output = open('tuning_pattern051012.pkl','rb')
-tuning_patterns_context = cPickle.load(output)
-tuning_patterns_times = cPickle.load(output)
+output = open('train_patterns_liy051012.pkl','wb')
+cPickle.dump(all_patterns,output)
+cPickle.dump(all_pattern_parts,output)
 output.close()
+
+_,_ ,\
+    registered_ex_l,l_template \
+    = et.simple_estimate_template([ex[0] for ex in all_pattern_parts])
+
+np.save('registered_ex_l051012',registered_ex_l)
+np.save('l_template051012',l_template)
+
+_,_ ,\
+    registered_ex_iy,iy_template \
+    = et.simple_estimate_template([ex[1] for ex in all_pattern_parts])
+
+np.save('registered_ex_iy051012',registered_ex_iy)
+np.save('iy_template051012',iy_template)
+
+_,_ ,\
+    registered_ex_liy,liy_template \
+    = et.simple_estimate_template(all_patterns)
+
+np.save('registered_ex_liy051012',registered_ex_liy)
+np.save('liy_template051012',liy_template)
+
+mean_background = E_avg.E.copy()
+mean_background = np.maximum(np.minimum(mean_background,.4),.05)
+
+np.save('mean_background_liy051012',mean_background)
+
+tpm_liy = TwoPartModel(liy_template,
+                       2*template_shape[1]/3,mean_background)
+
+
 
 edge_feature_row_breaks = np.load('edge_feature_row_breaks.npy')
 
