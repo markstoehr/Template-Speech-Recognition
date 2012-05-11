@@ -78,6 +78,7 @@ bgd = np.load('/home/mark/projects/Template-Speech-Recognition/Experiments/04221
 template_length = template_shape[1]
 max_detections = -np.inf * np.ones(len(all_patterns_context))
 
+
 for p_id in xrange(len(all_patterns_context)):
     print p_id
     p = all_patterns_context[p_id]
