@@ -178,8 +178,8 @@ def get_pattern_part_times(pattern,labels,feature_label_transitions):
         if np.all(labels[l:l+pattern_length] == pattern):
             part_times = []
             for pattern_part_id in xrange(pattern_length):
-                part_times.append((feature_label_transitions[l],
-                                   feature_label_transitions[l+1]))
+                part_times.append((feature_label_transitions[l+pattern_part_id],
+                                   feature_label_transitions[l+pattern_part_id+1]))
             pattern_part_times.append(part_times)
     return pattern_part_times
 
