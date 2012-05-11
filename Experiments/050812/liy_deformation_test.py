@@ -12,8 +12,13 @@ import template_speech_rec.test_template as tt
 
 
 class TwoPartModel:
-    def __init__(self,template,part_length,bg):
-        self.parts = np.array([template[:,:part_length],
+    def __init__(self,template,part_length,bg,parts = None):
+        # handle the case where parts are given along with
+        # the problem versus the case where they are not given
+        if parts:
+            self.parts = parts
+        else:
+            self.parts = np.array([template[:,:part_length],
                           template[:,-part_length:]])
         self.part_starts = np.array([0,
                                 template.shape[1] - part_length])
@@ -78,6 +83,8 @@ for datum_id in xrange(train_data_iter.num_data):
                          train_data_iter.abst_threshold)
     else:
         break
+
+
 
 
 
