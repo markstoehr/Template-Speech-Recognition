@@ -49,8 +49,8 @@ class TwoPartModel:
     def get_length_range(self):
         self.length_range = np.array((min([p.shape[1] for p in self.parts]),sum([p.shape[1] for p in self.parts])))
     def get_min_max_def(self):
-        
-        pass
+        self.min_max_def = (-self.part_starts[1],self.parts[0].shape[1] - self.part_starts[1])
+        return self.min_max_def
 
 
 texp = template_exp.\
@@ -127,53 +127,56 @@ mean_background = np.maximum(np.minimum(mean_background,.4),.05)
 
 np.save('mean_background_liy051012',mean_background)
 
-tpm_liy = TwoPartModel(liy_template,
-                       2*template_shape[1]/3,mean_background)
 
+template_shape = liy_template.shape
+
+tpm_liy = TwoPartModel(liy_template,mean_background,
+                       2*template_shape[1]/3,)
+tpm.get_min_max_def
 
 
 edge_feature_row_breaks = np.load('edge_feature_row_breaks.npy')
 
 edge_orientations = np.load('edge_orientations.npy')
 abst_threshold = np.load('abst_threshold.npy')
-mean_template = np.load('mean_template_piy051012.npy')
-mean_background = np.load('mean_background_piy051012.npy')
+#mean_template = np.load('mean_template_piy051012.npy')
+#mean_background = np.load('mean_background_piy051012.npy')
 
-template_shape = mean_template.shape
 
-tpm = TwoPartModel(mean_template,2*template_shape[1]/3,mean_background)
+#tpm = TwoPartModel(mean_template,2*template_shape[1]/3,mean_background)
 
-def_range = np.arange(-10,9)
+def_range = tpm_liy.get_min_max_def()
 
-tpm.get_def_template(0)
+tpm_liy.get_def_template(0)
 
-all_def_templates = np.empty((def_range.shape[0],
-                            tpm.def_template.shape[0],
-                            tpm.def_template.shape[1]))
-for d in xrange(def_range.shape[0]):
-    tpm.get_def_template(def_range[d])
-    all_def_templates[d] = tpm.def_template.copy()
+all_def_templates = np.empty((def_range[1]-def_range[0],
+                            tpm_liy.def_template.shape[0],
+                            tpm_liy.def_template.shape[1]))
+for d in xrange(len(def_range)):
+    tpm_liy.get_def_template(def_range[d])
+    all_def_templates[d] = tpm_liy.def_template.copy()
     
+tpm_liy.get_length_range()
 
-optimal_detection_scores = -np.inf * np.ones((len(tuning_patterns_context),def_range.shape[0]))
-optimal_detection_idx = np.zeros((len(tuning_patterns_context),def_range.shape[0]))
+optimal_detection_scores = -np.inf * np.ones((len(tuning_patterns_context),def_range[1]-def_range[0]))
+optimal_detection_idx = np.zeros((len(tuning_patterns_context),def_range[1]-def_range[0]))
 for c_id in xrange(len(tuning_patterns_context)):
     print c_id
     cur_context = tuning_patterns_context[c_id]
-    num_detections = cur_context.shape[1] - tpm.length_range[1]
-    win_length = tpm.length_range[1]
+    num_detections = cur_context.shape[1] - tpm_liy.length_range[1]
+    win_length = tpm_liy.length_range[1]
     for d in xrange(num_detections):
         E_window = cur_context[:,d:d+win_length].copy()
         esp.threshold_edgemap(E_window,.30,edge_feature_row_breaks,report_level=False,abst_threshold=abst_threshold)
         esp.spread_edgemap(E_window,edge_feature_row_breaks,edge_orientations,spread_length=3)
         # base detection
-        for deformation in def_range:
-            def_template = all_def_templates[10+deformation]
-            P,C = tt.score_template_background_section(def_template,tpm.bg,E_window)
+        for deformation in xrange(def_range[0],def_range[1]):
+            def_template = all_def_templates[deformation-def_range[0]]
+            P,C = tt.score_template_background_section(def_template,tpm_liy.bg,E_window)
             score = P+C
-            if score > optimal_detection_scores[c_id,deformation]:
-                optimal_detection_scores[c_id,deformation] = score
-                optimal_detection_idx[c_id,deformation] = d
+            if score > optimal_detection_scores[c_id,deformation-def_range[0]]:
+                optimal_detection_scores[c_id,deformation-def_range[0]] = score
+                optimal_detection_idx[c_id,deformation-def_range[0]] = d
             
                                                    
 
