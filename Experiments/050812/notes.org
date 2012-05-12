@@ -1,0 +1,167 @@
+* Experiments
+** Lengths Experiment
+Ran an experiment over whether the detector is sensitive to how long
+the example is: e.g. do I lose information in the registration and
+does the fixed length template do worse on longer examples or shorter
+examples than the median length. The way that I tested this was to see
+if the max score on the patterns+context for the fixed length template
+was related to the length of the example. I found that the
+distribution of the lengths for the worst performing distribution was
+actually the same as the overall distribution of lengths I did not see
+the detector failing as I would have guessed.
+
+** liy Experiment optimal detector length
+This was a two parts experiment run from 5/10/12 to 5/11/12 and in it
+I looked at the maximum score achieved under different deformations of
+the liy detector, I want to see if those deformations give me any improvement
+on the liy scores, additionally I need to see how those deformations might
+hurt me on the false negatives, I also want to see if the scores for the base
+template length for the liy detector compare to the scores achieved on the registered
+examples, or if the registered example scores look more like the liy scores under deformation,
+of if they follow completely different statistics.
+
+All of these should be repeated on 'aar'
+
+*** Inputs/Outputs
+I had trained a mean template on 554 randomly selected examples of
+"l,iy" from the training segment of the TIMIT database. These were the
+entire duration of the syllable, the edge features were computed on
+each of these segments individually, edge thresholding was performed
+over the entire window of the syllable, and we spread the edges with a
+radius of 5 (so length 10 total). 
+
+A mean template was estimated by first registering the examples and
+then averaging over them.  We also constructed a deformable template
+object that ranges in size from 40 frames to 20 frames in length
+
+The 240 remaining examples were extracted, however, rather than
+extracting exactly the example, we extracted what we call the example
+"context" which is the set of frames that will be within all detection
+windows that are counted as true_positives.  The first such frame
+starts floor(40/3)=13 frames prior to the start of the syllable and
+the last such frame is at 40+floor(40/3)+start frame where the start
+frame is the first frame of the syllable.  The 40+floor(40/3)
+represents that we all the detected syllable to begin 13 frames after
+is recorded detection time and the 40 takes into account that we look
+for the syllable using a sliding window classifier, where the sliding
+window has length 40 (since that is the maximum length of our deformable
+template).
+
+The deformable template can take any length between 20 and 40 frames,
+inclusive and we applied all those templates to every subwindow of the
+classifier.  For each possible length of our deformable template we
+took the maximum score attained over these different subwindows, and
+we say that was the best detection score within the detector region.
+
+We also recorded at which window the optimum score was found, and we
+have extracted the patterns themselves, so that we can look at their
+lengths and also look at the scores attained by the classifier over
+the registered versions of the classifiers.
+
+Our goal is to see whether the deformable template does best when the
+length of the template matches the length of the actual utterance, and
+we want to see if the score is comparable to what the score is over
+the registered examples.  We want to know how to summarize what is
+happening, compute correlation, etc.
+
+** Analysis
+*** Optimal Idx Experiment
+First we analyze the optimal scores, we want to test the hypothesis
+about whether the classifier performs better at the example length or
+whether the classifier performs better at the true length or whether
+the classifier performs better at the base-classifier length.
+
+*** Distribution of Scores
+We want to test the hypothesis that the truth length score is greater
+than the base template length
+
+*** Location of optimal score
+We want to test the hypothesis that the best true length score is
+closer to the actual start of the syllable
+
+*** Location of the optimal base template location
+We want to test the hypothesis whether the the base template optimal
+detection tends to to happen after the start time for shorter syllable
+examples and before the start time for longer syllable examples.
+
+
+** Viola Jones Detection
+*** Paper Summary
+"Robust Real-Time Object Detection" 2004 Use of rectangle features
+similar to the Yali features, however there are also rectangle
+features whose interpretation is hard to make sense of.  There is also
+the use of adaboost for detection.  The main component that seems
+useful to me is the cascade approach
+
+** Branch And Bound Non-Maximal Suppression
+Blaschko 2011 Want energy functions that encode beliefs about the
+appearance of the object and joint distributions of object
+detections. The latter distribution over detection locations could
+disallow detections next to each other.  The energy model proposed is
+
+$$
+\max_y \sum_i \langle f,\phi(x,y_i)\rangle_{\mathcal{H}} - \Omega(y)
+$$
+
+
+** Treat different lengthed example mixture
+Protocol is to have three different classifiers and see if that works
+each classifier will be trained on different lengthed examples so the
+amount of registration is smaller
+
+
+** Efficient Subwindow Search
+We want to consider the blascko technique for the branch and bound
+optimization to see what happens if we do registration of the examples to our
+registered template
+
+*** Paper
+
+** Mel Frequency bands test
+We're actually going to get that signal processing to work with the
+log domain frequency channels, and then see if we have those inputs
+whether the classifiers perform much better or worse, or
+anything. This should tell us something about what the optimal signal
+processing should do. Additionally we'll want to do auditory image
+processing. The main code for this is in
+template_speech_rec/edge_signal_proc.py
+
+
+** Effect of the thresholding on false positives
+We want to know what the optimal absolute thresholds for the edges
+thresholding should be`and how it should affect the false positive
+rate
+
+* Ideas for Better Software
+Experiments need to be run faster, which mostly means that I need to
+find ways to make them run faster. My best guess is that I need to run
+more of them and attempt to find commonalities and do inference about
+what is making them run slowly. My main thought is that too many
+things are customizable, and that eventually I'm going to have a
+domain specific language that will be able to run only those
+experiments that need to be run and is bad at generally programming
+tasks. The dsl will be a library of functions in python, though, of
+course.
+
+** get false positive rate
+I should have a function that I can just input the data, the pattern
+and my classification mechanism that will just return the false
+positive rate as well as the true positive rate.  These things may be
+computed with a classifier object. I probably want to check the
+scikit-learn code in order to know the correct way to organize the
+classifiers
+
+*** Description
+The input will be one of the Experiment_Iterators as well as a pattern
+to know which pattern's false positives we are going to get, since we
+are getting the false positives we might as well also get the true
+positive rate.
+
+The main loop is going to go through each of the examples get the
+pattern times from the pattern times we can compute both the length of
+the pattern and get the pattern "context" hence we can perform the
+other accuracy points
+
+We created a new "classifier" class of objects because we are working
+with templates and with part models (that will take different
+forms). We want to create generic interfaces
