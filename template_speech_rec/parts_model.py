@@ -13,6 +13,49 @@ import numpy as np
 import test_template as tt
 import edge_signal_proc as esp
 
+class TwoPartModel:
+    def __init__(self,template,bg,
+                 part_length,
+                 parts=None,
+                 part_starts=None):
+        # handle the case where parts are given along with
+        # the problem versus the case where they are not given
+        if parts:
+            self.parts = parts
+        else:
+            self.parts = np.array([template[:,:part_length],
+                          template[:,-part_length:]])
+        if part_starts:
+            self.part_starts = part_starts
+        else:
+            self.part_starts = np.array([0,
+                                template.shape[1] - part_length])
+        self.part_length = part_length
+        self.get_length_range()
+        self.bg = bg
+        assert(self.parts[0].shape == self.parts[1].shape)
+        #
+    def get_def_template(self,def_size):
+        self.def_template = np.tile(self.bg,(self.length_range[1],1)).T
+        self.cur_part_starts = self.part_starts.copy()
+        self.cur_part_starts[1] += def_size
+        self.def_template[:,self.cur_part_starts[0]:self.cur_part_starts[1]] = self.parts[0][:,:self.cur_part_starts[1]]
+        # handle the overlap
+        if self.cur_part_starts[1] < self.part_length:
+            self.def_template[:,self.cur_part_starts[1]:self.part_length] = \
+                .5 * self.parts[0][:,self.cur_part_starts[1]:] +\
+                .5 * self.parts[1][:,:self.part_length-self.cur_part_starts[1]]
+        self.def_template[:,self.part_length:self.part_length+self.cur_part_starts[1]] \
+            = self.parts[1][:,self.part_length-self.cur_part_starts[1]:]
+        #
+    def get_length_range(self):
+        self.length_range = np.array((min([p.shape[1] for p in self.parts]),sum([p.shape[1] for p in self.parts])))
+    def get_min_max_def(self):
+        self.min_max_def = (-self.part_starts[1],self.parts[0].shape[1] - self.part_starts[1])
+        return self.min_max_def
+
+
+
 
 class PartsTriple:
     def __init__(self,base_template,front_fraction,middle_fraction,back_fraction):
