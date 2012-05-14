@@ -30,21 +30,33 @@ class TwoPartModel:
                                 template.shape[1] - part_length])
         self.part_length = part_length
         self.get_length_range()
+        self.get_min_max_def()
         self.bg = bg
+        self.template_height = self.bg.shape[0]
+        self.num_templates = self.min_max_def[1] - self.min_max_def[0]
+        self.get_def_templates()
         assert(self.parts[0].shape == self.parts[1].shape)
         #
+    def get_def_templates(self):
+        self.def_templates = np.zeros(self.num_templates,
+                                     self.template_height,
+                                     self.length_range[1])
+        for t_id in xrange(self.num_templates):
+            self.def_templates[t_id] = self.get_def_template(self.min_max_def[0] + t_id)
+                                     
     def get_def_template(self,def_size):
-        self.def_template = np.tile(self.bg,(self.length_range[1],1)).T
+        def_template = np.tile(self.bg,(self.length_range[1],1)).T
         self.cur_part_starts = self.part_starts.copy()
         self.cur_part_starts[1] += def_size
-        self.def_template[:,self.cur_part_starts[0]:self.cur_part_starts[1]] = self.parts[0][:,:self.cur_part_starts[1]]
+        def_template[:,self.cur_part_starts[0]:self.cur_part_starts[1]] = self.parts[0][:,:self.cur_part_starts[1]]
         # handle the overlap
         if self.cur_part_starts[1] < self.part_length:
-            self.def_template[:,self.cur_part_starts[1]:self.part_length] = \
+            def_template[:,self.cur_part_starts[1]:self.part_length] = \
                 .5 * self.parts[0][:,self.cur_part_starts[1]:] +\
                 .5 * self.parts[1][:,:self.part_length-self.cur_part_starts[1]]
-        self.def_template[:,self.part_length:self.part_length+self.cur_part_starts[1]] \
+        def_template[:,self.part_length:self.part_length+self.cur_part_starts[1]] \
             = self.parts[1][:,self.part_length-self.cur_part_starts[1]:]
+        return def_template
         #
     def get_length_range(self):
         self.length_range = np.array((min([p.shape[1] for p in self.parts]),sum([p.shape[1] for p in self.parts])))
