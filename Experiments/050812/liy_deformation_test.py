@@ -18,6 +18,7 @@ class TwoPartModel:
                  part_starts=None):
         # handle the case where parts are given along with
         # the problem versus the case where they are not given
+        self.base_template = template
         if parts:
             self.parts = parts
         else:
@@ -38,12 +39,12 @@ class TwoPartModel:
         assert(self.parts[0].shape == self.parts[1].shape)
         #
     def get_def_templates(self):
-        self.def_templates = np.zeros(self.num_templates,
+        self.def_templates = np.zeros((self.num_templates,
                                      self.template_height,
-                                     self.length_range[1])
+                                     self.length_range[1]))
         for t_id in xrange(self.num_templates):
             self.def_templates[t_id] = self.get_def_template(self.min_max_def[0] + t_id)
-                                     
+    #                                 
     def get_def_template(self,def_size):
         def_template = np.tile(self.bg,(self.length_range[1],1)).T
         self.cur_part_starts = self.part_starts.copy()
