@@ -286,7 +286,7 @@ def get_log_spectrogram(s,sample_rate,
                       num_window_step_samples,
                       fft_length,
                       sample_rate)
-    freq_idx = np.arange(S.shape[1])[::-1] * (float(sample_rate)/fft_length)
+    freq_idx = np.arange(S.shape[1]) * (float(sample_rate)/fft_length)
     #S = S[:,:freq_idx]
     # correct for the shape
     # we want each row of S to correspond to a frequency
@@ -297,7 +297,24 @@ def get_log_spectrogram(s,sample_rate,
     else:
         return np.log(S.transpose())
 
-    
+def get_mel_spec(s,sample_rate,
+                        num_window_samples,
+                        num_window_step_samples,
+                        fft_length,
+                        preemph=.95,
+                        freq_cutoff=None,
+                 nbands = 40):
+    """
+    The mel spectrogram, this is the basis for MFCCs
+    """
+    S,freq_idx = get_log_spectrogram(s,sample_rate,
+                               num_window_samples,
+                               num_window_step_samples,
+                               fft_length,
+                               preemph=.95,
+                               return_freqs=True)
+    return audspec(S,sample_rate,nbands=nbands,
+                max_freq=freq_cutoff)
 
 def get_edgemap_no_threshold(s,sample_rate,
                              num_window_samples,
