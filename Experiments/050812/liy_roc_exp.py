@@ -72,7 +72,7 @@ class Classifier:
                 sum(tt.score_template_background_section(self.template.def_templates[t_id],
                                                          self.template.bg,E_window))
             self.score_no_bg = lambda E_window:\
-                max([ self._score_sub_no_bg(E_window,t_id) for t_id in xrange(self.template.num_templates)])
+                max([ self._score_sub_no_bg(E_window,t_id) for t_id in xrange(self.template.def_templates.shape[0])])
             # just create a uniform background with .4 as the edge frequency
             self.coarse_template = get_coarse_segment(self.template.base_template,
                                                       coarse_type="avg",
@@ -341,7 +341,7 @@ def get_roc_full(data_iter, classifier, coarse_thresh,
     return count_roc, like_roc
 
             
-def get_pos_neg_scores(inds,pattern_times,coarse_scores):
+def get_pos_neg_scores(inds,pattern_times,coarse_scores,window_length):
     """
     Ouputs the scores for the positive examples and the negative
     examples.  The positive examples, by default, are assigned a score
@@ -353,7 +353,7 @@ def get_pos_neg_scores(inds,pattern_times,coarse_scores):
     pos_patterns[:] = 0
     pos_scores = [-np.inf] * len(pattern_times)
     for pt in xrange(len(pattern_times)):
-        pos_patterns[pattern_times[pt][0]:pattern_times[pt][1]]= pt
+        pos_patterns[pattern_times[pt][0]-window_length/3:pattern_times[pt][0]+window_length/3]= pt
     for ind in inds:
         if pos_patterns[ind]>0:
             if coarse_scores[ind] > pos_scores[pos_patterns[ind]]:
@@ -385,10 +385,23 @@ def get_roc(pos,neg,num_frames):
     cur_neg_idx = 0
     while pos[0] <= neg[cur_neg_idx]: cur_neg_idx += 1
     roc_vals[0] = cur_neg_idx/num_frames
+    end_loop = False
     for roc_idx in xrange(1,roc_vals.shape[0]):
-        while (pos[roc_idx ] <= neg[cur_neg_idx]) and (cur_neg_idx < neg.shape[0]): cur_neg_idx +=1
-        roc_vals[roc_idx] = cur_neg_idx/num_frames
-    return lambda false_neg_rate: (roc_vals[int(false_neg_rate*pos.shape[0])],pos[int(false_neg_rate*pos.shape[0])])
+        if pos[roc_idx] < neg[-1]:
+            end_loop = True
+        else:
+            while pos[roc_idx] <= neg[cur_neg_idx]:
+                cur_neg_idx +=1
+                if cur_neg_idx < neg.shape[0]:
+                    end_loop = True
+                    break
+        if end_loop:
+            for roc_idx_prime in xrange(roc_idx,roc_vals.shape[0]):
+                roc_vals[roc_idx_prime] = -np.inf
+            break
+        else:
+            roc_vals[roc_idx] = cur_neg_idx/num_frames        
+    return lambda false_neg_rate: (roc_vals[int(false_neg_rate*pos.shape[0])],pos[int(false_neg_rate*pos.shape[0])]), roc_vals
 
 
 texp = template_exp.\
@@ -616,6 +629,341 @@ if True:
             all_negatives.extend(negatives)
         else:
             break
-    liy_roc = get_roc(np.sort(all_positives)[::-1],
+    liy_roc,liy_roc_vals = get_roc(np.sort(all_positives)[::-1],
                         np.sort(all_negatives)[::-1],
                         num_frames)
+
+
+#
+
+#
+#
+
+data_iter = tune_data_iter
+if True:
+    allowed_overlap = .2
+    edge_feature_row_breaks= np.array([   0.,   
+                                               45.,   
+                                               90.,  
+                                               138.,  
+                                               186.,  
+                                               231.,  
+                                               276.,  
+                                               321.,  
+                                               366.])
+    edge_orientations=np.array([[ 1.,  0.],
+                                        [-1.,  0.],
+                                        [ 0.,  1.],
+                                        [ 0., -1.],
+                                        [ 1.,  1.],
+                                        [-1., -1.],
+                                        [ 1., -1.],
+                                [-1.,  1.]])
+    abst_threshold=np.array([.025,.025,.015,.015,
+                                      .02,.02,.02,.02])
+    spread_radius=3
+    """
+    Find the appropriate threshold for the coarse classifier, this
+    should be run on tuning data, and then we can get a level for the
+    tradeoff between false positives and false negatives the first
+    pair is the roc curve for the count test and the second is for the
+    coarse likelihood test
+
+    The way this works is that we find the scores for each window and
+    then we rank them and remove overlapping windows that are lower
+    rank if the overlap is below a certain percentage
+
+    We are assuming that the classifier has been implemented and initialized properly
+    """
+    num_frames = 0
+    all_positives = []
+    all_negatives = []
+    data_iter.reset_exp()
+    for datum_id in xrange(data_iter.num_data):
+        if datum_id % 10 == 0:
+            print "working on example", datum_id
+        if data_iter.next(wait_for_positive_example=True,
+                          compute_pattern_times=True,
+                            max_template_length=classifier.window[1]):
+            pattern_times = data_iter.pattern_times
+            num_detections = data_iter.E.shape[1] - classifier.window[1]
+            num_frames += data_iter.E.shape[1]
+            scores = -np.inf * np.ones(num_detections)
+            for d in xrange(num_detections):
+                E_segment = data_iter.E[:,d:d+classifier.window[1]].copy()                
+                esp.threshold_edgemap(E_segment,.30,edge_feature_row_breaks,report_level=False,abst_threshold=abst_threshold)
+                esp.spread_edgemap(E_segment,edge_feature_row_breaks,edge_orientations,spread_length=3)
+                coarse_count_score = classifier.coarse_score_count(E_segment)
+                if coarse_count_score > coarse_thresh:
+                    scores[d] = classifier.score_no_bg(E_segment)
+            # now we get the indices sorted
+            indices = remove_overlapping_examples(np.argsort(scores),
+                                                  classifier.window[1],
+                                                  int(allowed_overlap*classifier.window[1]))
+            positives, negatives =  get_pos_neg_scores(indices,pattern_times,
+                                                                     scores)
+            all_positives.extend(positives)
+            all_negatives.extend(negatives)
+        else:
+            break
+    liy_roc,liy_roc_vals = get_roc(np.sort(all_positives)[::-1],
+                        np.sort(all_negatives)[::-1],
+                        num_frames)
+
+
+
+#setting the threshold again
+# seems that things got messed up
+
+classifier = Classifier(tpm_liy,bg=mean_background,coarse_factor=1)
+
+
+data_iter = test_data_iter
+if True:
+    allowed_overlap = .2
+    edge_feature_row_breaks= np.array([   0.,   
+                                               45.,   
+                                               90.,  
+                                               138.,  
+                                               186.,  
+                                               231.,  
+                                               276.,  
+                                               321.,  
+                                               366.])
+    edge_orientations=np.array([[ 1.,  0.],
+                                        [-1.,  0.],
+                                        [ 0.,  1.],
+                                        [ 0., -1.],
+                                        [ 1.,  1.],
+                                        [-1., -1.],
+                                        [ 1., -1.],
+                                [-1.,  1.]])
+    abst_threshold=np.array([.025,.025,.015,.015,
+                                      .02,.02,.02,.02])
+    spread_radius=3
+    """
+    Find the appropriate threshold for the coarse classifier, this
+    should be run on tuning data, and then we can get a level for the
+    tradeoff between false positives and false negatives the first
+    pair is the roc curve for the count test and the second is for the
+    coarse likelihood test
+
+    The way this works is that we find the scores for each window and
+    then we rank them and remove overlapping windows that are lower
+    rank if the overlap is below a certain percentage
+
+    We are assuming that the classifier has been implemented and initialized properly
+    """
+    num_frames = 0
+    all_positives = []
+    all_negatives = []
+    data_iter.reset_exp()
+    for datum_id in xrange(data_iter.num_data):
+        if datum_id % 10 == 0:
+            print "working on example", datum_id
+        if data_iter.next(wait_for_positive_example=True,
+                          compute_pattern_times=True,
+                            max_template_length=classifier.window[1]):
+            pattern_times = data_iter.pattern_times
+            num_detections = data_iter.E.shape[1] - classifier.window[1]
+            num_frames += data_iter.E.shape[1]
+            scores = -np.inf * np.ones(num_detections)
+            for d in xrange(num_detections):
+                E_segment = data_iter.E[:,d:d+classifier.window[1]].copy()                
+                esp.threshold_edgemap(E_segment,.30,edge_feature_row_breaks,report_level=False,abst_threshold=abst_threshold)
+                esp.spread_edgemap(E_segment,edge_feature_row_breaks,edge_orientations,spread_length=3)
+                scores[d] = classifier.score_no_bg(E_segment)
+            # now we get the indices sorted
+            indices = remove_overlapping_examples(np.argsort(scores),
+                                                  classifier.window[1],
+                                                  int(allowed_overlap*classifier.window[1]))
+            positives, negatives =  get_pos_neg_scores(indices,pattern_times,
+                                                                     scores,classifier.window[1])
+            all_positives.extend(positives)
+            all_negatives.extend(negatives)
+        else:
+            break
+    liy_roc_full,liy_roc_vals_full = get_roc(np.sort(all_positives)[::-1],
+                                                 np.sort(all_negatives)[::-1],
+                                                 num_frames)
+
+
+
+
+#
+#
+# getting such terrible results we want to make sure that everything being done is kosher, namely we need to make sure that the template being used actually gets reasonable results
+
+
+#
+
+
+data_iter = tune_data_iter
+if True:
+    allowed_overlap = .8
+    edge_feature_row_breaks= np.array([   0.,   
+                                               45.,   
+                                               90.,  
+                                               138.,  
+                                               186.,  
+                                               231.,  
+                                               276.,  
+                                               321.,  
+                                               366.])
+    edge_orientations=np.array([[ 1.,  0.],
+                                        [-1.,  0.],
+                                        [ 0.,  1.],
+                                        [ 0., -1.],
+                                        [ 1.,  1.],
+                                        [-1., -1.],
+                                        [ 1., -1.],
+                                [-1.,  1.]])
+    abst_threshold=np.array([.025,.025,.015,.015,
+                                      .02,.02,.02,.02])
+    spread_radius=3
+    """
+    Find the appropriate threshold for the coarse classifier, this
+    should be run on tuning data, and then we can get a level for the
+    tradeoff between false positives and false negatives the first
+    pair is the roc curve for the count test and the second is for the
+    coarse likelihood test
+
+    The way this works is that we find the scores for each window and
+    then we rank them and remove overlapping windows that are lower
+    rank if the overlap is below a certain percentage
+
+    We are assuming that the classifier has been implemented and initialized properly
+    """
+    num_frames = 0
+    all_positives = []
+    all_negatives = []
+    data_iter.reset_exp()
+    for datum_id in xrange(data_iter.num_data):
+        if datum_id % 10 == 0:
+            print "working on example", datum_id
+        if data_iter.next(wait_for_positive_example=True,
+                          compute_pattern_times=True,
+                            max_template_length=classifier.window[1]):
+            pattern_times = data_iter.pattern_times
+            num_detections = data_iter.E.shape[1] - liy_template.shape[1]
+            num_frames += data_iter.E.shape[1]
+            scores = -np.inf * np.ones(num_detections)
+            for d in xrange(num_detections):
+                E_segment = data_iter.E[:,d:d+liy_template.shape[1]].copy()                
+                esp.threshold_edgemap(E_segment,.30,edge_feature_row_breaks,report_level=False,abst_threshold=abst_threshold)
+                esp.spread_edgemap(E_segment,edge_feature_row_breaks,edge_orientations,spread_length=3)
+                scores[d] = sum(tt.score_template_background_section(liy_template,
+                                                         mean_background,E_segment))
+            # now we get the indices sorted
+            indices = remove_overlapping_examples(np.argsort(scores),
+                                                  liy_template.shape[1],
+                                                  int(allowed_overlap*liy_template.shape[1]))
+            positives, negatives =  get_pos_neg_scores(indices,pattern_times,
+                                                                     scores,classifier.window[1])
+            all_positives.extend(positives)
+            all_negatives.extend(negatives)
+        else:
+            break
+    liy_roc_full,liy_roc_vals_full = get_roc(np.sort(all_positives)[::-1],
+                                                 np.sort(all_negatives)[::-1],
+                                                 num_frames)
+
+
+
+#
+#
+# going to try to see where maxima detections are relative to the location of the true positives
+#
+#
+
+data_iter = tune_data_iter
+if True:
+    allowed_overlap = .8
+    edge_feature_row_breaks= np.array([   0.,   
+                                               45.,   
+                                               90.,  
+                                               138.,  
+                                               186.,  
+                                               231.,  
+                                               276.,  
+                                               321.,  
+                                               366.])
+    edge_orientations=np.array([[ 1.,  0.],
+                                        [-1.,  0.],
+                                        [ 0.,  1.],
+                                        [ 0., -1.],
+                                        [ 1.,  1.],
+                                        [-1., -1.],
+                                        [ 1., -1.],
+                                [-1.,  1.]])
+    abst_threshold=np.array([.025,.025,.015,.015,
+                                      .02,.02,.02,.02])
+    spread_radius=3
+    """
+    Find the appropriate threshold for the coarse classifier, this
+    should be run on tuning data, and then we can get a level for the
+    tradeoff between false positives and false negatives the first
+    pair is the roc curve for the count test and the second is for the
+    coarse likelihood test
+
+    The way this works is that we find the scores for each window and
+    then we rank them and remove overlapping windows that are lower
+    rank if the overlap is below a certain percentage
+
+    We are assuming that the classifier has been implemented and initialized properly
+    """
+    num_frames = 0
+    all_scores = []
+    data_iter.reset_exp()
+    for datum_id in xrange(data_iter.num_data):
+        if datum_id % 10 == 0:
+            print "working on example", datum_id
+        if data_iter.next(wait_for_positive_example=True,
+                          compute_pattern_times=True,
+                            max_template_length=classifier.window[1]):
+            pattern_times = data_iter.pattern_times
+            num_detections = data_iter.E.shape[1] - liy_template.shape[1]
+            num_frames += data_iter.E.shape[1]
+            scores_list = \
+                [-np.inf * np.ones(max(liy_template.shape[1],pattern_time[1])-(pattern_time[0]-liy_template.shape[1]))\
+                      for pattern_time in pattern_times]
+            for pt in xrange(len(scores_list)):
+                for d in xrange(pattern_times[pt][0]-liy_template.shape[1],max(liy_template.shape[1],pattern_times[pt][1])):
+                    E_segment = data_iter.E[:,d:d+liy_template.shape[1]].copy()                
+                    if E_segment.shape[1] != liy_template.shape[1]:
+                        scores_list[pt][d-(pattern_times[pt][0]-liy_template.shape[1])] = -np.inf
+                        continue
+                    esp.threshold_edgemap(E_segment,.30,edge_feature_row_breaks,report_level=False,abst_threshold=abst_threshold)
+                    esp.spread_edgemap(E_segment,edge_feature_row_breaks,edge_orientations,spread_length=3)
+                    scores_list[pt][d-(pattern_times[pt][0]-liy_template.shape[1])] = sum(tt.score_template_background_section(liy_template,
+                                                         mean_background,E_segment))
+            # now we get the indices sorted
+            all_scores.extend(zip(scores_list,
+                                  [pattern_times[p][1]-pattern_times[p][0] \
+                                       for p in xrange(len(pattern_times))]))
+        else:
+            break
+
+
+
+#
+#
+# it seems that something is entirely amiss right here and we have messed up the code some how
+#
+#
+
+#
+# going to try to run a regression experiment
+#
+# look at the top three values and then see if I can fit a regression function
+
+top_score_length_cmp = np.empty((len(all_scores),7))
+for d in xrange(top_score_length_cmp.shape[0]):
+    top_score_length_cmp[d][6] = all_scores[d][1]
+    sorted_idx = np.argsort(all_scores[d][0])
+    for i in xrange(3):
+        top_score_length_cmp[d][i] = all_scores[d][0][sorted_idx[i]]
+        top_score_length_cmp[d][i+3] = sorted_idx[i] - liy_template.shape[1]
+
+np.save('tslc',top_score_length_cmp)
+
