@@ -231,7 +231,7 @@ def get_spectrogram_features(s,sample_rate,num_window_samples,
     s = _preemphasis(s,preemph)
     S = _spectrograms(s,num_window_samples, 
                       num_window_step_samples,
-                      fft_length,freq_cutoff,
+                      fft_length,
                       sample_rate)
     freq_idx = int(freq_cutoff/(float(sample_rate)/fft_length))
     S = S[:,:freq_idx]
@@ -256,7 +256,7 @@ def get_edgemap_features(s,sample_rate,num_window_samples,
     s = _preemphasis(s,preemph)
     S = _spectrograms(s,num_window_samples, 
                       num_window_step_samples,
-                      fft_length,freq_cutoff,
+                      fft_length,
                       sample_rate)
     print "Frequency cutoff was", freq_cutoff
     freq_idx = int(freq_cutoff/(float(sample_rate)/fft_length))
@@ -275,6 +275,30 @@ def get_edgemap_features(s,sample_rate,num_window_samples,
     E = _edge_map(S_subsampled,quantile_level)
     return E
 
+def get_log_spectrogram(s,sample_rate,
+                        num_window_samples,
+                        num_window_step_samples,
+                        fft_length,
+                        preemph=.95,
+                        return_freqs=False):
+    s = _preemphasis(s,preemph)
+    S = _spectrograms(s,num_window_samples, 
+                      num_window_step_samples,
+                      fft_length,
+                      sample_rate)
+    freq_idx = np.arange(S.shape[1])[::-1] * (float(sample_rate)/fft_length)
+    #S = S[:,:freq_idx]
+    # correct for the shape
+    # we want each row of S to correspond to a frequency
+    # and we want the bottom row to represent the lowest
+    # frequency
+    if return_freqs:
+        return np.log(S.transpose()), freq_idx
+    else:
+        return np.log(S.transpose())
+
+    
+
 def get_edgemap_no_threshold(s,sample_rate,
                              num_window_samples,
                              num_window_step_samples,
@@ -284,7 +308,7 @@ def get_edgemap_no_threshold(s,sample_rate,
     s = _preemphasis(s,preemph)
     S = _spectrograms(s,num_window_samples, 
                       num_window_step_samples,
-                      fft_length,freq_cutoff,
+                      fft_length,
                       sample_rate)
     freq_idx = int(freq_cutoff/(float(sample_rate)/fft_length))
     S = S[:,:freq_idx]
@@ -766,7 +790,7 @@ def _get_labels(label_times,
 
 def _spectrograms(s,num_window_samples, 
                   num_window_step_samples,
-                  fft_length,freq_cutoff,
+                  fft_length,
                   sample_rate):
     # pre-emphasis 
     s=_preemphasis(s)
@@ -775,16 +799,28 @@ def _spectrograms(s,num_window_samples,
     return np.abs(fft(hanning(num_window_samples) * swindows,fft_length)[:,:fft_length/2+1])
 
 
-def audspec(spectrogram,sample_rate,nbands=40,
-            min_freq=0,max_freq=4000,
+def audspec(spectrogram,sample_rate,nbands=None,
+            min_freq=0,max_freq=None,
             sumpower=1,bwidth=1.0):
-    nfreqs, nframes = spectrogram.size
+    """
+    Copied from http://labrosa.ee.columbia.edu/matlab/rastamat/audspec.m
+    sample_rate should be an integer
+    """
+    if nbands is None:
+        nbands = int(np.ceil(hz2bark(sample_rate/2)+1))
+    if max_freq is None:
+        max_freq = sample_rate/2
+    nfreqs, nframes = spectrogram.shape
     nfft = (nfreqs-1)*2
-    wts = fft2melmx(nfft,sample_rate,nbands,bwdith,
+    # only implementing the mel case
+    wts,_ = fft2melmx(nfft,sample_rate,nbands,bwdith,
                     minfreq,maxfreq)
+    wts = wts[:, :nfreqs]
+    return np.dot(wts, spectrogram)
+    
 
-def fft2melmx(nfft,sr,nfilts,width,minfrq,
-              maxfrq):
+def fft2melmx(nfft,sample_rate,nfilts=40,width=1.0,minfrq=0,
+              maxfrq=None):
     """
     Copied nearly directly from Dan Ellis' code:
     http://labrosa.ee.columbia.edu/matlab/rastamat/fft2melmx.m
@@ -795,18 +831,56 @@ def fft2melmx(nfft,sr,nfilts,width,minfrq,
         number of samples for the fourier transform
     sr: int
         number of samples per second
+
+    Complete, matches with Dan Ellis' implementation
     """
+    if maxfrq is None:
+        maxfrq = sample_rate/2
     wts = np.zeros((nfilts,nfft))
     # center frequencies for the mel bins
-    fftfrqs = np.arange(nfft)/nfft*sr
+    fftfrqs = np.arange(nfft)/np.float64(nfft)*sample_rate
     minmel = hz2mel_num(minfrq)
     maxmel = hz2mel_num(maxfrq)
+    binmels = np.arange(minmel,maxmel+1,(maxmel-minmel)/(nfilts+1))
+    binfrqs = np.array(map(mel2hz,
+                           binmels))
+    binbin = np.array(map(round,binfrqs/sample_rate*(nfft-1)))
+    for filt in xrange(nfilts):
+        fs = binfrqs[filt:filt+3].copy()
+        fs = fs[1] + width * (fs - fs[1])
+        loslope = (fftfrqs - fs[0])/(fs[1] - fs[0])
+        hislope = (fs[2] - fftfrqs)/(fs[2] - fs[1])
+        wts[filt,:] = np.maximum(0,
+                              np.minimum(loslope, 
+                                         hislope))
+    wts = np.dot(np.diag(2./(binfrqs[2+np.arange(nfilts)]-binfrqs[:nfilts])),wts)
+    wts[:,(nfft/2+1):nfft+1]=0.
+    return wts, binfrqs
+
     
+
+def mel2hz(mel):
+    f_0 = 0; # 133.33333;
+    f_sp = 200./3; # 66.66667;
+    brkfrq = 1000;
+    # starting mel value for log region
+    brkpt  = (brkfrq - f_0)/f_sp;  
+    if mel > brkpt:        
+        # log(exp(log(6.4)/27))
+        # magic log step number
+        logstep = 0.068751777420949123
+        return brkfrq*np.exp(logstep*(mel-brkpt))
+    else:
+        return f_0 + f_sp*mel
+
+      
 
 def hz2mel_num(freq):
     """
     Copied from Dan Ellis' code
     http://labrosa.ee.columbia.edu/matlab/rastamat/hz2mel.m
+    
+    Completed
     """
     f_0 = 0.
     f_sp = 200/3.
@@ -827,7 +901,11 @@ def htk_hz2mel(freq):
     """
     return 2595. * np.log10(1+freq/700.)
 
+def hz2bark(freq):
+    return 6. * np.arcsinh(freq/600.)
+
 def _mel_filter_freq():    
+    
     pass
  
 
