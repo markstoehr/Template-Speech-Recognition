@@ -314,7 +314,7 @@ def get_mel_spec(s,sample_rate,
                                preemph=.95,
                                return_freqs=True)
     return audspec(S,sample_rate,nbands=nbands,
-                max_freq=freq_cutoff)
+                maxfreq=freq_cutoff)
 
 def get_edgemap_no_threshold(s,sample_rate,
                              num_window_samples,
@@ -817,7 +817,7 @@ def _spectrograms(s,num_window_samples,
 
 
 def audspec(spectrogram,sample_rate,nbands=None,
-            min_freq=0,max_freq=None,
+            minfreq=0,maxfreq=None,
             sumpower=1,bwidth=1.0):
     """
     Copied from http://labrosa.ee.columbia.edu/matlab/rastamat/audspec.m
@@ -825,12 +825,12 @@ def audspec(spectrogram,sample_rate,nbands=None,
     """
     if nbands is None:
         nbands = int(np.ceil(hz2bark(sample_rate/2)+1))
-    if max_freq is None:
-        max_freq = sample_rate/2
+    if maxfreq is None:
+        maxfreq = sample_rate/2
     nfreqs, nframes = spectrogram.shape
     nfft = (nfreqs-1)*2
     # only implementing the mel case
-    wts,_ = fft2melmx(nfft,sample_rate,nbands,bwdith,
+    wts,_ = fft2melmx(nfft,sample_rate,nbands,bwidth,
                     minfreq,maxfreq)
     wts = wts[:, :nfreqs]
     return np.dot(wts, spectrogram)
