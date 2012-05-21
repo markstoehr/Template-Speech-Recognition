@@ -151,6 +151,40 @@ class Experiment:
             return [E[:,pattern_time[0]:pattern_time[1]+1]\
                         for pattern_time in pattern_times]
          
+    def get_unsmoothed_spec(self,s,
+                            freq_cutoff=None):
+        """
+        s: array
+            gets the unsmoothed spectrogram
+        """
+        if freq_cutoff is None:
+            return esp.get_log_spectrogram(s,self.sample_rate,
+                                   self.num_window_samples,
+                                   self.num_window_step_samples,
+                                   self.fft_length
+                                   )
+        else:
+            S, freq_idx = esp.get_log_spectrogram(s,self.sample_rate,
+                                   self.num_window_samples,
+                                   self.num_window_step_samples,
+                                   self.fft_length,
+                                   return_freqs=True)
+            return S[freq_idx<freq_cutoff,:]
+
+    def get_mel_spec(self,s,nbands=40,
+                     freq_cutoff=None):
+        """
+        s: array
+            gets the unsmoothed spectrogram
+        """
+        return esp.get_mel_spec(s,self.sample_rate,
+                                   self.num_window_samples,
+                                   self.num_window_step_samples,
+                                   self.fft_length,
+                                    nbands
+                                   )
+
+    
         
     def get_pattern_parts(self,E,phns,phn_times,s):
         """
