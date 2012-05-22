@@ -34,6 +34,7 @@ class Experiment:
                                         [-1., -1.],
                                         [ 1., -1.],
                                 [-1.,  1.]]),
+                 use_mel=False
                  ):
         """
         Parameters:
@@ -76,6 +77,7 @@ class Experiment:
         self.edge_orientations=edge_orientations
         self.abst_threshold=abst_threshold
         self.spread_radius=spread_length
+        self.use_mel = use_mel
 
 
 
@@ -114,7 +116,8 @@ class Experiment:
                                              self.num_window_step_samples,
                                              self.fft_length,
                                              self.freq_cutoff,
-                                             self.kernel_length)
+                                             self.kernel_length,
+                                            use_mel=self.use_mel)
         
     def has_pattern(self,phns):
         return esp.has_pattern(self.pattern,phns)
@@ -532,7 +535,10 @@ class Experiment_Iterator(Experiment):
                  data_dir='',kernel_length=7,
                  spread_length=None,
                  abst_threshold=None,
-                 bg_len=None):
+                 bg_len=None,
+                 use_mel=False):
+        # This says whether to use the mel computed spectrogram or the standard spectrogram
+        self.use_mel=use_mel
         self.base_exp = base_exp
         if abst_threshold:
             self.abst_threshold = abst_threshold
