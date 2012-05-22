@@ -1,3 +1,6 @@
+#
+# purpose of this experiment is to see if the adaptive background over the window does better than the basic
+#
 root_path = '/var/tmp/stoehr/Projects/Template-Speech-Recognition/'
 
 import sys, os, cPickle
@@ -10,71 +13,10 @@ import template_speech_rec.test_template as tt
 import template_speech_rec.classification as cl
 
 
-edge_feature_row_breaks = np.load(root_path+'Experiments/050812/edge_feature_row_breaks.npy')
-edge_orientations = np.load(root_path+'Experiments/050812/edge_orientations.npy')
-abst_threshold = np.load(root_path+'Experiments/050812/abst_threshold.npy')
-
-texp = template_exp.\
-    Experiment(pattern=np.array(('aa','r')),
-               data_paths_file=root_path+'Data/WavFilesTrainPaths_feverfew',
-               spread_length=3,
-               abst_threshold=.0001*np.ones(8),
-               fft_length=512,num_window_step_samples=80,
-               freq_cutoff=3000,sample_rate=16000,
-               num_window_samples=320,kernel_length=7
-               )
-
-train_data_iter, tune_data_iter =\
-    template_exp.get_exp_iterator(texp,train_percent=.6)
-
-output = open('aar_train_tune_data_iter052112.pkl','wb')
-cPickle.dump(train_data_iter,output)
-cPickle.dump(tune_data_iter,output)
+output = open('aar_train_tune_data_iter052112.pkl','rb')
+train_data_iter = cPickle.load(output)
+tune_data_iter = cPickle.load(output)
 output.close()
-
-aar_patterns = []
-train_data_iter.reset_exp()
-for datum_id in xrange(train_data_iter.num_data):
-    if datum_id % 10 == 0:
-        print datum_id
-    if train_data_iter.next(wait_for_positive_example=True,
-                            compute_patterns=True,
-                            max_template_length=40):
-        # the context length is 11
-        for p in train_data_iter.patterns:
-            pattern = p.copy()
-            esp.threshold_edgemap(pattern,.30,edge_feature_row_breaks,report_level=False,abst_threshold=abst_threshold)
-            esp.spread_edgemap(pattern,edge_feature_row_breaks,edge_orientations,spread_length=5)
-            aar_patterns.append(pattern)
-    else:
-        break
-
-_,_ ,\
-        registered_examples,template \
-        = et.simple_estimate_template(aar_patterns)
-
-def get_training_template(train_data_iter):
-    patterns = []
-    train_data_iter.reset_exp()
-    for datum_id in xrange(train_data_iter.num_data):
-        if datum_id % 10 == 0:
-            print datum_id
-    if train_data_iter.next(wait_for_positive_example=True,
-                            compute_patterns=True,
-                            max_template_length=40):
-        # the context length is 11
-        for p in train_data_iter.patterns:
-            pattern = p.copy()
-            esp.threshold_edgemap(pattern,.30,edge_feature_row_breaks,report_level=False,abst_threshold=abst_threshold)
-            esp.spread_edgemap(pattern,edge_feature_row_breaks,edge_orientations,spread_length=5)
-            patterns.append(pattern)
-    else:
-        break
-    _,_ ,\
-        registered_examples,template \
-        = et.simple_estimate_template(patterns)
-    return registered_examples, template
-
 
 
 mean_background = np.load(root_path+'Experiments/050812/mean_background_liy051012.npy')
@@ -123,74 +65,67 @@ if True:
     We are assuming that the classifier has been implemented and initialized properly
     """
     num_frames = 0
-    all_positives = []
-    all_negatives = []
     all_positives_adapt_bg = []
     all_negatives_adapt_bg = []
-    all_positives_coarse = []
-    all_negatives_coarse = []
+    all_positives_mel = []
+    all_negatives_mel = []
     data_iter.reset_exp()
     for datum_id in xrange(data_iter.num_data):
         if datum_id % 10 == 0:
             print "working on example", datum_id
-        if data_iter.next(
-                          compute_pattern_times=True,
-                            max_template_length=classifier.window[1]):
+        if data_iter.next(compute_pattern_times=True,
+                          max_template_length=classifier.window[1]):
             pattern_times = data_iter.pattern_times
             num_detections = data_iter.E.shape[1] - classifier.window[1]
             num_frames += data_iter.E.shape[1]
-            scores = -np.inf * np.ones(num_detections)
             scores_adapt_bg = -np.inf * np.ones(num_detections)
-            coarse_scores = -np.inf * np.ones(num_detections)
+            scores_mel = -np.inf * np.ones(num_detections)
             bg = mean_background.copy()
+            E_mel = esp.get_edgemap_no_threshold(train_data_iter.s,
+                            train_data_iter.sample_rate,
+                        train_data_iter.num_window_samples,
+                        train_data_iter.num_window_step_samples,
+                        train_data_iter.fft_length,8000,7,
+                                                 use_mel = True)
             for d in xrange(num_detections):
                 E_segment = data_iter.E[:,d:d+classifier.window[1]].copy()                
                 esp.threshold_edgemap(E_segment,.30,edge_feature_row_breaks,report_level=False,abst_threshold=abst_threshold)
                 esp.spread_edgemap(E_segment,edge_feature_row_breaks,edge_orientations,spread_length=3)
-                
-                scores[d] = classifier.score_no_bg(E_segment)
-                scores_adapt_bg[d] = classifier.score(E_segment,bg)
-                coarse_scores[d] = classifier.coarse_score_count(E_segment)
-                bg = np.minimum(.1,
+                E_segment_mel = E_mel[:,d:d+classifier.window[1]].copy()
+                esp.threshold_edgemap(E_segment_mel,.30,edge_feature_row_breaks,report_level=False,abst_threshold=abst_threshold)
+                esp.spread_edgemap(E_segment_mel,edge_feature_row_breaks,edge_orientations,spread_length=3)
+                bg = np.minimum(.4,
                                  np.maximum(np.mean(E_segment,axis=1),
-                                            .4))
+                                            .1))
+                scores_adapt_bg[d] = classifier.score(E_segment,bg)
+                scores_mel[d] = classifier.score_no_bg(E_segment_mel)
             # now we get the indices sorted
-            indices = cl.remove_overlapping_examples(np.argsort(scores)[::-1],
-                                                     classifier.window[1],
-                                                     int(allowed_overlap*classifier.window[1]))
             indices_adapt_bg = cl.remove_overlapping_examples(np.argsort(scores_adapt_bg)[::-1],
                                                               classifier.window[1],
                                                               int(allowed_overlap*classifier.window[1]))
-            indices_coarse = cl.remove_overlapping_examples(np.argsort(coarse_scores)[::-1],
+            indices_mel = cl.remove_overlapping_examples(np.argsort(scores_mel)[::-1],
                                                             classifier.window[1],
                                                             int(allowed_overlap*classifier.window[1]))
-            positives, negatives =  cl.get_pos_neg_scores(indices,pattern_times,
-                                                          scores,classifier.window[1])
             positives_adapt_bg, negatives_adapt_bg =  cl.get_pos_neg_scores(indices_adapt_bg,
                                                                             pattern_times,
                                                                             scores_adapt_bg,
                                                                             classifier.window[1])
-            positives_coarse, negatives_coarse =  cl.get_pos_neg_scores(indices_coarse,
+            positives_mel, negatives_coarse =  cl.get_pos_neg_scores(indices_mel,
                                                                         pattern_times,
-                                                                        coarse_scores,
+                                                                        scores_mel,
                                                                         classifier.window[1])
-            all_positives.extend(positives)
-            all_negatives.extend(negatives)
             all_positives_adapt_bg.extend(positives_adapt_bg)
             all_negatives_adapt_bg.extend(negatives_adapt_bg)
-            all_positives_coarse.extend(positives_coarse)
-            all_negatives_coarse.extend(negatives_coarse)
+            all_positives_mel.extend(positives_mel)
+            all_negatives_mel.extend(negatives_mel)
         else:
             break
 
-aar_roc,aar_roc_vals = cl.get_roc(np.sort(all_positives)[::-1],
-                                  np.sort(all_negatives)[::-1],num_frames)
 aar_roc_adapt_bg,aar_roc_vals_adapt_bg = cl.get_roc(np.sort(all_positives_adapt_bg)[::-1],
                                                     np.sort(all_negatives_adapt_bg)[::-1],num_frames)
 aar_roc_coarse,aar_roc_vals_coarse = cl.get_roc(np.sort(all_positives_coarse)[::-1],
                                                 np.sort(all_negatives_coarse)[::-1],num_frames)
 
-np.save('aar_roc_vals052112',aar_roc_vals)
 np.save('aar_roc_vals_adapt_bg052112',aar_roc_vals_adapt_bg)
 np.save('aar_roc_vals_coarse052112',aar_roc_vals_coarse)
 
