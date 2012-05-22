@@ -78,29 +78,31 @@ mean_background = np.load(root_path+'Experiments/050812/mean_background_liy05101
 # for the coarse factor we put it at 1 just because we want to keep comparable to alexey
 classifier = cl.Classifier(template,coarse_factor=1,bg = mean_background)
 
+np.save('aar_template_052112',template)
+np.save('registered_examples_aar_052112',registered_examples)
 
 data_iter = tune_data_iter
 if True:
     allowed_overlap = .3
     edge_feature_row_breaks= np.array([   0.,   
-                                               45.,   
-                                               90.,  
-                                               138.,  
-                                               186.,  
-                                               231.,  
-                                               276.,  
-                                               321.,  
-                                               366.])
+                                          45.,   
+                                          90.,  
+                                          138.,  
+                                          186.,  
+                                          231.,  
+                                          276.,  
+                                          321.,  
+                                          366.])
     edge_orientations=np.array([[ 1.,  0.],
-                                        [-1.,  0.],
-                                        [ 0.,  1.],
-                                        [ 0., -1.],
-                                        [ 1.,  1.],
-                                        [-1., -1.],
-                                        [ 1., -1.],
+                                [-1.,  0.],
+                                [ 0.,  1.],
+                                [ 0., -1.],
+                                [ 1.,  1.],
+                                [-1., -1.],
+                                [ 1., -1.],
                                 [-1.,  1.]])
     abst_threshold=np.array([.025,.025,.015,.015,
-                                      .02,.02,.02,.02])
+                              .02,.02,.02,.02])
     spread_radius=3
     """
     Find the appropriate threshold for the coarse classifier, this
@@ -176,20 +178,15 @@ if True:
         else:
             break
 
-inds = indices
-window_length = classifier.window[1]
-pos_scores, neg_scores = [],[]
-pos_patterns = np.empty(coarse_scores.shape[0],dtype=int)
-pos_patterns[:] = 0
-pos_scores = [-np.inf] * len(pattern_times)
-for pt in xrange(len(pattern_times)):
-    pos_patterns[pattern_times[pt][0]-window_length/3:pattern_times[pt][0]+window_length/3]= pt+1
-    for ind in inds:
-        if pos_patterns[ind]>0:
-            if scores[ind] > pos_scores[pos_patterns[ind]]:
-                pos_scores[pos_patterns[ind]] = coarse_scores[ind]
-        else:
-            neg_scores.append(coarse_scores[ind])
+aar_roc,aar_roc_vals = cl.get_roc(np.sort(all_positives)[::-1],
+                                  np.sort(all_negatives)[::-1],num_frames)
+aar_roc_adapt_bg,aar_roc_vals_adapt_bg = cl.get_roc(np.sort(all_positives_adapt_bg)[::-1],
+                                                    np.sort(all_negatives_adapt_bg)[::-1],num_frames)
+aar_roc_coarse,aar_roc_vals_coarse = cl.get_roc(np.sort(all_positives_coarse)[::-1],
+                                                np.sort(all_negatives_coarse)[::-1],num_frames)
+
+
+
 
 
 
