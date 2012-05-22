@@ -20,6 +20,7 @@ class Classifier:
             self.type = "template"
             self.window = np.array((template_height,template_length))
             self.template = base_object
+            self.bg = bg
             self.score = lambda E_window,bg:\
                 sum(tt.score_template_background_section(self.template,
                                                          bg,E_window))
@@ -294,7 +295,6 @@ def get_roc_full(data_iter, classifier, coarse_thresh,
         if datum_id % 10 == 0:
             print "working on example", datum_id
         if data_iter.next(compute_pattern_times=True,
-                          wait_for_true
                             max_template_length=classifier.window[1]):
             pattern_times = data_iter.pattern_times
             num_detections = data_iter.E.shape[1] - classifier.window[1]
@@ -330,7 +330,7 @@ def get_roc_full(data_iter, classifier, coarse_thresh,
     return count_roc, like_roc
 
             
-def get_pos_neg_scores(inds,pattern_times,coarse_scores,window_length):
+def get_pos_neg_scores(inds,pattern_times,scores,window_length):
     """
     Ouputs the scores for the positive examples and the negative
     examples.  The positive examples, by default, are assigned a score
@@ -338,17 +338,18 @@ def get_pos_neg_scores(inds,pattern_times,coarse_scores,window_length):
     times.
     """
     pos_scores, neg_scores = [],[]
-    pos_patterns = np.empty(coarse_scores.shape[0],dtype=int)
+    pos_patterns = np.empty(scores.shape[0],dtype=int)
     pos_patterns[:] = 0
     pos_scores = [-np.inf] * len(pattern_times)
     for pt in xrange(len(pattern_times)):
-        pos_patterns[pattern_times[pt][0]-window_length/3:pattern_times[pt][0]+window_length/3]= pt
+        pos_patterns[pattern_times[pt][0]-int(np.ceil(window_length/3.)):
+                         pattern_times[pt][0]+int(np.ceil(window_length/3.))]= pt+1
     for ind in inds:
         if pos_patterns[ind]>0:
-            if coarse_scores[ind] > pos_scores[pos_patterns[ind]]:
-                pos_scores[pos_patterns[ind]] = coarse_scores[ind]
+            if scores[ind] > pos_scores[pos_patterns[ind]-1]:
+                pos_scores[pos_patterns[ind]-1] = scores[ind]
         else:
-            neg_scores.append(coarse_scores[ind])
+            neg_scores.append(scores[ind])
     return pos_scores,neg_scores
     
 
