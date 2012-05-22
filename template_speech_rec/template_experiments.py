@@ -14,7 +14,8 @@ class Experiment:
                  fft_length=512,
                  data_dir='',kernel_length=7,
                  spread_length=3,
-                 abst_threshold=.0001*np.ones(8),
+                 abst_threshold=np.array([.025,.025,.015,.015,
+                                      .02,.02,.02,.02]),
                  do_random=True,
                  edge_feature_row_breaks=np.array([   0.,   
                                                   45.,   
@@ -33,9 +34,6 @@ class Experiment:
                                         [-1., -1.],
                                         [ 1., -1.],
                                 [-1.,  1.]]),
-                 abst_threshold=np.array([.025,.025,.015,.015,
-                                      .02,.02,.02,.02]),
-                 spread_length=3
                  ):
         """
         Parameters:
