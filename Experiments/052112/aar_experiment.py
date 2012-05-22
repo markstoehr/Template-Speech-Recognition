@@ -27,6 +27,11 @@ texp = template_exp.\
 train_data_iter, tune_data_iter =\
     template_exp.get_exp_iterator(texp,train_percent=.6)
 
+output = open('aar_train_tune_data_iter052112.pkl','wb')
+cPickle.dump(train_data_iter,output)
+cPickle.dump(tune_data_iter,output)
+output.close()
+
 aar_patterns = []
 train_data_iter.reset_exp()
 for datum_id in xrange(train_data_iter.num_data):
