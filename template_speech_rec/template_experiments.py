@@ -15,7 +15,28 @@ class Experiment:
                  data_dir='',kernel_length=7,
                  spread_length=3,
                  abst_threshold=.0001*np.ones(8),
-                 do_random=True):
+                 do_random=True,
+                 edge_feature_row_breaks=np.array([   0.,   
+                                                  45.,   
+                                               90.,  
+                                               138.,  
+                                               186.,  
+                                               231.,  
+                                               276.,  
+                                               321.,  
+                                               366.]),
+                 edge_orientations=np.array([[ 1.,  0.],
+                                    [-1.,  0.],
+                                        [ 0.,  1.],
+                                        [ 0., -1.],
+                                        [ 1.,  1.],
+                                        [-1., -1.],
+                                        [ 1., -1.],
+                                [-1.,  1.]]),
+                 abst_threshold=np.array([.025,.025,.015,.015,
+                                      .02,.02,.02,.02]),
+                 spread_length=3
+                 ):
         """
         Parameters:
         -----------
@@ -53,6 +74,11 @@ class Experiment:
         self.num_data = len(self.paths)    
         if do_random:
             random.shuffle(self.paths)
+        self.edge_feature_row_breaks= edge_feature_row_breaks
+        self.edge_orientations=edge_orientations
+        self.abst_threshold=abst_threshold
+        self.spread_radius=spread_length
+
 
 
     def get_s(self,idx):
