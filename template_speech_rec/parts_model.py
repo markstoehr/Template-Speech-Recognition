@@ -42,8 +42,8 @@ class TwoPartModel:
         #
     def get_def_templates(self):
         self.def_templates = np.zeros((self.num_templates,
-                                     self.template_height,
-                                     self.length_range[1]))
+                                       self.template_height,
+                                       self.length_range[1]))
         for t_id in xrange(self.num_templates):
             self.def_templates[t_id] = self.get_def_template(self.min_max_def[0] + t_id)
     #                                 
