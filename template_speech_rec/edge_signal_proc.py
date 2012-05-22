@@ -321,26 +321,34 @@ def get_edgemap_no_threshold(s,sample_rate,
                              num_window_step_samples,
                              fft_length,
                              freq_cutoff,kernel_length,
-                             preemph=.95):
+                             preemph=.95,
+                             use_mel = False):
     s = _preemphasis(s,preemph)
-    S = _spectrograms(s,num_window_samples, 
-                      num_window_step_samples,
-                      fft_length,
-                      sample_rate)
-    freq_idx = int(freq_cutoff/(float(sample_rate)/fft_length))
-    S = S[:,:freq_idx]
-    # correct for the shape
-    # we want each row of S to correspond to a frequency
-    # and we want the bottom row to represent the lowest
-    # frequency
-    S = np.log(S.transpose())
-    #S = S[::-1,:]
-    # smooth the spectrogram
-    smoothing_kernel = make_gaussian_kernel(kernel_length)
-    S_smoothed = convolve(S,smoothing_kernel,mode = "same")
-    S_subsampled = S_smoothed[::2,:]
-    # compute the edgemap
-    return _edge_map_no_threshold(S_subsampled)
+    if not use_mel:
+        S = _spectrograms(s,num_window_samples, 
+                          num_window_step_samples,
+                          fft_length,
+                          sample_rate)
+        freq_idx = int(freq_cutoff/(float(sample_rate)/fft_length))
+        S = S[:,:freq_idx]
+        # correct for the shape
+        # we want each row of S to correspond to a frequency
+        # and we want the bottom row to represent the lowest
+        # frequency
+        S = np.log(S.transpose())
+        #S = S[::-1,:]
+        # smooth the spectrogram
+        smoothing_kernel = make_gaussian_kernel(kernel_length)
+        S_smoothed = convolve(S,smoothing_kernel,mode = "same")
+        S_subsampled = S_smoothed[::2,:]
+        S = S_subsampled
+        # compute the edgemap
+    else: # use mels
+        S = get_mel_spec(s,sample_rate,
+                        num_window_samples,
+                        num_window_step_samples,
+                        fft_length,)
+    return _edge_map_no_threshold(S)
 
 def threshold_edgemap(E,quantile_level,
                       edge_feature_row_breaks,
