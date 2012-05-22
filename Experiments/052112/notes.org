@@ -1,0 +1,9 @@
+* Experiments
+The order of experiments is for me to first make sure that the system
+gets a reasonable ROC curve for the "aar" and "liy" experiments
+
+Then we want to do ROC curves for "pa" v.s. "ta" v.s. "da"
+we also want ROC curves for "aa", "iy", "u" and other vowels
+
+** AAR experiment
+its contained in aar_experiment.py
