@@ -190,6 +190,34 @@ aar_roc_adapt_bg,aar_roc_vals_adapt_bg = cl.get_roc(np.sort(all_positives_adapt_
 aar_roc_coarse,aar_roc_vals_coarse = cl.get_roc(np.sort(all_positives_coarse)[::-1],
                                                 np.sort(all_negatives_coarse)[::-1],num_frames)
 
+np.save('aar_roc_vals052112',aar_roc_vals)
+np.save('aar_roc_vals_adapt_bg052112',aar_roc_vals_adapt_bg)
+np.save('aar_roc_vals_coarse052112',aar_roc_vals_coarse)
+
+# threshold is going to be 1000
+pos = np.sort(all_positives)[::-1]
+neg = np.sort(all_negatives)[::-1]
+    num_frames = float(num_frames)
+    roc_vals = np.zeros(len(pos))
+    cur_neg_idx = 0
+    while pos[0] <= neg[cur_neg_idx]: cur_neg_idx += 1
+    roc_vals[0] = cur_neg_idx/num_frames
+    end_loop = False
+    for roc_idx in xrange(1,roc_vals.shape[0]):
+        if pos[roc_idx] < neg[-1]:
+            end_loop = True
+        else:
+            while pos[roc_idx] <= neg[cur_neg_idx]:
+                cur_neg_idx +=1
+                if cur_neg_idx >= neg.shape[0]:
+                    end_loop = True
+                    break
+        if end_loop:
+            for roc_idx_prime in xrange(roc_idx,roc_vals.shape[0]):
+                roc_vals[roc_idx_prime] = -np.inf
+            break
+        else:
+            roc_vals[roc_idx] = cur_neg_idx/num_frames        
 
 
 
