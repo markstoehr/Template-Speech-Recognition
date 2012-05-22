@@ -2,11 +2,11 @@ import sys, os
 
 #import template_speech_rec.data_loading as dl
 import numpy as np
-import template_speech_rec.template_experiments as template_exp
-import template_speech_rec.edge_signal_proc as esp
-import template_speech_rec.estimate_template as et
-import template_speech_rec.test_template as tt
-
+import template_experiments as template_exp
+import edge_signal_proc as esp
+import estimate_template as et
+import test_template as tt
+import parts_model as pm
 
 class Classifier:
     def __init__(self,base_object, coarse_factor=2,
@@ -50,7 +50,7 @@ class Classifier:
                 np.sum(get_coarse_segment(E_window,
                                coarse_type='max',
                                coarse_factor=self.coarse_factor)[self.coarse_template_mask])
-        elif base_object.__class__ == TwoPartModel:
+        elif base_object.__class__ == pm.TwoPartModel:
             template_height, template_length = base_object.bg.shape[0],base_object.length_range[1]
             if bg is not None:
                 self.bg = bg
@@ -382,7 +382,7 @@ def get_roc(pos,neg,num_frames):
         else:
             while pos[roc_idx] <= neg[cur_neg_idx]:
                 cur_neg_idx +=1
-                if cur_neg_idx < neg.shape[0]:
+                if cur_neg_idx >= neg.shape[0]:
                     end_loop = True
                     break
         if end_loop:
