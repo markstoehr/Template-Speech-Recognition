@@ -7,3 +7,20 @@ we also want ROC curves for "aa", "iy", "u" and other vowels
 
 ** AAR experiment
 its contained in aar_experiment.py
+** Learning Time-Domain Edge detectors
+Two Ideas: one is just to use a linear predictor, a kernel-based
+estimator, or a complex function Find the chunk of the signal that
+mapped to an edge response call this $\mathbf{x}$ this maps to an edge
+response magnitude $y$, we might try to find
+
+$$\mathbf{\beta}^\top\mathbf{x}\approx y$$
+
+for the complex case we might have
+
+$$\mathbf{x}^\top\mathbf{\beta}\mathbf{\beta}^\top\mathbf{x}\approx y$$
+
+or we could look at 
+$$\max_\tau \mathbf{\beta}^\top\mathbf{L_\tau x}$$
+
+where $\tau$ encodes a shift, so we look at a max over cyclic shifts,
+we might use this to infer
