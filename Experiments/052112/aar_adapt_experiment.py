@@ -81,7 +81,8 @@ if True:
             scores_adapt_bg = -np.inf * np.ones(num_detections)
             scores_mel = -np.inf * np.ones(num_detections)
             bg = mean_background.copy()
-            E_mel = esp.get_edgemap_no_threshold(train_data_iter.s,
+            E_mel,e_breaks_mel,\
+            e_orientations_mel= esp.get_edgemap_no_threshold(train_data_iter.s,
                             train_data_iter.sample_rate,
                         train_data_iter.num_window_samples,
                         train_data_iter.num_window_step_samples,
@@ -92,8 +93,8 @@ if True:
                 esp.threshold_edgemap(E_segment,.30,edge_feature_row_breaks,report_level=False,abst_threshold=abst_threshold)
                 esp.spread_edgemap(E_segment,edge_feature_row_breaks,edge_orientations,spread_length=3)
                 E_segment_mel = E_mel[:,d:d+classifier.window[1]].copy()
-                esp.threshold_edgemap(E_segment_mel,.30,edge_feature_row_breaks,report_level=False,abst_threshold=abst_threshold)
-                esp.spread_edgemap(E_segment_mel,edge_feature_row_breaks,edge_orientations,spread_length=3)
+                esp.threshold_edgemap(E_segment_mel,.30,e_breaks_mel,report_level=False,abst_threshold=abst_threshold)
+                esp.spread_edgemap(E_segment_mel,e_breaks_mel,e_orientations_mel,spread_length=3)
                 bg = np.minimum(.4,
                                  np.maximum(np.mean(E_segment,axis=1),
                                             .1))
@@ -110,7 +111,7 @@ if True:
                                                                             pattern_times,
                                                                             scores_adapt_bg,
                                                                             classifier.window[1])
-            positives_mel, negatives_coarse =  cl.get_pos_neg_scores(indices_mel,
+            positives_mel, negatives_mel =  cl.get_pos_neg_scores(indices_mel,
                                                                         pattern_times,
                                                                         scores_mel,
                                                                         classifier.window[1])
