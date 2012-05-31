@@ -13,6 +13,42 @@ class Classifier:
                  coarse_template_threshold = .7,
                  bg = None):
         self.coarse_factor = coarse_factor
+        if base_object.__class__ is list:
+            # we assume that all objects have the same
+            # length so we are comparing apples to apples
+            template_height, template_length = base_object[0].shape
+            self.type = "collection"
+            self.window = np.array((template_height,template_length))
+            self.template = base_object
+            self.bg = bg
+            self.score = lambda E_window,bg:\
+                max([sum(tt.score_template_background_section(tmplt,
+                                                         bg,E_window)) for tmplt in self.template])
+            self.score_no_bg = lambda E_window:\
+                max([sum(tt.score_template_background_section(tmplt,
+                                                         self.bg,
+                                                         E_window)) for tmplt in self.template])
+            self.coarse_template = [get_coarse_segment(tmplt,
+                                                      coarse_type="avg",
+                                                      coarse_factor = self.coarse_factor) for tmplt in self.template]
+            self.coarse_length = self.coarse_template[0].shape[1]
+            self.coarse_template_mask = [T >.7 for T in self.coarse_template]
+            self.coarse_score_like = lambda E_window,bg:\
+                max([sum(tt.score_template_background_section(T,
+                                                              bg,
+                            get_coarse_segment(E_window,
+                                     coarse_type='max',
+                                     coarse_factor=self.coarse_factor))) for T in self.coarse_template])
+            self.coarse_score_like_no_bg = lambda E_window:\
+                max([sum(tt.score_template_background_section(T,
+                            self.bg,
+                            get_coarse_segment(E_window,
+                                     coarse_type='max',
+                                     coarse_factor=self.coarse_factor))) for T in self.coarse_template])
+            self.coarse_score_count = lambda E_window:\
+                max([np.sum(get_coarse_segment(E_window,
+                               coarse_type='max',
+                               coarse_factor=self.coarse_factor)[T_mask]) for T_mask in self.coarse_template_mask])
         if base_object.__class__ == np.ndarray:
             # this means that we just have a template which will be a
             # 2-d ndarray, our function assumes this
