@@ -141,7 +141,34 @@ class Experiment:
                                               phns,
                                               feature_label_transitions)
 
-
+    def get_patterns_specs(self,S,phns,phn_times,s,
+                           offset=3,template_length=32):
+        first_window_s_avg, window_s_avg_step, num_windows = esp._get_spectrogram_label_times(s,
+                                     self.num_window_samples,
+                                     self.num_window_step_samples)
+        spec_labels, \
+            spec_label_transitions \
+            = esp._get_labels(phn_times,
+                          phns,
+                          first_window_s_avg,
+                          window_s_avg_step,
+                          num_windows,
+                          self.sample_rate)
+        pattern_times = []
+        if len(self.pattern.shape) > 1:
+            # its multiple patterns
+            for p in xrange(self.pattern.shape[0]):
+                pattern_times.extend(esp.get_pattern_times(self.pattern[p],
+                                      phns,
+                                      spec_label_transitions))
+        else:
+            pattern_times = esp.get_pattern_times(self.pattern,
+                                                  phns,
+                                                  spec_label_transitions)
+        return [S[:,pattern_time[0]-offset:pattern_time[1]+1+offset]\
+                        for pattern_time in pattern_times]
+            
+        
     def get_patterns(self,E,phns,phn_times,s,
                      context=False,template_length=32):
         """
