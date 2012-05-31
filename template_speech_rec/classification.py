@@ -366,8 +366,8 @@ def get_roc_full(data_iter, classifier, coarse_thresh,
     return count_roc, like_roc
 
 
-def get_roc_generous(data_iter, classifier, coarse_thresh,
-                   allowed_overlap = .2,
+def get_roc_generous(data_iter, classifier,coarse_thresh=-np.inf,
+                   allowed_overlap = .1,
             edge_feature_row_breaks= np.array([   0.,   
                                                45.,   
                                                90.,  
@@ -418,7 +418,8 @@ def get_roc_generous(data_iter, classifier, coarse_thresh,
                                    data_iter.edge_orientations,
                                    spread_length=1)
                 coarse_count_scores[d] = classifier.coarse_score_count(E_segment)
-                scores[d] = classifier.score_no_bg(E_segment)
+                if coarse_count_scores[d] > coarse_thresh:
+                    scores[d] = classifier.score_no_bg(E_segment)
             # get the positive and negative scores removed out
             pos_counts =[]
             pos_scores = []
