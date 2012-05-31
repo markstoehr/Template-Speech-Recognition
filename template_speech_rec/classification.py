@@ -394,6 +394,8 @@ def get_roc_generous(data_iter, classifier, coarse_thresh,
     num_frames = 0
     all_positive_scores = []
     all_negative_scores = []
+    all_positive_counts = []
+    all_negative_counts = []
     data_iter.reset_exp()
     for datum_id in xrange(data_iter.num_data):
         if datum_id % 10 == 0:
@@ -404,6 +406,7 @@ def get_roc_generous(data_iter, classifier, coarse_thresh,
             num_detections = data_iter.E.shape[1] - classifier.window[1]
             num_frames += data_iter.E.shape[1]
             scores = -np.inf * np.ones(num_detections)
+            coarse_count_scores = -np.inf *np.ones(num_detections)
             for d in xrange(num_detections):
                 E_segment = data_iter.E[:,d:d+classifier.window[1]].copy()                
                 esp.threshold_edgemap(E_segment,.30,
@@ -414,31 +417,45 @@ def get_roc_generous(data_iter, classifier, coarse_thresh,
                                    data_iter.edge_feature_row_breaks,
                                    data_iter.edge_orientations,
                                    spread_length=1)
-                coarse_count_score = classifier.coarse_score_count(E_segment)
-                if coarse_count_score > coarse_thresh:
-                    scores[d] = classifier.score_no_bg(E_segment)
+                coarse_count_scores[d] = classifier.coarse_score_count(E_segment)
+                scores[d] = classifier.score_no_bg(E_segment)
             # get the positive and negative scores removed out
+            pos_counts =[]
             pos_scores = []
             neg_indices = np.empty(scores.shape[0],dtype=bool)
             neg_indices[:]=True
             for pt in xrange(len(pattern_times)):
-                pos_scores.appned(np.max(scores[pattern_times[pt][0]+int(np.ceil(window_length/3.))]))
+                pos_scores.append(np.max(scores[pattern_times[pt][0]+int(np.ceil(window_length/3.))]))
+                pos_counts.append(np.max(coarse_count_scores[pattern_times[pt][0]+int(np.ceil(window_length/3.))]))
                 neg_indices[pattern_times[pt][0]+int(np.ceil(window_length/3.))] = False
             # get rid of overlapping instances
+            neg_indices_counts_non_overlap = remove_overlapping_examples(np.argsort(coarse_count_scores),
+                                                        classifier.coarse_length,
+                                                        int(allowed_overlap*classifier.coarse_length))
             neg_indices_non_overlap = remove_overlapping_examples(np.argsort(scores),
                                                         classifier.window[1],
-                                                        int(allowed_overlap*classifier.coarse_length))
+                                                        int(allowed_overlap*classifier.window[1]))
+
             neg_idx2 = np.empty(scores.shape[0],dtype=bool)
             neg_idx2[neg_indices_non_overlap] =True
-            neg_indices = np.logical_and(neg_indices,neg_idx2)
+            neg_indices_full = np.logical_and(neg_indices,neg_idx2)
+            neg_idx2 = np.empty(scores.shape[0],dtype=bool)
+            neg_idx2[neg_indices_counts_non_overlap] =True
+            neg_indices_coarse = np.logical_and(neg_indices,neg_idx2)
             all_positive_scores.extend(pos_scores)
-            all_negative_scores.extend(scores[neg_indices])
+            all_positive_counts.extend(pos_counts)
+            all_negative_scores.extend(scores[neg_indices_full])
+            all_negative_counts.extend(coarse_count_scores[neg_indices_coarse])
+            
         else:
             break
-    roc = get_roc(np.sort(all_positive_scores)[::-1],
+    like_roc = get_roc(np.sort(all_positive_scores)[::-1],
                         np.sort(all_negative_scores)[::-1],
                         num_frames)
-    return roc
+    count_roc = get_roc(np.sort(all_positive_counts)[::-1],
+                        np.sort(all_negative_counts)[::-1],
+                        num_frames)
+    return like_roc, count_roc
 
 
             
