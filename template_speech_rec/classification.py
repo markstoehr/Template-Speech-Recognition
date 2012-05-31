@@ -356,10 +356,8 @@ def get_roc_generous(data_iter, classifier, coarse_thresh,
     Computes an ROC curve for a classifier, do not remove positive examples that overlap with negative examples, simply take the max within the positive regions
     """
     num_frames = 0
-    all_positive_counts = []
-    all_positive_likes = []
-    all_negative_counts = []
-    all_negative_likes = []
+    all_positive_scores = []
+    all_negative_scores = []
     data_iter.reset_exp()
     for datum_id in xrange(data_iter.num_data):
         if datum_id % 10 == 0:
@@ -384,29 +382,27 @@ def get_roc_generous(data_iter, classifier, coarse_thresh,
                 if coarse_count_score > coarse_thresh:
                     scores[d] = classifier.score_no_bg(E_segment)
             # get the positive and negative scores removed out
-            positive_scores, negative_scores =  get_pos_neg_scores(score_indices,pattern_times,
-                                                                     scores)            
+            pos_scores = []
+            neg_indices = np.empty(scores.shape[0],dtype=bool)
+            neg_indices[:]=True
+            for pt in xrange(len(pattern_times)):
+                pos_scores.appned(np.max(scores[pattern_times[pt][0]+int(np.ceil(window_length/3.))]))
+                neg_indices[pattern_times[pt][0]+int(np.ceil(window_length/3.))] = False
             # get rid of overlapping instances
-            score_indices = remove_overlapping_examples(np.argsort(scores),
+            neg_indices_non_overlap = remove_overlapping_examples(np.argsort(scores),
                                                         classifier.window[1],
                                                         int(allowed_overlap*classifier.coarse_length))
-            positive_scores, negative_scores =  get_pos_neg_scores(score_indices,pattern_times,
-                                                                     scores)
-            positive_likes, negative_likes = get_pos_neg_scores(like_indices,pattern_times,
-                                                                coarse_like_scores)
-            all_positive_counts.extend(positive_counts)
-            all_negative_counts.extend(negative_counts)
-            all_positive_likes.extend(positive_likes)
-            all_negative_likes.extend(negative_likes)
+            neg_idx2 = np.empty(scores.shape[0],dtype=bool)
+            neg_idx2[neg_indices_non_overlap] =True
+            neg_indices = np.logical_and(neg_indices,neg_idx2)
+            all_positive_scores.extend(pos_scores)
+            all_negative_scores.extend(scores[neg_indices])
         else:
             break
-    count_roc = get_roc(np.sort(all_positive_counts)[::-1],
-                        np.sort(all_negative_counts)[::-1],
+    roc = get_roc(np.sort(all_positive_scores)[::-1],
+                        np.sort(all_negative_scores)[::-1],
                         num_frames)
-    like_roc = get_roc(np.sort(all_positive_likes)[::-1], 
-                       np.sort(all_negative_likes)[::-1],
-                       num_frames)
-    return count_roc, like_roc
+    return roc
 
 
             
