@@ -402,14 +402,15 @@ def _compute_max_edges(Cand_max,Cmp1,Cmp2):
     """ Compute maximal edges and set the non-maximal edges
     to -inf
     """
-    non_maxima_idx = np.logical_or(np.logical_or(Cand_max<
+    non_maxima_idx = np.logical_or(np.logical_or(np.logical_or(Cand_max<
                                Cmp1,
                                Cand_max<
                                Cmp2), 
                                    np.logical_and(
             Cand_max == Cmp1,
-            Cand_max == Cmp2))
-    Cand_max[non_maxima_idx]=-np.inf
+            Cand_max == Cmp2)),
+                                   Cand_max <= 0)
+    Cand_max[non_maxima_idx]=0
     return Cand_max
 
 
@@ -460,7 +461,7 @@ def _spread_edges(T,direction,spread_length):
     return T_spread
 
 
-def _edge_map_no_threshold(S):
+def _edge_map_no_threshold_old(S):
     """ function to do the edge processing
     somewhat complicated we have eight different directions
     for the edges to run
@@ -575,6 +576,129 @@ d                                          S[i+2,j]-S[i+1,j])
     edge_feature_row_breaks[7] = cur_E_idx
     cur_E_idx = cur_E_idx + T_use.shape[0]
     edge_feature_row_breaks[8] = cur_E_idx
+    return E,edge_feature_row_breaks, edge_orientations
+
+def _edge_map_no_threshold(S):
+    """ function to do the edge processing
+    somewhat complicated we have eight different directions
+    for the edges to run
+    consider the direction [1,0]
+
+    indices range over [0,...,F-1],[0,...,T-1]
+    in this case the entry
+    E[0,0] = 0 if S[2,0] - S[1,0] < max(S[1,0]-S[0,0],
+                                        S[3,0]-S[2,0])
+            
+    E[i,j] = 0 if S[i+2,j]-S[i+1,j] < max(S[i+1,j]-S[i,j],
+d                                          S[i+2,j]-S[i+1,j])
+
+    T_diff = T[1:,:]-T[:-1,:]
+    T_bigger_left = (T_diff[1:-1,:]>T_diff[:-2,:])
+    T_bigger_right = (T_diff[1:-1,:]>T_diff[2:,:])
+    
+    T_other_diff = -T_diff
+    T_other_big_left = (T_other_diff[1:-1,:]-T_other_diff[:-2,:]) > 0.
+    T_other
+    S[2:-1,:] - S[1:-2,:]
+    in the case [-1,0]
+    E[0,0]=0 if S[1,0]-S[2,0] < max(S[0,0]-S[1,0],
+                                    S[2,0]-S[3,0])
+    
+    E[i,j] = 0 if S[i+1,j]-S[i+2,j] < max(S[i,j]-S[i+1,j],
+                                          S[i+1,j]-S[i+2,j])
+                                    
+    [0,1]
+    E[i,j]
+    """
+    edge_feature_row_breaks = np.zeros(9)
+    edge_orientations = np.zeros((8,2))
+    # get [1,0] and [-1,0] features
+    cur_E_idx = 0
+    # height variable
+    H = S.shape[0]
+    for i in xrange(8):
+        edge_feature_row_breaks[i+1] = H*(i+1)
+    E = np.zeros((8*H,S.shape[1]))
+    T = S.copy()
+    # cut down time
+    T_diff = T[:,1:] - T[:,:-1]
+    cand_max = T_diff > 0;
+    if np.any(cand_max):
+        E[:H,
+           1:-2] = T_diff[:,1:-1] * ((T_diff[:,1:-1] >= T_diff[:,:-2]) *\
+            (T_diff[:,1:-1] >= T_diff[:,2:]) *\
+            (T_diff[:,1:-1] >= 0))
+    edge_orientations[0,0]=0
+    edge_orientations[0,1]=1
+    # horizontal edges
+    cand_max = T_diff < 0;
+    if np.any(cand_max):
+        E[H:2*H,
+           1:-2] = -T_diff[:,1:-1] * ((T_diff[:,1:-1] <= T_diff[:,:-2]) *\
+            (T_diff[:,1:-1] <= T_diff[:,2:]) *\
+            (T_diff[:,1:-1] <= 0))
+    edge_orientations[0,0]=0
+    edge_orientations[0,1]=-1
+
+    # Vertical Differences
+    T_diff = T[1:,:] - T[:-1,:]
+    cand_max = T_diff > 0;
+    if np.any(cand_max):
+        E[2*H+1:3*H-2,
+           :] = T_diff[1:-1,:] * ((T_diff[1:-1,:] >= T_diff[:-2,:]) *\
+            (T_diff[1:-1,:] >= T_diff[2:,:]) *\
+            (T_diff[1:-1,:] >= 0))
+    edge_orientations[0,0]=1
+    edge_orientations[0,1]=0
+    # negative vertical
+    cand_max = T_diff < 0;
+    if np.any(cand_max):
+        E[3*H+1:4*H-2,
+           :] = T_diff[1:-1,:] * ((T_diff[1:-1,:] <= T_diff[:-2,:]) *\
+            (T_diff[1:-1,:] <= T_diff[2:,:]) *\
+            (T_diff[1:-1,:] <= 0))
+    edge_orientations[0,0]=-1
+    edge_orientations[0,1]=0
+
+    # SW - NE differences
+    T_diff = T[1:,1:] - T[:-1,:-1]
+    cand_max = T_diff > 0;
+    if np.any(cand_max):
+        E[4*H+1:5*H-2,
+           1:-2] = T_diff[1:-1,1:-1] * ((T_diff[1:-1,1:-1] >= T_diff[:-2,:-2]) *\
+            (T_diff[1:-1,1:-1] >= T_diff[2:,2:]) *\
+            (T_diff[1:-1,1:-1] >= 0))
+    edge_orientations[0,0]=1
+    edge_orientations[0,1]=1
+    # negatives
+    cand_max = T_diff < 0;
+    if np.any(cand_max):
+        E[5*H+1:6*H-2,
+           1:-2] = T_diff[1:-1,1:-1] * ((T_diff[1:-1,1:-1] <= T_diff[:-2,:-2]) *\
+            (T_diff[1:-1,1:-1] <= T_diff[2:,2:]) *\
+            (T_diff[1:-1,1:-1] <= 0))
+    edge_orientations[0,0]=-1
+    edge_orientations[0,1]=-1
+
+    # SE - NW differences
+    T_diff = T[:-1,1:] - T[1:,:-1]
+    cand_max = T_diff > 0;
+    if np.any(cand_max):
+        E[6*H+1:7*H-2,
+           1:-2] = T_diff[1:-1,1:-1] * ((T_diff[1:-1,1:-1] >= T_diff[2:,:-2]) *\
+            (T_diff[1:-1,1:-1] >= T_diff[:-2,2:]) *\
+            (T_diff[1:-1,1:-1] >= 0))
+    edge_orientations[0,0]=-1
+    edge_orientations[0,1]=1
+    # negatives
+    cand_max = T_diff < 0;
+    if np.any(cand_max):
+        E[7*H+1:8*H-2,
+           1:-2] = T_diff[1:-1,1:-1] * ((T_diff[1:-1,1:-1] <= T_diff[2:,:-2]) *\
+            (T_diff[1:-1,1:-1] <= T_diff[:-2,2:]) *\
+            (T_diff[1:-1,1:-1] <= 0))
+    edge_orientations[0,0]=1
+    edge_orientations[0,1]=-1
     return E,edge_feature_row_breaks, edge_orientations
 
 
