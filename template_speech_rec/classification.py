@@ -426,9 +426,9 @@ def get_roc_generous(data_iter, classifier,coarse_thresh=-np.inf,
             neg_indices = np.empty(scores.shape[0],dtype=bool)
             neg_indices[:]=True
             for pt in xrange(len(pattern_times)):
-                pos_scores.append(np.max(scores[pattern_times[pt][0]+int(np.ceil(window_length/3.))]))
-                pos_counts.append(np.max(coarse_count_scores[pattern_times[pt][0]+int(np.ceil(window_length/3.))]))
-                neg_indices[pattern_times[pt][0]+int(np.ceil(window_length/3.))] = False
+                pos_scores.append(np.max(scores[pattern_times[pt][0]-int(np.ceil(classifier.window[1]/3.)):pattern_times[pt][0]+int(np.ceil(classifier.window[1]/3.))]))
+                pos_counts.append(np.max(coarse_count_scores[pattern_times[pt][0]-int(np.ceil(classifier.window[1]/3.)):pattern_times[pt][0]+int(np.ceil(classifier.window[1]/3.))]))
+                neg_indices[pattern_times[pt][0]-int(np.ceil(classifier.window[1]/3.)):pattern_times[pt][0]+int(np.ceil(classifier.window[1]/3.))] = False
             # get rid of overlapping instances
             neg_indices_counts_non_overlap = remove_overlapping_examples(np.argsort(coarse_count_scores),
                                                         classifier.coarse_length,
