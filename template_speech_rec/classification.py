@@ -329,6 +329,86 @@ def get_roc_full(data_iter, classifier, coarse_thresh,
                        num_frames)
     return count_roc, like_roc
 
+
+def get_roc_generous(data_iter, classifier, coarse_thresh,
+                   allowed_overlap = .2,
+            edge_feature_row_breaks= np.array([   0.,   
+                                               45.,   
+                                               90.,  
+                                               138.,  
+                                               186.,  
+                                               231.,  
+                                               276.,  
+                                               321.,  
+                                               366.]),
+            edge_orientations=np.array([[ 1.,  0.],
+                                        [-1.,  0.],
+                                        [ 0.,  1.],
+                                        [ 0., -1.],
+                                        [ 1.,  1.],
+                                        [-1., -1.],
+                                        [ 1., -1.],
+                                        [-1.,  1.]]),
+            abst_threshold=np.array([.025,.025,.015,.015,
+                                      .02,.02,.02,.02]),
+            spread_radius=3):
+    """
+    Computes an ROC curve for a classifier, do not remove positive examples that overlap with negative examples, simply take the max within the positive regions
+    """
+    num_frames = 0
+    all_positive_counts = []
+    all_positive_likes = []
+    all_negative_counts = []
+    all_negative_likes = []
+    data_iter.reset_exp()
+    for datum_id in xrange(data_iter.num_data):
+        if datum_id % 10 == 0:
+            print "working on example", datum_id
+        if data_iter.next(compute_pattern_times=True,
+                            max_template_length=classifier.window[1]):
+            pattern_times = data_iter.pattern_times
+            num_detections = data_iter.E.shape[1] - classifier.window[1]
+            num_frames += data_iter.E.shape[1]
+            scores = -np.inf * np.ones(num_detections)
+            for d in xrange(num_detections):
+                E_segment = data_iter.E[:,d:d+classifier.window[1]].copy()                
+                esp.threshold_edgemap(E_segment,.30,
+                                      data_iter.edge_feature_row_breaks,
+                                      report_level=False,
+                                      abst_threshold=abst_threshold)
+                esp.spread_edgemap(E_segment,
+                                   data_iter.edge_feature_row_breaks,
+                                   data_iter.edge_orientations,
+                                   spread_length=1)
+                coarse_count_score = classifier.coarse_score_count(E_segment)
+                if coarse_count_score > coarse_thresh:
+                    scores[d] = classifier.score_no_bg(E_segment)
+            # get the positive and negative scores removed out
+            positive_scores, negative_scores =  get_pos_neg_scores(score_indices,pattern_times,
+                                                                     scores)            
+            # get rid of overlapping instances
+            score_indices = remove_overlapping_examples(np.argsort(scores),
+                                                        classifier.window[1],
+                                                        int(allowed_overlap*classifier.coarse_length))
+            positive_scores, negative_scores =  get_pos_neg_scores(score_indices,pattern_times,
+                                                                     scores)
+            positive_likes, negative_likes = get_pos_neg_scores(like_indices,pattern_times,
+                                                                coarse_like_scores)
+            all_positive_counts.extend(positive_counts)
+            all_negative_counts.extend(negative_counts)
+            all_positive_likes.extend(positive_likes)
+            all_negative_likes.extend(negative_likes)
+        else:
+            break
+    count_roc = get_roc(np.sort(all_positive_counts)[::-1],
+                        np.sort(all_negative_counts)[::-1],
+                        num_frames)
+    like_roc = get_roc(np.sort(all_positive_likes)[::-1], 
+                       np.sort(all_negative_likes)[::-1],
+                       num_frames)
+    return count_roc, like_roc
+
+
             
 def get_pos_neg_scores(inds,pattern_times,scores,window_length):
     """
