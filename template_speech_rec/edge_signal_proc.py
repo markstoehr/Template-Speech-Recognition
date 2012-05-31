@@ -680,7 +680,7 @@ def get_edgemap_no_threshold(s,sample_rate,
 def threshold_edgemap(E,quantile_level,
                       edge_feature_row_breaks,
                       report_level=False,
-                      abst_threshold=-np.inf*np.ones(8)):
+                      abst_threshold=np.array([ 0.025,  0.025,  0.015,  0.015,  0.02 ,  0.02 ,  0.02 ,  0.02 ])):
     # see whether to report the level of the edge thresholds
     if report_level:
         edge_thresholds = np.empty(8)
@@ -707,7 +707,7 @@ def threshold_edgemap(E,quantile_level,
 def threshold_edge_block(E_block,quantile_level,
                          report_level,
                          abst_threshold):
-    maxima_idx = E_block > -np.inf
+    maxima_idx = E_block > 0
     maxima_vals = E_block[maxima_idx].ravel().copy()
     maxima_vals.sort()
     tau_quant = maxima_vals[int(quantile_level*maxima_vals.shape[0])].copy()
@@ -957,15 +957,15 @@ d                                          S[i+2,j]-S[i+1,j])
             (T_diff[:,1:-1] >= 0))
     edge_orientations[0,0]=0
     edge_orientations[0,1]=1
-    # horizontal edges
+    # horizontal edges negative
     cand_max = T_diff < 0;
     if np.any(cand_max):
         E[H:2*H,
            1:-2] = -T_diff[:,1:-1] * ((T_diff[:,1:-1] <= T_diff[:,:-2]) *\
             (T_diff[:,1:-1] <= T_diff[:,2:]) *\
             (T_diff[:,1:-1] <= 0))
-    edge_orientations[0,0]=0
-    edge_orientations[0,1]=-1
+    edge_orientations[1,0]=0
+    edge_orientations[1,1]=-1
 
     # Vertical Differences
     T_diff = T[1:,:] - T[:-1,:]
@@ -975,17 +975,17 @@ d                                          S[i+2,j]-S[i+1,j])
            :] = T_diff[1:-1,:] * ((T_diff[1:-1,:] >= T_diff[:-2,:]) *\
             (T_diff[1:-1,:] >= T_diff[2:,:]) *\
             (T_diff[1:-1,:] >= 0))
-    edge_orientations[0,0]=1
-    edge_orientations[0,1]=0
+    edge_orientations[2,0]=1
+    edge_orientations[2,1]=0
     # negative vertical
     cand_max = T_diff < 0;
     if np.any(cand_max):
         E[3*H+1:4*H-2,
-           :] = T_diff[1:-1,:] * ((T_diff[1:-1,:] <= T_diff[:-2,:]) *\
+           :] = -T_diff[1:-1,:] * ((T_diff[1:-1,:] <= T_diff[:-2,:]) *\
             (T_diff[1:-1,:] <= T_diff[2:,:]) *\
             (T_diff[1:-1,:] <= 0))
-    edge_orientations[0,0]=-1
-    edge_orientations[0,1]=0
+    edge_orientations[3,0]=-1
+    edge_orientations[3,1]=0
 
     # SW - NE differences
     T_diff = T[1:,1:] - T[:-1,:-1]
@@ -995,17 +995,17 @@ d                                          S[i+2,j]-S[i+1,j])
            1:-2] = T_diff[1:-1,1:-1] * ((T_diff[1:-1,1:-1] >= T_diff[:-2,:-2]) *\
             (T_diff[1:-1,1:-1] >= T_diff[2:,2:]) *\
             (T_diff[1:-1,1:-1] >= 0))
-    edge_orientations[0,0]=1
-    edge_orientations[0,1]=1
+    edge_orientations[4,0]=1
+    edge_orientations[4,1]=1
     # negatives
     cand_max = T_diff < 0;
     if np.any(cand_max):
         E[5*H+1:6*H-2,
-           1:-2] = T_diff[1:-1,1:-1] * ((T_diff[1:-1,1:-1] <= T_diff[:-2,:-2]) *\
+           1:-2] = -T_diff[1:-1,1:-1] * ((T_diff[1:-1,1:-1] <= T_diff[:-2,:-2]) *\
             (T_diff[1:-1,1:-1] <= T_diff[2:,2:]) *\
             (T_diff[1:-1,1:-1] <= 0))
-    edge_orientations[0,0]=-1
-    edge_orientations[0,1]=-1
+    edge_orientations[5,0]=-1
+    edge_orientations[5,1]=-1
 
     # SE - NW differences
     T_diff = T[:-1,1:] - T[1:,:-1]
@@ -1015,17 +1015,17 @@ d                                          S[i+2,j]-S[i+1,j])
            1:-2] = T_diff[1:-1,1:-1] * ((T_diff[1:-1,1:-1] >= T_diff[2:,:-2]) *\
             (T_diff[1:-1,1:-1] >= T_diff[:-2,2:]) *\
             (T_diff[1:-1,1:-1] >= 0))
-    edge_orientations[0,0]=-1
-    edge_orientations[0,1]=1
+    edge_orientations[6,0]=-1
+    edge_orientations[6,1]=1
     # negatives
     cand_max = T_diff < 0;
     if np.any(cand_max):
         E[7*H+1:8*H-2,
-           1:-2] = T_diff[1:-1,1:-1] * ((T_diff[1:-1,1:-1] <= T_diff[2:,:-2]) *\
+           1:-2] = -T_diff[1:-1,1:-1] * ((T_diff[1:-1,1:-1] <= T_diff[2:,:-2]) *\
             (T_diff[1:-1,1:-1] <= T_diff[:-2,2:]) *\
             (T_diff[1:-1,1:-1] <= 0))
-    edge_orientations[0,0]=1
-    edge_orientations[0,1]=-1
+    edge_orientations[7,0]=1
+    edge_orientations[7,1]=-1
     return E,edge_feature_row_breaks, edge_orientations
 
 
@@ -1309,7 +1309,7 @@ def _spectrograms(s,num_window_samples,
     Slep = np.zeros((windows.shape[0],fft_length/2+1))
     for win_id in xrange(windows.shape[0]):
         J = fft(np.tile(windows[win_id],(K,1)) * E_slep[:,:K].T,fft_length)
-        Slep[win_id] = np.sum((J*np.conj(J))[:,:fft_length/2+1],axis=0)
+        Slep[win_id] = np.sum((np.abs(J)**2)[:,:fft_length/2+1],axis=0)
     return Slep
 
 def audspec(spectrogram,sample_rate,nbands=None,
