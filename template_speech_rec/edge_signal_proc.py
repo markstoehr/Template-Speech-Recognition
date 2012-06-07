@@ -699,8 +699,10 @@ def threshold_edgemap(E,quantile_level,
                                      quantile_level,
                                      report_level,
                                      abst_threshold[edge_feat_idx-1])
+            assert np.max(E_new[start_idx:end_idx,:]) == 1
     if report_level:
         return E_new, edge_thresholds
+
 
 
 
@@ -710,6 +712,9 @@ def threshold_edge_block(E_block,quantile_level,
     maxima_idx = E_block > 0
     maxima_vals = E_block[maxima_idx].ravel().copy()
     maxima_vals.sort()
+    if maxima_vals.shape[0] <= 0:
+        E_block[:] = 0
+        return E_block
     tau_quant = maxima_vals[int(quantile_level*maxima_vals.shape[0])].copy()
     # zero out everything less than the quantile
     A = E_block[maxima_idx]
@@ -904,6 +909,80 @@ d                                          S[i+2,j]-S[i+1,j])
     cur_E_idx = cur_E_idx + T_use.shape[0]
     edge_feature_row_breaks[8] = cur_E_idx
     return E,edge_feature_row_breaks, edge_orientations
+
+def _edge_map_threshold_segments(E,block_length, 
+                                 spread_length, 
+                                 threshold=.3,
+                                 edge_orientations = np.array([[ 1.,  0.],
+                                    [-1.,  0.],
+                                        [ 0.,  1.],
+                                        [ 0., -1.],
+                                        [ 1.,  1.],
+                                        [-1., -1.],
+                                        [ 1., -1.],
+                                [-1.,  1.]]), edge_feature_row_breaks = None,
+                                 abst_threshold=np.array([ 0.025,  0.025,  0.015, 
+                                                           0.015,  0.02 ,  0.02 ,  
+                                                           0.02 ,  0.02 ])):
+    """
+    Parameters:
+    ===========
+    E:
+       Raw edge intensities
+    block_length:
+       The length of the thresholded segments   
+    """
+    height,length = E.shape
+    if edge_feature_row_breaks is None:
+        base_height = (height - 6)/8
+        assert base_height * 8 == height - 6
+        edge_feature_row_breaks = \
+            compute_edge_feature_row_breaks(base_height,
+                                            edge_orientations)
+    # then we are going to compute things
+    num_full_blocks = length/block_length
+    last_block_length = length % block_length
+    if last_block_length > 0:
+        last_E = E[:,-block_length:].copy()
+        threshold_edgemap(last_E,
+                          threshold,
+                          edge_feature_row_breaks,
+                          report_level=False,
+                          abst_threshold=abst_threshold)
+        spread_edgemap(last_E,
+                       edge_feature_row_breaks,
+                       edge_orientations,
+                       spread_length=spread_length)
+        E[:,-last_block_length:] = last_E[:,-last_block_length:]
+    for cur_block in xrange(num_full_blocks):
+        E_block = E[:,cur_block*block_length:(1+cur_block)*block_length]
+        threshold_edgemap(E_block,
+                          threshold,
+                          edge_feature_row_breaks,
+                          report_level=False,
+                          abst_threshold=abst_threshold)
+        spread_edgemap(E_block,
+                       edge_feature_row_breaks,
+                       edge_orientations,
+                       spread_length=spread_length)
+    
+    
+
+def compute_edge_feature_row_breaks(base_height,
+                                    edge_orientations):
+    """
+    Computes a presumed edge_feature_row_breaks vector
+    on the basis of how tall most of the blocks should
+    be minus those that don't compute vertical distances
+    We assume that those that don't compute vertical distances
+    will be three pixels taller than the other windows
+    base_height is that height
+    edge_orientations is a matrix whose rows are the direction the edges run
+    """
+    row_heights = np.zeros(9)
+    row_heights[1:] += base_height * np.ones(8) + 3 * (edge_orientations[:,0] == 0)
+    X = np.tile(np.arange(9),(9,1))
+    return np.dot(row_heights, X>=X.T)
 
 def _edge_map_no_threshold(S):
     """ function to do the edge processing
