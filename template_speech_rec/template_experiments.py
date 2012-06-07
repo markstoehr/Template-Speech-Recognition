@@ -7,7 +7,7 @@ import random
 
 
 class Experiment:
-    def __init__(self,pattern,data_paths_file,bg_len=26,
+    def __init__(self,patterns,data_paths_file,bg_len=26,
                  sample_rate=16000,freq_cutoff=3000,
                  num_window_samples=320,
                  num_window_step_samples=80,
@@ -59,7 +59,7 @@ class Experiment:
         self.spread_length = spread_length
         self.abst_threshold = abst_threshold
         self.kernel_length = kernel_length
-        self.pattern = pattern
+        self.patterns = patterns
         self.data_dir = data_dir
         # make sure that the data dir ends with /
         self.sample_rate=sample_rate
@@ -120,7 +120,7 @@ class Experiment:
                                             use_mel=self.use_mel)
         
     def has_pattern(self,phns):
-        return esp.has_pattern(self.pattern,phns)
+        return (True in [esp.has_pattern(p,phns) for p in self.patterns])
 
     def get_pattern_times(self,phns,phn_times,s,
                      template_length=32):
@@ -137,9 +137,11 @@ class Experiment:
                           feature_step,
                           num_features,
                           self.sample_rate)
-        return esp.get_pattern_times(self.pattern,
-                                              phns,
-                                              feature_label_transitions)
+        pattern_times = []
+        for pattern in self.patterns: pattern_times.append(esp.get_pattern_times(pattern,
+                                                                                 phns,
+                                                                                 feature_label_transitions))
+        return pattern_times
 
     def get_patterns_specs(self,S,phns,phn_times,s,
                            offset=3,template_length=32):
@@ -154,17 +156,9 @@ class Experiment:
                           window_s_avg_step,
                           num_windows,
                           self.sample_rate)
-        pattern_times = []
-        if len(self.pattern.shape) > 1:
-            # its multiple patterns
-            for p in xrange(self.pattern.shape[0]):
-                pattern_times.extend(esp.get_pattern_times(self.pattern[p],
-                                      phns,
-                                      spec_label_transitions))
-        else:
-            pattern_times = esp.get_pattern_times(self.pattern,
-                                                  phns,
-                                                  spec_label_transitions)
+        pattern_times = esp.get_pattern_times(self.patterns,
+                                              phns,
+                                              spec_label_transitions)
         return [S[:,pattern_time[0]-offset:pattern_time[1]+1+offset]\
                         for pattern_time in pattern_times]
             
@@ -194,7 +188,7 @@ class Experiment:
                           feature_step,
                           num_features,
                           self.sample_rate)
-        pattern_times = esp.get_pattern_times(self.pattern,
+        pattern_times = esp.get_pattern_times(self.patterns,
                                               phns,
                                               feature_label_transitions)
         if context:
@@ -264,9 +258,11 @@ class Experiment:
                           feature_step,
                           num_features,
                           self.sample_rate)
-        pattern_part_times = esp.get_pattern_part_times(self.pattern,
-                                                        phns,
-                                                        feature_label_transitions)
+        pattern_part_times = []
+        for pattern in self.patterns: pattern_part_times.append(
+            esp.get_pattern_part_times(pattern,
+                                       phns,
+                                       feature_label_transitions))
         return [[E[:,phn_time[0]:phn_time[1]+1] for phn_time in part_time]\
                     for part_time in pattern_part_times]
          
@@ -297,7 +293,7 @@ class Experiment:
                           feature_step,
                           num_features,
                           self.sample_rate)
-        pattern_times = esp.get_pattern_times(self.pattern,
+        pattern_times = esp.get_pattern_times(self.patterns,
                                               phns,
                                               feature_label_transitions)
         if context:
@@ -334,7 +330,7 @@ class Experiment:
                           feature_step,
                           num_features,
                           self.sample_rate)
-        pattern_times = esp.get_pattern_times(self.pattern,
+        pattern_times = esp.get_pattern_times(self.patterns,
                                               phns,
                                               feature_label_transitions)
         if context:
@@ -530,7 +526,7 @@ class Experiment:
                           feature_step,
                           num_features,
                           self.sample_rate)
-        pattern_times = esp.get_pattern_times(self.pattern,
+        pattern_times = esp.get_pattern_times(self.patterns,
                                               phns,
                                               feature_label_transitions)
         end_time = E.shape[1]-length-3
@@ -553,7 +549,7 @@ class Experiment:
 
 
 class Experiment_Iterator(Experiment):
-    def __init__(self,base_exp,pattern=None,
+    def __init__(self,base_exp,patterns=None,
                  data_paths=None, 
                  sample_rate=16000,freq_cutoff=3000,
                  num_window_samples=320,
@@ -584,9 +580,9 @@ class Experiment_Iterator(Experiment):
         else:
             self.kernel_length = base_exp.kernel_length        
         if pattern:
-            self.pattern = pattern
+            self.patterns = patterns
         else:
-            self.pattern = base_exp.pattern
+            self.patterns = base_exp.patterns
         self.data_dir = base_exp.data_dir
         # make sure that the data dir ends with /
         self.sample_rate=base_exp.sample_rate
