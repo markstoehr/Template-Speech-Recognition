@@ -58,12 +58,6 @@ mean_background = np.load(root_path+'Experiments/050812/mean_background_liy05101
 
 data_iter = tune_data_iter
 import template_speech_rec.classification as cl
-classifier = cl.Classifier(template,coarse_factor=1,bg = mean_background)
-
-like_roc, coarse_roc = cl.get_roc_generous(data_iter, classifier,coarse_thresh=-np.inf,
-                   allowed_overlap = .1,
-            edge_feature_row_breaks= train_data_iter.edge_feature_row_breaks,
-            edge_orientations=train_data_iter.edge_orientations)
 
 
 mean_background_avg = template_exp.AverageBackground()
@@ -80,3 +74,36 @@ for datum_id in xrange(train_data_iter.num_data):
                                            train_data_iter.edge_orientations,abst_threshold)
     else:
         break
+
+
+classifier = cl.Classifier(template,coarse_factor=1,bg = bgd)
+
+like_roc, coarse_roc = cl.get_roc_generous(data_iter, classifier,coarse_thresh=-np.inf,
+                   allowed_overlap = .1,
+            edge_feature_row_breaks= train_data_iter.edge_feature_row_breaks,
+            edge_orientations=train_data_iter.edge_orientations)
+
+# now doing an experiment with  mixtures
+
+
+import template_speech_rec.bernoulli_em as bern_em
+
+bm = bern_em.Bernoulli_Mixture(2,registered_examples)
+bm.run_EM(.00001)
+
+bm_classifier = cl.Classifier(list(bm.templates),coarse_factor=1,bg = bgd)
+
+like_roc, coarse_roc = cl.get_roc_generous(data_iter, classifier,coarse_thresh=-np.inf,
+                   allowed_overlap = .1,
+            edge_feature_row_breaks= train_data_iter.edge_feature_row_breaks,
+            edge_orientations=train_data_iter.edge_orientations)
+
+# want to also make deformable models I'll have one deformable model
+# that is deformed along
+# the frequency axis and the time axis
+# we'll make it background on top using the background
+# vector as a guide for what the frequency should be in
+# the different channels
+Top_Template = 
+def combine_templates(NW,NE,SE,SW,EW_def,NS_def):
+    
