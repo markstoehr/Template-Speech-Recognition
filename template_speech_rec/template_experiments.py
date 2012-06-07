@@ -8,6 +8,7 @@ import random
 
 class Experiment:
     def __init__(self,patterns,data_paths_file,bg_len=26,
+                 offset=3,
                  sample_rate=16000,freq_cutoff=3000,
                  num_window_samples=320,
                  num_window_step_samples=80,
@@ -55,6 +56,7 @@ class Experiment:
 
         
         """
+        self.offset = offset
         self.bg_len = bg_len
         self.spread_length = spread_length
         self.abst_threshold = abst_threshold
@@ -144,7 +146,7 @@ class Experiment:
         return pattern_times
 
     def get_patterns_specs(self,S,phns,phn_times,s,
-                           offset=3,template_length=32):
+                           offset=3):
         first_window_s_avg, window_s_avg_step, num_windows = esp._get_spectrogram_label_times(s,
                                      self.num_window_samples,
                                      self.num_window_step_samples)
@@ -218,6 +220,35 @@ class Experiment:
                                    self.fft_length,
                                    return_freqs=True)
             return S[freq_idx<freq_cutoff,:]
+
+    def get_processed_spec(self,s,freq_cutoff=None,
+                           fft_length=None,
+                           num_window_step_samples = None,
+                           num_window_samples=None,
+                           kernel_length=None
+                           
+                           ):
+        """
+        Wrapper to edge_signal_proc.get_spectrogram_features
+        Computes the spectrogram and uses the smoothing
+        and frequency cutoff implied by the initial parameter
+        settings for the experiment
+        """
+        if freq_cutoff is None:
+            freq_cutoff=self.freq_cutoff
+        if fft_length is None:
+            fft_length=self.fft_length
+        if num_window_step_samples is None:
+            num_window_step_samples = self.num_window_step_samples
+        if num_window_samples is None:
+            num_window_samples=self.num_window_samples
+        if kernel_length is None:
+            kernel_length=self.kernel_length
+        return esp.get_spectrogram_features(s,self.sample_rate,
+                                        num_window_samples,
+                                        num_window_step_samples,fft_length,
+                             freq_cutoff,kernel_length)
+        
 
     def get_mel_spec(self,s,nbands=40,
                      freq_cutoff=None):
@@ -559,8 +590,10 @@ class Experiment_Iterator(Experiment):
                  spread_length=None,
                  abst_threshold=None,
                  bg_len=None,
-                 use_mel=False):
+                 use_mel=False,
+                 offset = 3):
         # This says whether to use the mel computed spectrogram or the standard spectrogram
+        self.offset = offset
         self.use_mel=use_mel
         self.base_exp = base_exp
         if abst_threshold:
@@ -579,7 +612,7 @@ class Experiment_Iterator(Experiment):
             self.kernel_length = kernel_length
         else:
             self.kernel_length = base_exp.kernel_length        
-        if pattern:
+        if patterns:
             self.patterns = patterns
         else:
             self.patterns = base_exp.patterns
@@ -628,6 +661,9 @@ class Experiment_Iterator(Experiment):
 
     
     def next(self,wait_for_positive_example=False,
+             compute_S=True,
+             compute_patterns_specs=False,
+             compute_E=True,
              compute_patterns=False, compute_patterns_context=False,
              compute_bgds=False,
              compute_pattern_times=False,
@@ -679,12 +715,19 @@ class Experiment_Iterator(Experiment):
                 print "Error: no positive examples left"
                 return False
         self.s = self.get_s(self.cur_data_pointer)
-        E,edge_feature_row_breaks,\
-            edge_orientations= self.get_edgemap_no_threshold(self.s)
-        self.E =E
-        self.edge_feature_row_breaks = edge_feature_row_breaks
-        self.edge_orientations = edge_orientations
         self.phn_times = self.get_phn_times(self.cur_data_pointer)
+        if compute_S:
+            self.S = self.get_processed_spec(self.s)
+        if compute_patterns_specs:
+            self.patterns_specs = self.get_patterns_specs(self.S,
+                                                          self.phns,self.phn_times,self.s,
+                                                          offset=self.offset)
+        if compute_E:
+            E,edge_feature_row_breaks,\
+                edge_orientations= self.get_edgemap_no_threshold(self.s)
+            self.E =E
+            self.edge_feature_row_breaks = edge_feature_row_breaks
+            self.edge_orientations = edge_orientations
         self.feature_start, \
             self.feature_step, self.num_features =\
             esp._get_feature_label_times(self.s,
