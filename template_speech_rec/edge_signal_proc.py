@@ -453,7 +453,7 @@ def get_pattern_examples(data_files_iter,pattern,
         except: # exhausted iterator
             return pattern_examples
 
-def get_pattern_times(pattern,labels,feature_label_transitions):
+def get_pattern_times(patterns,labels,feature_label_transitions):
     """
     Parameters
     ----------
@@ -472,12 +472,13 @@ def get_pattern_times(pattern,labels,feature_label_transitions):
        tuples where the zeroth entry is the start frame of the pattern and the 1th entry
        is the next frame after the last frame of the pattern
     """
-    pattern_length = pattern.shape[0]
     pattern_times = []
-    for l in xrange(labels.shape[0]-pattern_length):
-        if np.all(labels[l:l+pattern_length] == pattern):
-            pattern_times.append((feature_label_transitions[l],
-                                  feature_label_transitions[l+pattern_length]))
+    for pattern in patterns:
+        pattern_length = pattern.shape[0]
+        for l in xrange(labels.shape[0]-pattern_length):
+            if np.all(labels[l:l+pattern_length] == pattern):
+                pattern_times.append((feature_label_transitions[l],
+                                      feature_label_transitions[l+pattern_length]))
     return pattern_times
 
 def get_pattern_part_times(pattern,labels,feature_label_transitions):
@@ -554,7 +555,7 @@ def _get_spectrogram_label_times(s,
 def get_spectrogram_features(s,sample_rate,num_window_samples,
                           num_window_step_samples,fft_length,
                              freq_cutoff,kernel_length,
-                             preemph=.95, quantile_level=.25):
+                             preemph=.95):
     s = _preemphasis(s,preemph)
     S = _spectrograms(s,num_window_samples, 
                       num_window_step_samples,
