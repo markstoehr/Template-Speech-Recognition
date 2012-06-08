@@ -139,10 +139,9 @@ class Experiment:
                           feature_step,
                           num_features,
                           self.sample_rate)
-        pattern_times = []
-        for pattern in self.patterns: pattern_times.append(esp.get_pattern_times(pattern,
-                                                                                 phns,
-                                                                                 feature_label_transitions))
+        pattern_times = esp.get_pattern_times(self.patterns,
+                                              phns,
+                                              feature_label_transitions))
         return pattern_times
 
     def get_patterns_specs(self,S,phns,phn_times,s,
