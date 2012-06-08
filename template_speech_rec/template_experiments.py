@@ -141,7 +141,7 @@ class Experiment:
                           self.sample_rate)
         pattern_times = esp.get_pattern_times(self.patterns,
                                               phns,
-                                              feature_label_transitions))
+                                              feature_label_transitions)
         return pattern_times
 
     def get_patterns_specs(self,S,phns,phn_times,s,
@@ -773,8 +773,12 @@ class AverageBackground:
     def add_frames(self,E,edge_feature_row_breaks,
                    edge_orientations,abst_threshold):
         new_E = E.copy()
-        esp.threshold_edgemap(new_E,.30,edge_feature_row_breaks,abst_threshold=abst_threshold)
-        esp.spread_edgemap(new_E,edge_feature_row_breaks,edge_orientations,spread_length=3)
+        esp._edge_map_threshold_segments(new_E,
+                                   40,
+                                 1, 
+                                 threshold=.3,
+                                 edge_orientations = edge_orientations,
+                                 edge_feature_row_breaks = edge_feature_row_breaks)
         if not self.processed_frames:
             self.E = np.mean(new_E,axis=1)
             self.processed_frames = True

@@ -10,7 +10,7 @@ import parts_model as pm
 
 class Classifier:
     def __init__(self,base_object, coarse_factor=2,
-                 coarse_template_threshold = .7,
+                 coarse_template_threshold = .5,
                  bg = None):
         self.coarse_factor = coarse_factor
         if base_object.__class__ is list:
@@ -407,19 +407,28 @@ def get_roc_generous(data_iter, classifier,coarse_thresh=-np.inf,
             num_frames += data_iter.E.shape[1]
             scores = -np.inf * np.ones(num_detections)
             coarse_count_scores = -np.inf *np.ones(num_detections)
+            coarse_scores = -np.inf * np.ones(num_detections)
+            esp._edge_map_threshold_segments(data_iter.E,
+                                 classifier.window[1],
+                                 1, 
+                                 threshold=.3,
+                                 edge_orientations = data_iter.edge_orientations,
+                                 edge_feature_row_breaks = data_iter.edge_feature_row_breaks)
             for d in xrange(num_detections):
-                E_segment = data_iter.E[:,d:d+classifier.window[1]].copy()                
-                esp.threshold_edgemap(E_segment,.30,
-                                      data_iter.edge_feature_row_breaks,
-                                      report_level=False,
-                                      abst_threshold=abst_threshold)
-                esp.spread_edgemap(E_segment,
-                                   data_iter.edge_feature_row_breaks,
-                                   data_iter.edge_orientations,
-                                   spread_length=1)
+                E_segment = data_iter.E[:,d:d+classifier.window[1]]
+                scores[d] = classifier.score_no_bg(E_segment)
                 coarse_count_scores[d] = classifier.coarse_score_count(E_segment)
-                if coarse_count_scores[d] > coarse_thresh:
-                    scores[d] = classifier.score_no_bg(E_segment)
+                if d>1 and d<num_detections-1:
+                    if (coarse_count_scores[d-1] > coarse_thresh) and \
+                            ((coarse_count_scores[d-1]>\
+                                  coarse_count_scores[d] and\
+                                  coarse_count_scores[d-1]>=\
+                                  coarse_count_scores[d-2]) or\
+                                (coarse_count_scores[d-1]>=\
+                                  coarse_count_scores[d] and\
+                                  coarse_count_scores[d-1]>\
+                                  coarse_count_scores[d-2]) ):
+                        coarse_scores[d] = classifier.score_no_bg(E_segment)
             # get the positive and negative scores removed out
             pos_counts =[]
             pos_scores = []
@@ -427,10 +436,10 @@ def get_roc_generous(data_iter, classifier,coarse_thresh=-np.inf,
             neg_indices[:]=True
             for pt in xrange(len(pattern_times)):
                 pos_scores.append(np.max(scores[pattern_times[pt][0]-int(np.ceil(classifier.window[1]/3.)):pattern_times[pt][0]+int(np.ceil(classifier.window[1]/3.))]))
-                pos_counts.append(np.max(coarse_count_scores[pattern_times[pt][0]-int(np.ceil(classifier.window[1]/3.)):pattern_times[pt][0]+int(np.ceil(classifier.window[1]/3.))]))
-                neg_indices[pattern_times[pt][0]-int(np.ceil(classifier.window[1]/3.)):pattern_times[pt][0]+int(np.ceil(classifier.window[1]/3.))] = False
+                pos_counts.append(np.max(coarse_scores[pattern_times[pt][0]-int(np.ceil(classifier.window[1]/3.)):pattern_times[pt][0]+int(np.ceil(classifier.window[1]/3.))]))
+                neg_indices[pattern_times[pt][0]-int(np.ceil(classifier.window[1]/3.)):pattern_times[pt][1]] = False
             # get rid of overlapping instances
-            neg_indices_counts_non_overlap = remove_overlapping_examples(np.argsort(coarse_count_scores),
+            neg_indices_counts_non_overlap = remove_overlapping_examples(np.argsort(coarse_scores),
                                                         classifier.coarse_length,
                                                         int(allowed_overlap*classifier.coarse_length))
             neg_indices_non_overlap = remove_overlapping_examples(np.argsort(scores),
@@ -446,7 +455,7 @@ def get_roc_generous(data_iter, classifier,coarse_thresh=-np.inf,
             all_positive_scores.extend(pos_scores)
             all_positive_counts.extend(pos_counts)
             all_negative_scores.extend(scores[neg_indices_full])
-            all_negative_counts.extend(coarse_count_scores[neg_indices_coarse])
+            all_negative_counts.extend(coarse_scores[neg_indices_coarse])
             
         else:
             break
