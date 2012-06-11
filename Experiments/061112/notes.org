@@ -1,0 +1,10 @@
+* Experiments
+** Plan
+
+Going to use the new features and experimental protocol from the
+060412 test in order to do the mixture experiments, and the parts
+experiments.  Going to also run more patterns and get results for all
+of those.
+
+I'm also going to implement the feature computation of Muhammed waliji
+
