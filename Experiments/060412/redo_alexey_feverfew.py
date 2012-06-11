@@ -191,7 +191,7 @@ like_roc, count_roc = cl.get_roc_generous(test_data_iter, aar_classifier,coarse_
                                       .02,.02,.02,.02]),
             spread_radius=1)
 
-coarse_thresh = 550
+coarse_thresh = 200
 edge_feature_row_breaks= tune_data_iter.edge_feature_row_breaks
 edge_orientations=tune_data_iter.edge_orientations
 abst_threshold=np.array([.025,.025,.015,.015,
@@ -254,7 +254,6 @@ if True:
             neg_indices_non_overlap = cl.remove_overlapping_examples(np.argsort(scores),
                                                         classifier.window[1],
                                                         int(allowed_overlap*classifier.window[1]))
-
             neg_idx2 = np.empty(scores.shape[0],dtype=bool)
             neg_idx2[neg_indices_non_overlap] =True
             neg_indices_full = np.logical_and(neg_indices,neg_idx2)
@@ -264,8 +263,7 @@ if True:
             all_positive_scores.extend(pos_scores)
             all_positive_counts.extend(pos_counts)
             all_negative_scores.extend(scores[neg_indices_full])
-            all_negative_counts.extend(coarse_scores[neg_indices_coarse])
-            
+            all_negative_counts.extend(coarse_scores[neg_indices_coarse])            
         else:
             break
     like_roc = cl.get_roc(np.sort(all_positive_scores)[::-1],
@@ -275,3 +273,8 @@ if True:
                         np.sort(all_negative_counts)[::-1],
                         num_frames)
          
+
+#  we're pickling the test data so that way we can test on the same data
+pkl_out = open(root_path+'Experiments/060412/redo_alexey_test_data_iter.pkl','wb')
+cPickle.dump(test_data_iter,pkl_out)
+pkl_out.close()
