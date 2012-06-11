@@ -1,4 +1,5 @@
 root_path = '/var/tmp/stoehr/Projects/Template-Speech-Recognition/'
+root_path = '/home/mark/projects/Template-Speech-Recognition/'
 
 import sys, os, cPickle
 sys.path.append(root_path)
@@ -16,7 +17,7 @@ abst_threshold = np.load(root_path+'Experiments/050812/abst_threshold.npy')
 
 texp = template_exp.\
     Experiment(patterns=[np.array(('aa','r')),np.array(('ah','r'))],
-               data_paths_file=root_path+'Data/WavFilesTrainPaths_feverfew',
+               data_paths_file=root_path+'Data/WavFilesTrainPaths',
                spread_length=3,
                abst_threshold=abst_threshold,
                fft_length=512,num_window_step_samples=80,
@@ -33,13 +34,26 @@ train_data_iter.reset_exp()
 train_specs = []
 cur_iter = 0
 
-while train_data_iter.next(wait_for_positive_example=True,
-                           compute_S=True,compute_patterns_specs=True,compute_E=False):
+def generate_block_indices(block_length,block_height,
+                           win_length,win_height):
+    
+
+def get_block_windows(block,win_height,win_length):
+    block[]
+
+block_length = 95
+while train_data_iter.next():
     if cur_iter % 10 == 0:
         print cur_iter
+    E = train_data_iter.E
+    
+    block = E[:,:block_length]
+
+    num_blocks = E.shape[1]/block_length
+    
     train_specs.extend(train_data_iter.patterns_specs)
     cur_iter += 1
-
+    
 ts = np.empty(len(train_specs),dtype=object)
 for t in xrange(len(train_specs)): ts[t] = train_specs[t]
 
