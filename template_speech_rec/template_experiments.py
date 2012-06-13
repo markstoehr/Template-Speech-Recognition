@@ -220,6 +220,9 @@ class Experiment:
                                    return_freqs=True)
             return S[freq_idx<freq_cutoff,:]
 
+    def get_E_thresh():
+        pass
+
     def get_processed_spec(self,s,freq_cutoff=None,
                            fft_length=None,
                            num_window_step_samples = None,
