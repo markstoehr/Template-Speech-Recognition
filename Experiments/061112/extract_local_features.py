@@ -45,7 +45,7 @@ def extract_local_features(E,patch_height,patch_width,lower_quantile,upper_quant
     bps = [np.zeros((0,patch_height,patch_width))]*(edge_feature_row_breaks.shape[0]-1)
     for segment_id in xrange(E.shape[1]/segment_length-1):
         for edge_id in xrange(edge_feature_row_breaks.shape[0]-1):
-            bp[edge_id] = np.vstack((bp[edge_id],
+            bps[edge_id] = np.vstack((bps[edge_id],
                             _extract_block_local_features(
                         E[edge_feature_row_breaks[edge_id]:
                               edge_feature_row_breaks[edge_id+1],
@@ -107,7 +107,9 @@ assert np.sum(np.abs(patches[best_patches] - bp)) == 0
 
 patch_height, patch_width = 5,5
 
-num_iter = 20
+bps = [np.zeros((0,patch_height,patch_width))] * 8
+train_data_iter.reset_exp()
+num_iter = 30
 for k in xrange(num_iter):
     train_data_iter.next()
     E, edge_feature_row_breaks, edge_orientations =\
@@ -118,15 +120,18 @@ for k in xrange(num_iter):
                                  threshold=.3,
                                  edge_orientations = edge_orientations,
                                  edge_feature_row_breaks = edge_feature_row_breaks)
-    bp = np.vstack((bp,
-                    extract_local_features(E,patch_height,patch_width,.85,.95,edge_feature_row_breaks)))
+    cur_bps = extract_local_features(E,patch_height,patch_width,.85,.95,edge_feature_row_breaks)
+    for bp_id in xrange(len(cur_bps)):
+        bps[bp_id] = np.vstack((bps[bp_id],
+                                cur_bps[bp_id]))
 
 
 import template_speech_rec.bernoulli_em as bem
 
 
-bm = bem.Bernoulli_Mixture(20,bp)
-bm.run_EM(.00001)
+patch_mixes = [bem.Bernoulli_Mixture(20,bps[k]) for k in xrange(8)]
+for k in xrange(8):
+    patch_mixes[k].run_EM(.0001)
 
 np.save('patch_data_mat061211',bm.data_mat)
 bm.data_mat = 0
