@@ -1,5 +1,6 @@
 import numpy as np
 root_path = '/var/tmp/stoehr/Projects/Template-Speech-Recognition/'
+root_path = '/home/mark/projects/Template-Speech-Recognition/'
 
 import sys, os, cPickle
 sys.path.append(root_path)
@@ -41,16 +42,16 @@ def extract_local_features(E,patch_height,patch_width,lower_quantile,upper_quant
     # segment_ms - number of milliseconds over which we compute the quantile thresholds
     # hop_ms is says how many milliseconds pass in between each frame
     segment_length = segment_ms/hop_ms
-    bp = np.zeros((0,patch_height,patch_width))
+    bps = [np.zeros((0,patch_height,patch_width))]*(edge_feature_row_breaks.shape[0]-1)
     for segment_id in xrange(E.shape[1]/segment_length-1):
         for edge_id in xrange(edge_feature_row_breaks.shape[0]-1):
-            bp = np.vstack((bp,
+            bp[edge_id] = np.vstack((bp[edge_id],
                             _extract_block_local_features(
                         E[edge_feature_row_breaks[edge_id]:
                               edge_feature_row_breaks[edge_id+1],
                           segment_id*segment_length:(segment_id+1)*segment_length],
                         patch_height,patch_width,lower_quantile,upper_quantile)))
-    return bp
+    return bps
 
 def _extract_block_local_features(E,patch_height,patch_width,lower_quantile,upper_quantile):
     height, width = E.shape
@@ -133,6 +134,12 @@ bm.data_mat = 0
 pkl_out = open('patch_templates061211.pkl','wb')
 cPickle.dump(bm,pkl_out)
 pkl_out.close()
+
+
+pkl_out = open('patch_templates061211.pkl','rb')
+bm = cPickle.load(pkl_out)
+pkl_out.close()
+
 
 from matplotlib import cm
 
