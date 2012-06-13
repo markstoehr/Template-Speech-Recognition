@@ -8,3 +8,21 @@ of those.
 
 I'm also going to implement the feature computation of Muhammed waliji
 
+** 2-component Mixture
+The relevant file is in 
+#+BEGIN_EXAMPLE
+Experiments/061112/redo_mixture_experiments.py
+#+END_EXAMPLE
+
+We give a visual comparison betweenn the different mixture components:
+
+#+CAPTION: Spectrogram
+#+LABEL: fig:spec1
+#+ATTR_LaTeX: width=25em
+[[./spec_raw.eps]]
+
+** extract_local_features.py
+
+Getting the computation with the indices to work
+Given a spectrogram S which has a height and a width we need to compute the local patches
+
