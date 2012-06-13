@@ -292,3 +292,5 @@ if True:
 pkl_out = open(root_path+'Experiments/060412/redo_alexey_test_data_iter.pkl','wb')
 cPickle.dump(test_data_iter,pkl_out)
 pkl_out.close()
+
+np.save('bg_060712.npy',bg)
