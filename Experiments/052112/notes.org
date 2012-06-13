@@ -6,7 +6,7 @@ Then we want to do ROC curves for "pa" v.s. "ta" v.s. "da"
 we also want ROC curves for "aa", "iy", "u" and other vowels
 
 ** AAR experiment
-its contained in aar_experiment.py
+   its contained in aar_experiment.py
 ** Learning Time-Domain Edge detectors
 Two Ideas: one is just to use a linear predictor, a kernel-based
 estimator, or a complex function Find the chunk of the signal that
