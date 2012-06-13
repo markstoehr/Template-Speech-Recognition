@@ -6,17 +6,20 @@ import random
 #
 
 class Bernoulli_Mixture:
-    def __init__(self,num_mix,data_mat):
+    def __init__(self,num_mix,data_mat,init_type='unif_rand',
+                 opt_type='expected'):
         self.num_mix = num_mix
         self.height,self.width = data_mat.shape[1:]
         self.data_mat = data_mat
         self.num_data = data_mat.shape[0]
         # initializing weights
         self.weights = 1./num_mix * np.ones(num_mix)
-        self.init_affinities_templates()
+        self.opt_type=opt_type
+        self.init_affinities_templates(init_type)
+        
 
 
-    def run_EM(self,tol):
+    def run_EM(self,tol,save_template=False):
         """ EM algorithm
         First we compute the expected value of the label vector for each point
         """
@@ -45,22 +48,37 @@ class Bernoulli_Mixture:
     def threshold_templates(self):
         self.templates = np.maximum(np.minimum(self.templates,.95),.05)
 
-    def init_affinities_templates(self):
-        random.seed()
-        idx = range(self.num_data)
-        random.shuffle(idx)
-        self.affinities = np.zeros((self.num_data,
-                                    self.num_mix))
-        self.templates = np.zeros((self.num_mix,
-                                   self.height,
-                                   self.width))
-        for mix_id in xrange(self.num_mix):
-            self.affinities[self.num_mix*np.arange(self.num_data/self.num_mix)+mix_id,mix_id] = 1.
-            self.templates[mix_id] = np.mean(self.data_mat[self.affinities[:,mix_id]==1],axis=0)
-        self.threshold_templates()
+    def init_affinities_templates(self,init_type):
+        if init_type == 'unif_rand':
+            random.seed()
+            idx = range(self.num_data)
+            random.shuffle(idx)
+            self.affinities = np.zeros((self.num_data,
+                                        self.num_mix))
+            self.templates = np.zeros((self.num_mix,
+                                       self.height,
+                                       self.width))
+            for mix_id in xrange(self.num_mix):
+                self.affinities[self.num_mix*np.arange(self.num_data/self.num_mix)+mix_id,mix_id] = 1.
+                self.templates[mix_id] = np.mean(self.data_mat[self.affinities[:,mix_id]==1],axis=0)
+                self.threshold_templates()
+        elif init_type == 'specific':
+            random.seed()
+            idx = range(self.num_data)
+            random.shuffle(idx)
+            self.affinities = np.zeros((self.num_data,
+                                        self.num_mix))
+            self.templates = np.zeros((self.num_mix,
+                                       self.height,
+                                       self.width))
+            for mix_id in xrange(self.num_mix):
+                self.affinities[self.num_mix*np.arange(self.num_data/self.num_mix)[1]+mix_id,mix_id] = 1.
+                self.templates[mix_id] = np.mean(self.data_mat[self.affinities[:,mix_id]==1],axis=0)
+                self.threshold_templates()
+
         self.log_templates = np.log(self.templates)
         self.log_invtemplates = np.log(1-self.templates)
-            
+
 
     def get_templates(self):
         return self.templates
@@ -90,8 +108,8 @@ class Bernoulli_Mixture:
         # problems
         logmarginals_adj = np.sum(np.exp(loglikelihoods - np.tile(max_vals,(self.num_mix,1)).transpose()),axis=1)
         loglikelihood = np.sum(np.log(logmarginals_adj)) + np.sum(max_vals)
-        self.affinities =loglikelihoods-np.tile(logmarginals_adj+max_vals,
-                                           (self.num_mix,1)).transpose()
+        self.affinities = np.exp(loglikelihoods-np.tile(logmarginals_adj+max_vals,
+                                           (self.num_mix,1)).transpose())
         self.affinities/=np.tile(np.sum(self.affinities,axis=1),(self.num_mix,1)).transpose()
         return loglikelihood
         
