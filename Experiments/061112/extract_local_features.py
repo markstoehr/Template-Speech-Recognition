@@ -33,22 +33,24 @@ E, edge_feature_row_breaks, edge_orientations =\
 import matplotlib.pyplot as plt
 
 
-esp._edge_map_threshold_segments(E,
-                                 40,
-                                 1, 
-                                 threshold=.3,
-                                 edge_orientations = edge_orientations,
-                                 edge_feature_row_breaks = edge_feature_row_breaks)
 
 
 
-
-def extract_local_features(E,patch_height,patch_width,lower_quantile,upper_quantile,segment_ms=500,
+def extract_local_features(E,patch_height,patch_width,lower_quantile,upper_quantile,edge_feature_row_breaks,segment_ms=500,
                            hop_ms = 5):
     # segment_ms - number of milliseconds over which we compute the quantile thresholds
     # hop_ms is says how many milliseconds pass in between each frame
     segment_length = segment_ms/hop_ms
-    _extract_block_local_features(E,patch_height,patch_width,lower_quantile,upper_quantile)
+    bp = np.zeros((0,patch_height,patch_width))
+    for segment_id in xrange(E.shape[1]/segment_length-1):
+        for edge_id in xrange(edge_feature_row_breaks.shape[0]-1):
+            bp = np.vstack((bp,
+                            _extract_block_local_features(
+                        E[edge_feature_row_breaks[edge_id]:
+                              edge_feature_row_breaks[edge_id+1],
+                          segment_id*segment_length:(segment_id+1)*segment_length],
+                        patch_height,patch_width,lower_quantile,upper_quantile)))
+    return bp
 
 def _extract_block_local_features(E,patch_height,patch_width,lower_quantile,upper_quantile):
     height, width = E.shape
@@ -81,7 +83,9 @@ def _extract_block_local_features(E,patch_height,patch_width,lower_quantile,uppe
     return patches[np.argsort(np.sum(np.sum(patches,axis=1),axis=1))[lower_quantile*patches.shape[0]:
                                                                          upper_quantile*patches.shape[0]]]
 
-bp = extract_local_features(E,patch_height,patch_width,.9,1)
+patch_height,patch_width = 5,5
+bp = extract_local_features(E,patch_height,patch_width,.85,.95,edge_feature_row_breaks)
+
 assert np.sum(np.abs(patches[best_patches] - bp)) == 0
 #
 #
@@ -98,33 +102,37 @@ assert np.sum(np.abs(patches[best_patches] - bp)) == 0
 # we have (width-5) * (height-5) patches so the patch matrix will have 
 # 5 *(width-5) columns
 
-bp = extract_local_features(E,patch_height,patch_width,.8,.95)
+# bp = extract_local_features(E,patch_height,patch_width,.8,.95)
 
 patch_height, patch_width = 5,5
-bps = []
-num_iter = 10
+
+num_iter = 20
 for k in xrange(num_iter):
     train_data_iter.next()
     E, edge_feature_row_breaks, edge_orientations =\
         train_data_iter.E,train_data_iter.edge_feature_row_breaks, train_data_iter.edge_orientations
-    bp = extract_local_features(E,patch_height,patch_width,.8,.95)
-    bps = np.vstack((bps,bp))
-
-
-import template_speech_rec.bernoulli_em as bem
-
-esp._edge_map_threshold_segments(E,
+    esp._edge_map_threshold_segments(E,
                                  40,
                                  1, 
                                  threshold=.3,
                                  edge_orientations = edge_orientations,
                                  edge_feature_row_breaks = edge_feature_row_breaks)
+    bp = np.vstack((bp,
+                    extract_local_features(E,patch_height,patch_width,.85,.95,edge_feature_row_breaks)))
 
 
-bp = extract_local_features(E,patch_height,patch_width,.88,.98)
+import template_speech_rec.bernoulli_em as bem
+
 
 bm = bem.Bernoulli_Mixture(20,bp)
 bm.run_EM(.00001)
+
+np.save('patch_data_mat061211',bm.data_mat)
+bm.data_mat = 0
+
+pkl_out = open('patch_templates061211.pkl','wb')
+cPickle.dump(bm,pkl_out)
+pkl_out.close()
 
 from matplotlib import cm
 
