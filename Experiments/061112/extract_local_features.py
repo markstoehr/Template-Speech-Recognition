@@ -195,3 +195,15 @@ templates[0] = patches2template(use_patches)
 scores = matchtemplate2patch(templates[0],bp)
 score_idx = np.argsort(scores)
 use_patches = bp[score_idx[.97*scores.shape[0]:]]
+
+from matplotlib import cm
+
+#visualize the templates
+import matplotlib.pyplot as plt
+for n in xrange(bm.templates.shape[0]):
+    plt.subplot(4,5,n+1)
+    plt.imshow(patch_templates[0][n],
+               interpolation='nearest',cmap = cm.bone)
+                                
+
+plt.show()
