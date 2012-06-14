@@ -84,6 +84,65 @@ def _extract_block_local_features(E,patch_height,patch_width,lower_quantile,uppe
     return patches[np.argsort(np.sum(np.sum(patches,axis=1),axis=1))[lower_quantile*patches.shape[0]:
                                                                          upper_quantile*patches.shape[0]]]
 
+
+def extract_local_features_tied(E,patch_height,patch_width,
+                                lower_quantile,upper_quantile,
+                                edge_feature_row_breaks,segment_ms=500,
+                           hop_ms = 5):
+    # segment_ms - number of milliseconds over which we compute the quantile thresholds
+    # hop_ms is says how many milliseconds pass in between each frame
+    segment_length = segment_ms/hop_ms
+    bp = np.zeros((0,patch_height*(edge_feature_row_breaks.shape[0]-1),
+                   patch_width))
+    for segment_id in xrange(E.shape[1]/segment_length-1):
+        bp_tmp = _extract_block_local_features_tied(
+                        E[edge_feature_row_breaks[0]:
+                              edge_feature_row_breaks[1],
+                          segment_id*segment_length:(segment_id+1)*segment_length],
+                        patch_height,patch_width)
+        for edge_id in xrange(1,edge_feature_row_breaks.shape[0]-1):
+            bp_tmp = np.hstack((bp_tmp,
+                            _extract_block_local_features_tied(
+                        E[edge_feature_row_breaks[edge_id]:
+                              edge_feature_row_breaks[edge_id+1],
+                          segment_id*segment_length:(segment_id+1)*segment_length],
+                        patch_height,patch_width)))
+        bp_tmp=bp_tmp[np.argsort(np.sum(np.sum(bp_tmp,axis=1),axis=1))[lower_quantile*patches.shape[0]:
+                                                                         upper_quantile*patches.shape[0]]]
+        bp = np.vstack((bp,bp_tmp))
+    return bps
+
+def _extract_block_local_features_tied(E,patch_height,patch_width):
+    height, width = E.shape
+    col_indices = np.tile(
+        # construct the base set of repeating column indices
+        np.arange(patch_width*(width-patch_width+1)).reshape(width-patch_width+1,1,patch_width,),
+        # repeat the same indices (for columns or times) along each row as those are fixed
+        (1,patch_height,1))
+    # change the entries so that way the col[i,:,:] starts with i along the first column
+    col_indices = col_indices/patch_width + col_indices%patch_width
+    # repeat for each set of frequency bands
+    col_indices = np.tile(col_indices,(height-patch_height+1,1,1))
+    #
+    # construct the row indices
+    #
+    #
+    # get the base indices
+    row_indices = np.tile(np.arange(0,width*patch_height,width),(patch_width,1)).T
+    # tile them so that way we have as many as are there are of the col_indices
+    row_indices = np.tile(
+        row_indices.reshape(1,patch_height,patch_width),
+        (col_indices.shape[0],1,1)
+        )
+    #
+    # now we make the mask that we do our shifting with
+    row_add_mask = (np.arange(col_indices.size,dtype=int)/(patch_height*patch_width*(width-patch_width+1))).reshape(col_indices.shape)
+    row_add_mask *= width
+    row_indices += row_add_mask
+    patches = E.ravel()[row_indices+col_indices]
+    return patches
+
+
 patch_height,patch_width = 5,5
 bp = extract_local_features(E,patch_height,patch_width,.85,.95,edge_feature_row_breaks)
 
