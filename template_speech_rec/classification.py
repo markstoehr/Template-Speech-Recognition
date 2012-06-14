@@ -16,21 +16,29 @@ class Classifier:
         if base_object.__class__ is list:
             # we assume that all objects have the same
             # length so we are comparing apples to apples
-            template_height, template_length = base_object[0].shape
+            template_height = base_object[0].shape[0]
+            template_length = max([t.shape[1] for t in base_object])
             self.type = "collection"
             self.window = np.array((template_height,template_length))
             self.template = base_object
             self.bg = bg
+            self.pad_template = lambda tmplt, bg: np.hstack((tmplt,
+                                                             np.tile(
+                        bg.reshape(self.window[0],1),
+                        (1,self.window[1]-tmplt.shape[1]))))
             self.score = lambda E_window,bg:\
-                max([sum(tt.score_template_background_section(tmplt,
-                                                         bg,E_window)) for tmplt in self.template])
+                max([sum(tt.score_template_background_section(
+                            self.pad_template(tmplt,bg),
+                            bg,E_window)) for tmplt in self.template])
             self.score_no_bg = lambda E_window:\
-                max([sum(tt.score_template_background_section(tmplt,
-                                                         self.bg,
-                                                         E_window)) for tmplt in self.template])
-            self.coarse_template = [get_coarse_segment(tmplt,
-                                                      coarse_type="avg",
-                                                      coarse_factor = self.coarse_factor) for tmplt in self.template]
+                max([sum(tt.score_template_background_section(
+                            self.pad_template(tmplt,self.bg),
+                            self.bg,
+                            E_window)) for tmplt in self.template])
+            self.coarse_template = [get_coarse_segment(
+                    tmplt,
+                    coarse_type="avg",
+                    coarse_factor = self.coarse_factor) for tmplt in self.template]
             self.coarse_length = self.coarse_template[0].shape[1]
             self.coarse_template_mask = [T >.7 for T in self.coarse_template]
             self.coarse_score_like = lambda E_window,bg:\
