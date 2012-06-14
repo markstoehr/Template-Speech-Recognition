@@ -133,6 +133,10 @@ patch_mixes = [bem.Bernoulli_Mixture(20,bps[k]) for k in xrange(8)]
 for k in xrange(8):
     patch_mixes[k].run_EM(.0001)
 
+out = open(root_path + 'Experiments/061112/patch_mixes.pkl','wb')
+cPickle.dump(patch_mixes,out)
+out.close()
+
 np.save('patch_data_mat061211',bm.data_mat)
 bm.data_mat = 0
 
