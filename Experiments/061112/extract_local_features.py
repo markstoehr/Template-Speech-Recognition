@@ -137,6 +137,13 @@ out = open(root_path + 'Experiments/061112/patch_mixes.pkl','wb')
 cPickle.dump(patch_mixes,out)
 out.close()
 
+patch_templates = [patch_mixes[k].templates for k in xrange(8)]
+
+out = open(root_path + 'Experiments/061112/patch_templates.pkl','wb')
+cPickle.dump(patch_templates,out)
+out.close()
+ 
+
 np.save('patch_data_mat061211',bm.data_mat)
 bm.data_mat = 0
 
