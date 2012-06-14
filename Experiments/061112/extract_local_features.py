@@ -107,10 +107,10 @@ def extract_local_features_tied(E,patch_height,patch_width,
                               edge_feature_row_breaks[edge_id+1],
                           segment_id*segment_length:(segment_id+1)*segment_length],
                         patch_height,patch_width)))
-        bp_tmp=bp_tmp[np.argsort(np.sum(np.sum(bp_tmp,axis=1),axis=1))[lower_quantile*patches.shape[0]:
-                                                                         upper_quantile*patches.shape[0]]]
+        bp_tmp=bp_tmp[np.argsort(np.sum(np.sum(bp_tmp,axis=1),axis=1))[lower_quantile*bp_tmp.shape[0]:
+                                                                         upper_quantile*bp_tmp.shape[0]]]
         bp = np.vstack((bp,bp_tmp))
-    return bps
+    return bp
 
 def _extract_block_local_features_tied(E,patch_height,patch_width):
     height, width = E.shape
@@ -144,7 +144,7 @@ def _extract_block_local_features_tied(E,patch_height,patch_width):
 
 
 patch_height,patch_width = 5,5
-bp = extract_local_features(E,patch_height,patch_width,.85,.95,edge_feature_row_breaks)
+bp = extract_local_features_tied(E,patch_height,patch_width,.85,.95,edge_feature_row_breaks)
 
 assert np.sum(np.abs(patches[best_patches] - bp)) == 0
 #
@@ -266,3 +266,29 @@ for n in xrange(bm.templates.shape[0]):
                                 
 
 plt.show()
+
+
+#
+# Going to extract local features again, this time with the different patches tied to each other
+#
+#
+
+bp = np.zeros((0,edge_orientations.shape[0]*patch_height,patch_width))
+train_data_iter.reset_exp()
+num_iter = 30
+for k in xrange(num_iter):
+    train_data_iter.next()
+    E, edge_feature_row_breaks, edge_orientations =\
+        train_data_iter.E,train_data_iter.edge_feature_row_breaks, train_data_iter.edge_orientations
+    esp._edge_map_threshold_segments(E,
+                                 40,
+                                 1, 
+                                 threshold=.3,
+                                 edge_orientations = edge_orientations,
+                                 edge_feature_row_breaks = edge_feature_row_breaks)
+    bp = np.vstack((bp,extract_local_features_tied(E,patch_height,patch_width,.89,.9999,edge_feature_row_breaks)))
+
+
+patch_mix20 = bem.Bernoulli_Mixture(20,bp)
+patch_mix40 = bem.Bernoulli_Mixture(20,bp)
+patch_mix80 = bem.Bernoulli_Mixture(20,bp)
