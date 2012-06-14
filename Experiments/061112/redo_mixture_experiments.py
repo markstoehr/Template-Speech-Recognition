@@ -420,12 +420,16 @@ T_back = T[:,T.shape[1]*.66666666:].copy()
 T_short = np.zeros((T.shape[0],int(T.shape[1]*2./3)))
 T_short_parts = np.vstack((
        (np.hstack((
-                    T_front[:,:np.min(T_short.shape[1],T_front.shape[1])],
-                    T_back[:,-(T_short.shape[1]-T_front.shape[1]):]))).reshape(1,T_short.shape[0],
+                    T_front[:,:min(T_short.shape[1],T_front.shape[1])],
+                    T_back[:,-max(T_short.shape[1]-T_front.shape[1],0):]))).reshape(1,T_short.shape[0],
                                                                                T_short.shape[1]),
        (np.hstack((
-                    T_front[:,:np.min(T_short.shape[1],T_front.shape[1])],
-                    T_back[:,-(T_short.shape[1]-T_front.shape[1]):]))).reshape(1,T_short.shape[0],
-                                                                               T_short.shape[1])
+                    T_front[:,:max(T_short.shape[1]-T_back.shape[1],0)],
+                    T_back[:,-min(T_short.shape[1],T_back.shape[1]):]))).reshape(1,T_short.shape[0],
+                                                                               T_short.shape[1])))
 
-aar_classifier = cl.Classifier([T,T,T],coarse_factor=1,coarse_template_threshold = .5,bg=bg)
+T_short = np.mean(T_short_parts,axis=0)
+
+T_long = np.hstack((T_front,T_back))
+
+aar_classifier = cl.Classifier([T,T_short,T_long],coarse_factor=1,coarse_template_threshold = .5,bg=bg)
