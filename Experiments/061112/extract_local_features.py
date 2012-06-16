@@ -286,9 +286,52 @@ for k in xrange(num_iter):
                                  threshold=.3,
                                  edge_orientations = edge_orientations,
                                  edge_feature_row_breaks = edge_feature_row_breaks)
-    bp = np.vstack((bp,extract_local_features_tied(E,patch_height,patch_width,.89,.9999,edge_feature_row_breaks)))
+    bp = np.vstack((bp,extract_local_features_tied(E,patch_height,patch_width,.9,1.,edge_feature_row_breaks)))
 
 
-patch_mix20 = bem.Bernoulli_Mixture(20,bp)
-patch_mix40 = bem.Bernoulli_Mixture(20,bp)
-patch_mix80 = bem.Bernoulli_Mixture(20,bp)
+patch_mix4 = bem.Bernoulli_Mixture(4,bp); patch_mix4.run_EM(.1); np.save('patch_mix4_templates061412',patch_mix4.templates)
+
+patch_mix20 = bem.Bernoulli_Mixture(20,bp); patch_mix20.run_EM(.00001); np.save('patch_mix20_templates061412',patch_mix20.templates)
+patch_mix40 = bem.Bernoulli_Mixture(40,bp); patch_mix40.run_EM(.00001); np.save('patch_mix40_templates061412',patch_mix40.templates)
+patch_mix80 = bem.Bernoulli_Mixture(80,bp); patch_mix80.run_EM(.00001); np.save('patch_mix80_templates061412',patch_mix80.templates)
+
+out = open('patch_mix80_061412.pkl','wb')
+cPickle.dump(patch_mix80,out)
+out.close()
+del patch_mix80
+
+
+out = open('patch_mix40_061412.pkl','wb')
+cPickle.dump(patch_mix40,out)
+out.close()
+del patch_mix40
+
+
+out = open('patch_mix20_061412.pkl','wb')
+cPickle.dump(patch_mix20,out)
+out.close()
+del patch_mix20
+
+
+bp = np.zeros((0,edge_orientations.shape[0]*patch_height,patch_width))
+train_data_iter.reset_exp()
+num_iter = 30
+for k in xrange(num_iter):
+    train_data_iter.next()
+    E, edge_feature_row_breaks, edge_orientations =\
+        train_data_iter.E,train_data_iter.edge_feature_row_breaks, train_data_iter.edge_orientations
+    esp._edge_map_threshold_segments(E,
+                                 40,
+                                 1, 
+                                 threshold=.3,
+                                 edge_orientations = edge_orientations,
+                                 edge_feature_row_breaks = edge_feature_row_breaks)
+    bp = np.vstack((bp,extract_local_features_tied(E,patch_height,patch_width,.9,1.,edge_feature_row_breaks)))
+
+
+patch_mix80_9full= bem.Bernoulli_Mixture(80,bp); patch_mix80_9full.run_EM(.00001); np.save('patch_mix80_9full_templates061412',patch_mix80_9full.templates)
+
+out = open('patch_mix80_9full_061412.pkl','wb')
+cPickle.dump(patch_mix80_9full,out)
+out.close()
+del patch_mix80_9full
