@@ -1535,8 +1535,8 @@ def edge_map_times(N, window_length, hop_length,
         + hop_length * np.arange(num_windows)
     
     # correct for kernel length
-    window_points = window_points[window_length/2:\
-                                      end-window_length/2]
+    window_points = window_points[kernel_length/2:\
+                                      end-kernel_length/2]
 
     window_points = window_points[1:end-1]
     
