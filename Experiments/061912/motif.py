@@ -54,7 +54,7 @@ class shifted_dictionary:
                                                        self.signal_atom_diff)
 
 
-def make_signal_shift_matcher(X,num_signals,signal_length,num_atoms,atom_size,num_shifts):
+def get_shifted_X(X,num_signals,signal_length,num_atoms,atom_length,num_shifts):
     """
     We need to match each shift of each atom to each signal, this means that we need
     a lot of copies of different signals
@@ -65,7 +65,7 @@ def make_signal_shift_matcher(X,num_signals,signal_length,num_atoms,atom_size,nu
     number of shifts = signal_atom_diff + 1
 
     of a given signal copied, and we do that for each signal so that array has dimension
-    num_signals \times num_shifts \times atom_size
+    num_signals \times num_shifts \times atom_length
 
     we do all the shifting and matching to the original signal since that way we don't have to do
     any shifting in our dictionary
@@ -74,6 +74,49 @@ def make_signal_shift_matcher(X,num_signals,signal_length,num_atoms,atom_size,nu
 
     we repeat that above array for each atom
     """
+    signal_shift_mat = np.zeros((num_signals,num_shifts,atom_length))
+    for i in xrange(num_signals):
+        signal_shift_mat[i] = circulant(X[i]).T[:num_shifts,-atom_length:]
+    return np.tile(signal_shift_mat.reshape(1,num_signals,num_shifts,atom_length),(num_atoms,1,1,1))
+
+def set_atom_dict(atom, atom_id,atom_dict,
+                  num_signals, num_shifts, atom_length):
+
+    atom_dict[atom_id] = np.tile(atom.reshape(1,1,atom_length),
+                                 (num_signals, num_shifts, 1))
+
+def init_atom_dict(num_atoms,num_signals, num_shifts, atom_length):
+    """
+    Creates a large redundant array of the atoms we are using to decompose the signals
+    such that we do fast correlation computation, and figure out which shift for each signal
+    and each atom we should use
+    """
+    atom_dict = np.zeros((num_atoms,num_signals, num_shifts, atom_length))
+    return atom_dict
+
+def match_X_shifted2atom_dict(X_shifted,atom_dict,atom_id):
+    """
+    for every atom up to and including the atom indexed by atom_id
+    we compute which shift (in terms of the shift_id in the X_shifted signal
+    gives the largest correlation
+    """
+    return np.argmax(np.sum(X_shifted[:atom_id+1] * atom_dict[:atom_id+1],axis=3),axis=2)
+
+def get_X_best_shifts(X_shifted,best_shifts,atom_id):
+    """
+    best_shifts is computed from match_X_shifted2atom_dict
+    X_shifted is going to have those best shifts so we can compute
+    the eigen-decomposition
+
+    X_shifted consists a copy of itself for each atom, and for each item
+    we have a matrix for every signal in the original data matrix X
+    each of these matrices is that original signal truncated and shifted
+    to fit the atom sizes
+    
+    for each of those matrices that associates an atom with all shifts of a particular signal
+    we have the index of the best fit, we wish to grab that one, and to do it efficiently
+    """
+    return X_shifted[:atom_id+1][
     
 
 def motif(X,num_atoms,tol,num_shifts=None):
@@ -94,7 +137,14 @@ def motif(X,num_atoms,tol,num_shifts=None):
     # Set the signal length and the number of signals
     num_signals, signal_length = X.shape
     # we start with just the middle of all the signals
-    X_shifted = X[:,num_shifts/2:-num_shifts/2]
+    atom_length = signal_length - num_shifts+1
+    atom_id = 0
+    X_shifted = get_shifted_X(X,num_signals,signal_length,num_atoms,atom_length,num_shifts)
+    atom_dict = init_atom_dict(num_atoms,num_signals, num_shifts, atom_length)
+    g_init = np.random.standard_normal(atom_length)
+    set_atom_dict(g_init, atom_id,atom_dict,
+                  num_signals, num_shifts, atom_length)
+    best_shifts= match_X_shifted2atom_dict(X_shifted,atom_dict,atom_id)
     # compute the gram matrix
     A = np.dot(X_shifted.T, X_shifted)
     # eigendecomposition
