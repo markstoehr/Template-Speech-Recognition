@@ -59,9 +59,40 @@ class shifted_dictionary:
 
 num_atoms = 4
 atom_length = 3
-signal_atom_diff = 2
+signal_length = 10
+num_signals = 4
+signal_atom_diff = signal_length-atom_length
+num_shifts = signal_atom_diff+1
+X = np.arange(40).reshape(num_signals,signal_length)
+X_shifted = make_signal_shift_matcher(X,num_signals,signal_length, num_atoms, atom_length, num_shifts)
 SD = shifted_dictionary(num_atoms, atom_length, signal_atom_diff)
 
+g_init = np.random.standard_normal(atom_length)
+
+def set_atom_dict(atom, atom_id,atom_dict,
+                  num_signals, num_shifts, atom_length):
+    atom_dict[atom_id] = np.tile(atom.reshape(1,1,atom_length),
+                                 (num_signals, num_shifts, 1))
+
+def init_atom_dict(num_atoms,num_signals, num_shifts, atom_length):
+    atom_dict = np.zeros((num_atoms,num_signals, num_shifts, atom_length))
+    return atom_dict
+
+atom_dict = init_atom_dict(num_atoms,
+                           num_signals,
+                           num_shifts,
+                           atom_length)
+
+set_atom_dict(g_init,0,atom_dict,
+              num_signals, num_shifts, atom_length)
+
+atom_id = 0
+np.sum(X_shifted[:atom_id+1] * atom_dict[:atom_id+1],axis=4)
+
+def match_X_shifted2atom_dict(X_shifted,atom_dict,atom_id):
+    np.argmax(np.sum(X_shifted[:atom_id+1] * atom_dict[:atom_id+1],axis=3),axis=2)
+
+match_X_shifted2atom_dict(X_shifted,atom_dict,atom_id)
 
 assert np.all(generate_all_shifts(np.array([2,3,4]),2) == np.array([[2,3,4,0,0],[0,2,3,4,0],[0,0,2,3,4]]))
 
