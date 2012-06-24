@@ -64,7 +64,7 @@ num_signals = 4
 signal_atom_diff = signal_length-atom_length
 num_shifts = signal_atom_diff+1
 X = np.arange(40).reshape(num_signals,signal_length)
-X_shifted = make_signal_shift_matcher(X,num_signals,signal_length, num_atoms, atom_length, num_shifts)
+X_shifted = get_shifted_X(X,num_signals,signal_length,num_atoms,atom_length,num_shifts)
 SD = shifted_dictionary(num_atoms, atom_length, signal_atom_diff)
 
 g_init = np.random.standard_normal(atom_length)
@@ -111,10 +111,11 @@ tol = .0001
 if shift_range is None:
         shift_range = X.shape[1]/4
 
-
+A = np.dot(X_best_shifts, X_best_shifts.T)
 
 num_signals, signal_length = X.shape
 X_shifted = X[:,shift_range:-shift_range]
+
 A = np.dot(X_shifted.T, X_shifted)
 _,cur_g=eigh(A,eigvals_only =False, overwrite_a = True,eigvals=(0,0))
 atom_size = X_shifted.shape[1]
@@ -125,4 +126,82 @@ B = np.zeros((signal_length, signal_length))
 # keep track of what the best shifts are
 shift_tracker = np.zeros((num_signals,signal_atom_diff))
 
-G.shape
+
+import motif
+
+
+num_atoms = 4
+atom_length = 3
+signal_length = 10
+num_signals = 4
+signal_atom_diff = signal_length-atom_length
+num_shifts = signal_atom_diff+1
+X = np.arange(40).reshape(num_signals,signal_length)
+X_shifted = m.get_shifted_X(X,num_signals,signal_length,atom_length,num_shifts)
+
+assert np.all( np.array([[[  7.,   8.,   9.],
+        [  6.,   7.,   8.],
+        [  5.,   6.,   7.],
+        [  4.,   5.,   6.],
+        [  3.,   4.,   5.],
+        [  2.,   3.,   4.],
+        [  1.,   2.,   3.],
+        [  0.,   1.,   2.]],
+
+       [[ 17.,  18.,  19.],
+        [ 16.,  17.,  18.],
+        [ 15.,  16.,  17.],
+        [ 14.,  15.,  16.],
+        [ 13.,  14.,  15.],
+        [ 12.,  13.,  14.],
+        [ 11.,  12.,  13.],
+        [ 10.,  11.,  12.]],
+
+       [[ 27.,  28.,  29.],
+        [ 26.,  27.,  28.],
+        [ 25.,  26.,  27.],
+        [ 24.,  25.,  26.],
+        [ 23.,  24.,  25.],
+        [ 22.,  23.,  24.],
+        [ 21.,  22.,  23.],
+        [ 20.,  21.,  22.]],
+
+       [[ 37.,  38.,  39.],
+        [ 36.,  37.,  38.],
+        [ 35.,  36.,  37.],
+        [ 34.,  35.,  36.],
+        [ 33.,  34.,  35.],
+        [ 32.,  33.,  34.],
+        [ 31.,  32.,  33.],
+        [ 30.,  31.,  32.]]]) == X_shifted)
+
+
+g = m.init_atom(atom_length)
+B_cov = np.eye(atom_length)
+tol = .00001
+g_best = m.compute_best_atom(X_shifted,g,B_cov, tol,
+                      num_signals, signal_length, atom_length, num_shifts)
+
+g = np.array([ 0.05338812, -0.19287716, -0.75089089])
+best_shifts= m.match_X_shifted2atom_dict(X_shifted,g,atom_length,num_signals,
+                              num_shifts)
+A = np.dot(X_best_shifts.T, X_best_shifts)
+_,cur_g=eigh(A,b=B_cov,eigvals_only =False, overwrite_a = True,eigvals=(0,0))
+g_diff =  g - cur_g[:,0]
+g_diff_norm = np.sqrt(np.dot(g_diff,g_diff))
+g = cur_g[:,0]
+
+
+#
+# have a completed version of the code
+# want to see what happens when we producing 
+# 
+#
+
+import matplotlib.pyplot as plt
+
+s=np.sin(np.arange(100)/99. * 10.*np.pi)
+X = generate_all_shifts(s,30)
+num_atoms = 10
+tol = .00001
+G = m.motif(X,num_atoms,tol,num_shifts=30)
