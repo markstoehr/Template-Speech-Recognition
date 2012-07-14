@@ -195,3 +195,137 @@ for phn_id in xrange(len(phn_list)):
     out = open(phn_list[phn_id]+'_tune_scores070512.pkl','wb')
     cPickle.dump(scores,out)
     out.close()
+
+#
+#
+#
+#  Now run the same experiment where we are doing one-vs.all classification
+#  this time we are going to a numpy array since we know how many scores there
+#  are so we know the dimensionality of everything
+#
+
+
+
+#
+#
+#  code for analyzing the tuning experiment
+# for each phone we want to compute the figure of merit score
+#  the figure of merit score is the percent we classify correctly
+#  its really just an area under the curve, we also want to know what errors are being made
+#  with the other phones
+
+# phn_confusion
+# each row corresponds to a phone whose examples we look at in the timit database, the columns count the number of times
+# a phone classifier gave the max score, the third dimension is the mixture component
+
+
+# we want to estimate a bias term for each phone model since this will make classification more sane!
+# in order to do this we need to perform the optimization over all the classification problems at once
+# we are only going to have a row for each 
+
+
+#
+# tuning_examples_classifier_scores is where are the different classifier results are being stored
+# and it is using this array that the bias estimation and the model selection will be performed jointly
+# namely we need to figure out the correct bias term as well as the correct number of components to
+# use for recognition
+#
+
+# variable keeps track of how many tuning examples
+# there are for each phn
+phn_num_tuning_examples = np.zeros(len(phn_list),dtype=int)
+tuning_examples_classifier_scores = [ [] for i in xrange(len(phn_list))]
+for phn_id in xrange(len(phn_list)):
+    phn_num_tuning_examples[phn_id] = len(scores[phn_id])
+    tuning_examples_classifier_scores[phn_id] = np.zeros((phn_num_tuning_examples[phn_id],len(phn_list),len(num_mix_list)+1))
+
+
+for classifier_phn_id in xrange(len(phn_list)):
+    print phn_list[classifier_phn_id]
+    out = open(phn_list[classifier_phn_id]+'_tune_scores070512.pkl','rb')
+    scores= cPickle.load(out)
+    out.close()
+    for classified_phn_id in xrange(len(phn_list)):
+        for example_id,example_scores in enumerate(scores[classified_phn_id]):
+            if example_id % 100 == 0:
+                print classified_phn_id, example_id
+            tuning_examples_classifier_scores[classified_phn_id][example_id,classifier_phn_id] = np.array(example_scores)
+
+
+#
+#
+# tunin_examples_classifier_scores [ classified phone index] [ examples, classifier phone index, model selection index]
+#
+
+# maps a classifier phone index to which model selection to use, which is in range(len(num_mix_list)+1)
+classifier_model_pick = np.zeros(len(phn_list),dtype=np.uint8)
+# this is an estimate for the bias, we simply pick a number that gets good classification results
+classifier_model_bias = np.zeros((len(phn_list),len(num_mix_list)+1))
+
+#
+# now we optimize the model choice and the bias
+# bias is initialized to 0
+# model choice is initialized to the single mixture case
+#
+# now we need to be able to compute what the actual scoring would be for a current
+# model selection and bias estimation, or rather we should have a function evaluation
+# to see what the current score is
+#
+#
+# we can use a passive aggressive method for this optimization
+#
+#
+# then we need to do a gradient for the bias score
+
+def current_zero_one_loss(tuning_examples_classifier_scores,classifier_model_pick,classifier_model_bias,verbose=False):
+    num_phns = len(scores)
+    num_models = tuning_examples_classifier_scores[0].shape[-1]
+    classifier_model_select_mask = np.zeros((num_phns,num_models),dtype=bool)
+    classifier_model_select_mask[np.arange(num_phns),classifier_model_pick] = True
+    cur_loss = 0
+    num_examples = 0
+    confusion_matrix = np.zeros((num_phns,num_phns))
+    for classified_phn_id in xrange(num_phns):
+        if verbose:
+            print "Working on performance for classifying: %d" % classified_phn_id
+        for example_id, example in enumerate(tuning_examples_classifier_scores[classified_phn_id]):
+            best_classifier_phn_id = np.argmax(example[classifier_model_select_mask] + classifier_model_bias[classifier_model_select_mask])
+            if best_classifier_phn_id != classified_phn_id:
+                cur_loss += 1
+            confusion_matrix[classified_phn_id,best_classifier_phn_id] += 1
+            num_examples += 1
+    return cur_loss,num_examples, confusion_matrix
+
+
+cur_loss,num_examples, confusion_matrix =current_zero_one_loss(tuning_examples_classifier_scores,classifier_model_pick,classifier_model_bias,verbose=True)
+
+
+def current_zero_one_loss_leehon(tuning_examples_classifier_scores,classifier_model_pick,classifier_model_bias,
+                                 phn_list,leehon_mapping,
+                                 verbose=False):
+    num_phns = len(scores)
+    num_models = tuning_examples_classifier_scores[0].shape[-1]
+    classifier_model_select_mask = np.zeros((num_phns,num_models),dtype=bool)
+    classifier_model_select_mask[np.arange(num_phns),classifier_model_pick] = True
+    cur_loss = 0
+    num_examples = 0
+    confusion_matrix = np.zeros((num_phns,num_phns))
+    for classified_phn_id in xrange(num_phns):
+        if verbose:
+            print "Working on performance for classifying: %d" % classified_phn_id
+        for example_id, example in enumerate(tuning_examples_classifier_scores[classified_phn_id]):
+            best_classifier_phn_id = np.argmax(example[classifier_model_select_mask] + classifier_model_bias[classifier_model_select_mask])
+            if leehon_mapping[phn_list[best_classifier_phn_id]] != leehon_mapping[phn_list[classified_phn_id]]:
+                cur_loss += 1
+            confusion_matrix[classified_phn_id,best_classifier_phn_id] += 1
+            num_examples += 1
+    return cur_loss,num_examples, confusion_matrix
+
+cur_loss_lh,num_examples_lh, confusion_matrix_lh =current_zero_one_loss_leehon(tuning_examples_classifier_scores,classifier_model_pick,classifier_model_bias,
+                                                                               phn_list,leehon_mapping,
+                                                                               verbose=True)
+
+
+for phn_id in xrange(len(phn_list)):
+    phn_num_tuning_examples[phn_id] = len(scores[phn_id])
+    
