@@ -329,3 +329,57 @@ cur_loss_lh,num_examples_lh, confusion_matrix_lh =current_zero_one_loss_leehon(t
 for phn_id in xrange(len(phn_list)):
     phn_num_tuning_examples[phn_id] = len(scores[phn_id])
     
+
+
+
+#
+#
+#  Rerunning the experiment where I don't stretch anything and instead do padding
+#
+#
+#
+
+
+for phn_id in xrange(len(phn_list)):
+    tune_data_iter.reset_exp()
+    datum_id = 0
+    scores = [ [] for p in xrange(len(phn_list)) ]
+    offset = 3
+    phn = phn_list[phn_id]
+    print "For classifier_list loading", phn+'_template070212.npy', ' '.join([ phn+str(num_mix)+'mix070412.npy' for num_mix in num_mix_list])
+    classifier_list = [cl.Classifier(np.load(phn+'_template070212.npy'))]+ [ cl.Classifier(list(np.load(phn+str(num_mix)+'mix070412.npy'))) for num_mix in num_mix_list]
+    while tune_data_iter.next():
+        if datum_id % 20 == 0:
+            print datum_id
+            if datum_id % 40 == 0:
+                print tune_data_iter.phns
+        esp._edge_map_threshold_segments(tune_data_iter.E,
+                                 40,
+                                 1, 
+                                 threshold=.3,
+                                 edge_orientations = train_data_iter.edge_orientations,
+                                 edge_feature_row_breaks = train_data_iter.edge_feature_row_breaks)
+        for test_phn_id in xrange(tune_data_iter.phns.shape[0]):
+            test_phn = tune_data_iter.phns[test_phn_id]
+            # what's the id of the phone in the master list?
+            test_phn_id_list = np.arange(phn_list.shape[0])[phn_list == test_phn][0]
+            # if this is the beginning silence, use stored background estimate
+            if test_phn_id == 0:
+                bg = stored_bg
+            else:
+                bg = np.minimum(.4,np.maximum(np.mean(test_phn_E,axis=1),.1))
+            if test_phn_id + 1 < tune_data_iter.feature_label_transitions.shape[0]:
+                test_phn_E = tune_data_iter.E[:,max(0,
+                                                    tune_data_iter.feature_label_transitions[test_phn_id]-offset):
+                                                    min(tune_data_iter.E.shape[1],
+                                                        tune_data_iter.feature_label_transitions[test_phn_id+1]+offset)]
+            else:
+                test_phn_E = tune_data_iter.E[:,max(0,
+                                                    tune_data_iter.feature_label_transitions[test_phn_id]-offset):]
+            scores[test_phn_id_list].append( map( lambda classifier_fun: classifier_fun.score_register(test_phn_E,bg),
+                                             classifier_list))
+        datum_id += 1
+    out = open(phn_list[phn_id]+'_tune_scores070512.pkl','wb')
+    cPickle.dump(scores,out)
+    out.close()
+
