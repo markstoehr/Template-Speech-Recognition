@@ -8,6 +8,21 @@ import estimate_template as et
 import test_template as tt
 import parts_model as pm
 
+def _stretch_template(T,template_height,template_length):
+    example_length = T.shape[1]
+    new_template = np.zeros((template_height,template_length))
+    if example_length < template_length:
+        for frame_idx in xrange(template_length):
+            mapped_idx = int(frame_idx/float(template_length) *example_length)
+            new_template[:,frame_idx] = T[:,mapped_idx]
+    else:
+        for frame_idx in xrange(example_length):
+            mapped_idx = int(frame_idx/float(example_length)*template_length)
+            new_template[:,mapped_idx] = np.maximum(new_template[:,mapped_idx],
+                                                    T[:,frame_idx])
+    return new_template
+
+
 class Classifier:
     def __init__(self,base_object, coarse_factor=2,
                  coarse_template_threshold = .5,
@@ -29,6 +44,10 @@ class Classifier:
             self.score = lambda E_window,bg:\
                 max([sum(tt.score_template_background_section(
                             self.pad_template(tmplt,bg),
+                            bg,E_window)) for tmplt in self.template])
+            self.score_register = lambda E_window,bg:\
+                max([sum(tt.score_template_background_section(
+                            _stretch_template(tmplt,E_window.shape[0],E_window.shape[1]),
                             bg,E_window)) for tmplt in self.template])
             self.score_no_bg = lambda E_window:\
                 max([sum(tt.score_template_background_section(
@@ -69,6 +88,10 @@ class Classifier:
                 sum(tt.score_template_background_section(self.template,
                                                          bg,E_window))
             # just create a uniform background with .4 as the edge frequency
+            self.score_register = lambda E_window,bg:\
+                sum(tt.score_template_background_section(
+                            _stretch_template(self.template,E_window.shape[0],E_window.shape[1]),
+                            bg,E_window))
             self.score_no_bg = lambda E_window:\
                 sum(tt.score_template_background_section(self.template,
                                                          self.bg,
