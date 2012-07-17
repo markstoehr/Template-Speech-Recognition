@@ -221,7 +221,7 @@ def get_real_root(a,b,d):
 # now we are going to 
 
 
-def osher_kicking_bregman(A,f,mu,delta,tol=.00001,
+def osher_kicking_bregman(A,f,mu=1,delta,tol=.00001,
                           verbose=None):
     """ 
     Implement the linearized kicking bregman
@@ -283,3 +283,50 @@ def osher_kicking_bregman(A,f,mu,delta,tol=.00001,
             break
     return u, num_iter
 
+
+
+#
+# implementing the Urazawa algorithm for nonnegative basis pursuit
+#
+#
+
+def uzawa_basis_pursuit(Phi,sigma,eta,tau,rho,tol=.00001):
+    """
+    Parameters:
+    ===========
+    Phi:
+        current dictionary estimate, a matrix
+    sigma:
+        vector we are trying to approximate
+    eta:
+        parameter for weighting how much we are stabilizing the
+        original (highly unstable optimization problem) heart of the
+        uzawa method
+    tau:
+        how much to weight inner product between the predual solution
+    rho:
+       inverse step length 
+    tol:
+       convergence criterion
+    """
+    num_codes, num_sets = Phi.shape
+    alpha = np.zeros(num_sets)
+    alpha_next = np.zeros(num_sets)
+    # dual variable we are comparing to the sigma
+    u = np.zeros(num_codes)
+    u_next = np.zeros(num_codes)
+    while norm(u-u_next) >= norm(u_next)*tol:
+        u = u_next
+        while norm(alpha -alpha_next) >= norm(alpha_next)*tol:
+            alpha = alpha_next
+            w = 2*eta*u - np.dot(Phi,alpha) + sigma/tau
+            w_norm = norm(w)
+            if w_norm <= 1:
+                w[:] =0
+            else:
+                w = (w_norm-1)/(2*eta*w_norm) * w
+            alpha_next = np.maximum(alpha+rho*(np.dot(w,Phi)-1),0)
+        u_next = w
+    return alpha
+
+            

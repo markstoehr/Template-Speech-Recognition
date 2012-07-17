@@ -3,7 +3,10 @@ from scipy.linalg import circulant,norm
 from sympy import roots,symbols,I
 
 
-
+# these are hardcoded to allow for
+# faster computation  in get_real_root
+# which has an application to the set-coding algorithm
+# in the hierarchical sparse coding function
 x,a_rootvar,b_rootvar,d_rootvar = symbols('x,a_rootvar,b_rootvar,d_rootvar')
 root_list = roots(a_rootvar*x**3 +b_rootvar*x**2 +d_rootvar,x).keys()
 
@@ -76,7 +79,7 @@ def yin_split_bregman(A,f,mu,delta,tol,u=None):
     return u
 
 
-def osher_kicking_bregman(A,f,mu,delta,tol=.00001,
+def osher_kicking_bregman(A,f,mu=1,delta=None,tol=.00001,
                           verbose=None):
     """ 
     Implement the linearized kicking bregman
@@ -91,11 +94,22 @@ def osher_kicking_bregman(A,f,mu,delta,tol=.00001,
         data
     mu: float
         parameter for how strongly to regularize the l1 norm
+        set to 1 in the bregman paper
     delta: float
         step length
+        needs to be set less than \frac{1}{2\|AA^{\top}\|}
+        default is None
+        if any value is other than default its assumed
+        to be less than 1 and greater than zero and we 
+        multiply that upper bound by that constant
     tol: float
         convergence criterion
     """
+    if delta is None:
+        delta = (1./(2.5 * norm(np.dot(A,A.T))))
+    else:
+        delta *= (1./(2. * norm(np.dot(A,A.T))))
+    
     signal_length, num_codes = A.shape
     u = np.zeros(num_codes)
     v = np.zeros(num_codes)
@@ -138,8 +152,206 @@ def osher_kicking_bregman(A,f,mu,delta,tol=.00001,
             break
     return u, num_iter
 
+def uzawa_basis_pursuit(Phi,sigma,eta=1,tau=.0445,rho=None,tol=.00001):
+    """
+    "A Predual Proximal Point Algorithm solving a Non
+    Negative Basis Pursuit Denoising Model"
+    F. Malgouyres and T. Zeng
+    
+    Int. J. Computer Vision, 2009
+
+    Parameters:
+    ===========
+    Phi:
+        current dictionary estimate, a matrix
+    sigma:
+        vector we are trying to approximate
+    eta:
+        parameter for weighting how much we are stabilizing the
+        original (highly unstable optimization problem) heart of the
+        uzawa method
+        In the experiments reported in the paper
+        this controls the sparsity of the approximatino
+        larger values give greater sparsity
+        smaller values give less sparsity
+
+        This could be increased as the iterations go
+        and, in particular, in the paper it was set
+        between values of 1 and 100
+    tau:
+        how much to weight inner product between the predual solution
+        .0445 comes from paper, it controls
+        how close the sparse approximation should be to
+        the actual image, probably the best bet
+        is to start at higher values when sparse coding
+        is beginning and gradually decrease it
+    rho:
+       inverse step length 
+    tol:
+       convergence criterion
+    """
+    if rho is None:
+        rho = uzawa_set_rho(Phi,eta)
+    num_codes, num_sets = Phi.shape
+    alpha = np.zeros(num_sets)
+    alpha_next = np.zeros(num_sets)
+    # dual variable we are comparing to the sigma
+    u = np.zeros(num_codes)
+    u_next = np.zeros(num_codes)
+    while norm(u-u_next) >= norm(u_next)*tol:
+        u = u_next
+        while norm(alpha -alpha_next) >= norm(alpha_next)*tol:
+            alpha = alpha_next
+            w = 2*eta*u - np.dot(Phi,alpha) + sigma/tau
+            w_norm = norm(w)
+            if w_norm <= 1:
+                w[:] =0
+            else:
+                w = (w_norm-1)/(2*eta*w_norm) * w
+            alpha_next = np.maximum(alpha+rho*(np.dot(w,Phi)-1),0)
+        u_next = w
+    return alpha
 
 
+def solve_sigma_set_coding(lambda_2,W,lambda_3,Phi,alpha):
+    """
+    Use polynomials loaded above to solve for the sigma
+    which is the diagonal of the diagonal matrix estimate
+    for the covariance matrix of the codes, W
+
+    solve the polynomial
+
+    \min \frac{\lambda_2}{n}\sum_i w_{i,j}^2 \sigma_j^{-1}
+       + \lambda_3 (\sigma_j 
+          - \Phi_{j,1:num_signals} \alpha)^2
+         
+    -\frac{\lambda_2}{n}\sum_i w_{i,j}^2 +
+          2\lambda_3 \sigma^2 
+       - 2\lambda_3 \Phi_{j,1:num_signals} \alpha \sigma^3
+       = 0
+    """
+    num_codes,num_signals = W.shape
+    num_signals = float(num_signals)
+    # sigma is the diagonal
+    sigma = np.zeros(num_codes)
+    w_sq_sums = np.sum(W * W,axis=1)
+    Phi_alpha_prods = np.dot(Phi,alpha)
+    for i in xrange(num_codes):
+        sigma[i] = get_real_root(2* lambda_3,
+                                 - 2.*lambda_3 *Phi_alpha_prods[i],
+                                 -lambda_2/num_signals * w_sq_sums[i])
+    return sigma
+        
+
+
+def hierarchical_sparse_coding_iteration(X,B,Phi,alpha,
+                               lambda_1,lambda_2,
+                               lambda_3,lambda_4=None,
+                               tol=.00001,
+                               delta=None,
+                               verbose=False):
+    """
+    Sparse coding portion of the dictionary learning algorithm relies
+    on several of the optimization procedures considered above
+
+    An iterate that first optimizes W with alpha fixed and then optimizes alpha with W fixed
+
+    First part of the algorithm gets the representation
+    in terms of the data using the osher_kicking_bregman
+    algorithm
+
+    The next part uses the predual uzawa nonnegative basis pursuit
+    algorithm to finish off.
+
+    Parameters:
+    ==========
+    X:
+       Data to code
+    B: 
+       Codebook for the data, this can be thought of as
+       a dictionary meant to capture the covariance structure
+       of the data, namely, expressed in this basis
+       the data should have a diagonal covariance structure
+       recalling back the macrotile algorithm
+       considered by Donoho and Mallat
+    Phi:
+       Set coding dictionary, this is a dictionary that
+       we can use  to sparsely represent the codes
+    lambda_1:
+       Tradeoff between sparsity and decomposition in the
+       first sparse coding problem
+    lambda_3:
+       From the hierarchical sparse coding paper
+       this should be set to be large as it controls
+       the sparsity of the  coefficients
+    lambda_4:
+       This corresponds to the tradeoff
+       between sparsity of A and not
+    """
+    signal_length, num_signals = X.shape
+    num_codes = B.shape[1]
+    num_sets = Phi.shape[1]
+    # transform dictionary so that we get the modified
+    # elastic net problem into a lasso problem
+    B_tilde = np.vstack((B,np.diag((lambda_2 * np.sum(Phi * np.tile(alpha,(num_codes,1)),axis=1))**(-.5))))
+    X_tilde = np.vstack((X,np.zeros((num_codes,num_signals))))
+    # matrix of codes
+    W = np.zeros((num_codes,num_signals))
+    # loop over every datum/patch/signal window x
+    for i in xrange(num_signals):
+        W[:,i], _ = osher_kicking_bregman(B_tilde,X_tilde[:,i],mu=lambda_1,
+                                     delta=delta,tol=tol,
+                                     verbose=verbose)
+    # we now perform an alternating minimization
+    # between 
+    # initialize by the diagonal of the sample
+    # covariance of the vectors
+    not_converged = True
+    prev_alpha = alpha
+    prev_sigma = np.sum(W*W,axis=1)
+    while not_converged:
+        # eta = lambda_4 since eta makes the solution sparser
+        # as we increase it
+        alpha = uzawa_basis_pursuit(Phi,sigma,eta=lambda_4,tau=.0445,rho=None,tol=.00001)
+        sigma = solve_sigma_set_coding(lambda_2,W,lambda_3,Phi,alpha)
+        not_converged = (norm(alpha-prev_alpha) >= norm(alpha)*tol) or\
+            (norm(sigma-prev_sigma) >= norm(sigma)*tol)
+        prev_alpha = alpha
+        prev_sigma = sigma
+    return W,alpha
+    
+    
+def hierarchical_sparse_coding(X,B,Phi,alpha,
+                               lambda_1,lambda_2,
+                               lambda_3,lambda_4=None,
+                               tol=.00001,
+                               delta=None,
+                               verbose=False):
+    """
+    Main loop for the sparse coding, runs throughv various
+    iterations, the problem is convex so it converges
+    to a global optimum, however there are many parameters
+    to set that mean we could get to the optimum slowly or 
+    not at all!
+    """
+    prev_alpha = np.zeros(Phi.shape[1])
+    prev_W = np.zeros((B.shape[1],X.shape[1]))
+    not_converged = True
+    while not_converged:
+        W,alpha = hierarchical_sparse_coding_iteration(X,B,Phi,alpha,
+                                                       lambda_1,lambda_2,
+                                                       lambda_3,lambda_4=None,
+                                                       tol=.00001,
+                                                       delta=None,
+                                                       verbose=verbose)
+        not_converged = (norm(alpha-prev_alpha) >= norm(alpha)*tol) or\
+            (norm(W-prev_W) >= norm(W)*tol)
+        prev_alpha = alpha
+        prev_W = sigma
+    return W,alpha
+
+
+    
 def hierarchical_sparse(X,num_codes,num_sets):
     """
     Following optimization is performed:
