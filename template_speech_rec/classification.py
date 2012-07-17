@@ -147,6 +147,15 @@ class Classifier:
                 np.sum(get_coarse_segment(E_window,
                                coarse_type='max',
                                coarse_factor=self.coarse_factor)[:,:self.coarse_length][self.coarse_template_mask])
+        
+        def score_pad(E_window,bg):
+            # check if we are smaller, same length, or bigger
+            # that is the main division
+            if self.window[1] <= E_window.shape[1]:
+                # we won't do any padding, but we look for the point that has the best
+                
+                    
+                
 
 
 
