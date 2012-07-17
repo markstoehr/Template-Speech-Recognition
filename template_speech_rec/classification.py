@@ -124,6 +124,20 @@ class Classifier:
                 np.sum(get_coarse_segment(E_window,
                                coarse_type='max',
                                coarse_factor=self.coarse_factor)[:,:self.coarse_length][self.coarse_template_mask])
+        
+        def score_pad(E_window,bg):
+            diff = E_window.shape[1] - self.window[1]
+            if diff >= 0:
+                return max(map(lambda loc:, 
+                               self.score(
+                            E_window[:,
+                                loc:loc+self.window[1]],
+                            bg),
+                               np.arange(diff,dtype=int)))
+            else: # diff < 0
+                # padd E_window with background
+                return self.score( np.hstack((E_window,
+                                       np.tile(bg,(-diff,1)).T)))
 
 
 
@@ -540,3 +554,52 @@ def get_roc(pos,neg,num_frames):
             roc_vals[roc_idx] = cur_neg_idx/num_frames        
     return lambda false_neg_rate: (roc_vals[int(false_neg_rate*pos.shape[0])],pos[int(false_neg_rate*pos.shape[0])]), roc_vals
 
+def get_classification_roc(data_iter,classifier):
+    """
+    Returns an roc for the given classification task
+    """
+    num_frames=0
+    all_positive_scores = []
+    all_negative_scores = []
+    data_iter.reset_exp()
+    for datum_id in xrange(data_iter.num_data):
+        if datum_id % 10 == 0:
+            print "working on example", datum_id
+        if data_iter.next(compute_pattern_times=True,
+                            max_template_length=classifier.window[1],
+                          wait_for_positive_example=True):
+            pattern_times = data_iter.pattern_times
+            num_detections = data_iter.E.shape[1] - classifier.window[1]
+            num_frames += data_iter.E.shape[1]
+            scores = -np.inf * np.ones(num_detections)
+            esp._edge_map_threshold_segments(data_iter.E,
+                                 classifier.window[1],
+                                 1, 
+                                 threshold=.3,
+                                 edge_orientations = data_iter.edge_orientations,
+                                 edge_feature_row_breaks = data_iter.edge_feature_row_breaks)
+            for d in xrange(num_detections):
+                E_segment = data_iter.E[:,d:d+classifier.window[1]]
+                scores[d] = classifier.score_no_bg(E_segment)
+            # get the positive and negative scores removed out
+            pos_scores = []
+            neg_indices = np.empty(scores.shape[0],dtype=bool)
+            neg_indices[:]=True
+            for pt in xrange(len(pattern_times)):
+                pos_scores.append(np.max(scores[pattern_times[pt][0]-int(np.ceil(classifier.window[1]/3.)):pattern_times[pt][0]+int(np.ceil(classifier.window[1]/3.))]))
+                neg_indices[pattern_times[pt][0]-int(np.ceil(classifier.window[1]/3.)):pattern_times[pt][1]] = False
+            # get rid of overlapping instances
+            neg_indices_non_overlap = remove_overlapping_examples(np.argsort(scores),
+                                                        classifier.window[1],
+                                                        int(allowed_overlap*classifier.window[1]))
+            neg_idx2 = np.empty(scores.shape[0],dtype=bool)
+            neg_idx2[neg_indices_non_overlap] =True
+            neg_indices_full = np.logical_and(neg_indices,neg_idx2)
+            all_positive_scores.extend(pos_scores)
+            all_negative_scores.extend(scores[neg_indices_full])
+        else:
+            break
+    return get_roc(np.sort(all_positive_scores)[::-1],
+                        np.sort(all_negative_scores)[::-1],
+                        num_frames)
+    
