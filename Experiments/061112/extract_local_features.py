@@ -373,6 +373,12 @@ cPickle.dump(patch_mix20,out)
 out.close()
 del patch_mix20
 
+out = open('patch_mix20_061412.pkl','rb')
+patch_mix20=cPickle.load(out)
+out.close()
+
+del patch_mix20
+
 
 bp = np.zeros((0,edge_orientations.shape[0]*patch_height,patch_width))
 train_data_iter.reset_exp()
