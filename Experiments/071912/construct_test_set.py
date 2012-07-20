@@ -49,13 +49,16 @@ while test_data_iter.next():
             's.npy', test_data_iter.s)
 
 
+num_target_phns = np.zeros(len(phn_list))
+target_phns_max_length = np.zeros(len(phn_list))
+
 offset = 7
 
 for phn_id in xrange(1):
     print phn_id, phn_list[phn_id]
     phn_tune_examples = []
     phn_tune_examples_bg = []
-    for cur_data_pointer in xrange(num_tune_data):
+for cur_data_pointer in xrange(1,num_test_data+1):
         if cur_data_pointer % 20 == 0:
             print cur_data_pointer
         E = np.load(data_dir+str(cur_data_pointer)+'tune_E.npy')
@@ -73,6 +76,10 @@ for phn_id in xrange(1):
                 target_phns_max_length[test_phn_id_list] = max( target_phns_max_length[test_phn_id_list],
                                                             E.shape[1] - max(0,feature_label_transitions[test_phn_id]-offset))
     
+np.save('target_phns_max_length_test',target_phns_max_length)
+np.save('num_target_phns_test',num_target_phns)
+
+
 
 
 
