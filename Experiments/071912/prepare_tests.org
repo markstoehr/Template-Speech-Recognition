@@ -1,0 +1,16 @@
+The main idea is to construct a directory for each phone in timit and
+we'll have a fast method for loading some subset of the files in there
+in order to do classification.  It will be a working directory and
+maybe we do cleanup afterwords.
+
+The main thing that we want is to have fast read times, the trick to that
+is going to be to use memmap.
+
+So within Test we will have a matrix saved there for each of the
+phones those will get loaded in in some way, the main thought being
+that we'll have a three-d matrix and then do some padding at the end
+so that all the examples are the same length
+the padding should be obvious so that way we don't do recognition
+using the padding (if the features are binary the padding can be 2's)
+
+

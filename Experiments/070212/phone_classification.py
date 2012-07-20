@@ -54,6 +54,7 @@ List of all the phns
     
 phn_list = np.array(sorted(list(phn_set)))
 np.save('phn_list070212',phn_list)
+phn_list = np.load('phn_list070212.npy')
 
 # timit mapping
 leehon_mapping = { 'aa':'aa',
@@ -151,9 +152,15 @@ while train_data_iter.next():
 
 
 stored_bg = np.minimum(.4,np.maximum(stored_bg_avg_bg.E,.1))
-    
 
-for phn_id in xrange(len(phn_list)):
+np.save('stored_bg071712',stored_bg)    
+stored_bg = np.load('stored_bg071712.npy')
+
+phn_id = 0
+# this right here is just going to save the data
+# to the data direction
+data_dir = root_path + 'Data/071712/'
+if True:
     tune_data_iter.reset_exp()
     datum_id = 0
     scores = [ [] for p in xrange(len(phn_list)) ]
@@ -172,6 +179,7 @@ for phn_id in xrange(len(phn_list)):
                                  threshold=.3,
                                  edge_orientations = train_data_iter.edge_orientations,
                                  edge_feature_row_breaks = train_data_iter.edge_feature_row_breaks)
+        np.save(data_dir+str(tune_data_iter.cur_data_pointer)+'tune_E',tune_data_iter.E)
         for test_phn_id in xrange(tune_data_iter.phns.shape[0]):
             test_phn = tune_data_iter.phns[test_phn_id]
             # what's the id of the phone in the master list?
@@ -192,9 +200,155 @@ for phn_id in xrange(len(phn_list)):
             scores[test_phn_id_list].append( map( lambda classifier_fun: classifier_fun.score_register(test_phn_E,bg),
                                              classifier_list))
         datum_id += 1
-    out = open(phn_list[phn_id]+'_tune_scores070512.pkl','wb')
+    out = open(phn_list[phn_id]+'_tune_scores071712.pkl','wb')
     cPickle.dump(scores,out)
     out.close()
+
+num_tune_data = tune_data_iter.cur_data_pointer+1
+
+tune_data_iter.reset_exp()
+while tune_data_iter.next():
+    if tune_data_iter.cur_data_pointer % 20 == 0:
+        print tune_data_iter.cur_data_pointer
+    np.save(data_dir+str(tune_data_iter.cur_data_pointer)+'feature_label_transitions',tune_data_iter.feature_label_transitions)
+    np.save(data_dir+str(tune_data_iter.cur_data_pointer)+'phns',tune_data_iter.phns)
+    
+def score_pad(classifier_obj, E_window,bg,offset=5,
+              return_translation=False):
+    # we assume that the offset
+    # has been set to be such that we start before the beginning of the object
+    # we pad over what would remain in the classification step
+    padded_E = np.hstack((
+            E_window,
+            np.tile(bg,
+                    (max(0,
+                         2*offset+classifier_obj.window[1]-E_window.shape[1]),
+                     1)).T
+            ))
+    max_score, best_loc = max([(classifier_obj.score(
+                    padded_E[:,loc:loc+classifier_obj.window[1]],
+                    bg),loc) for loc in xrange(2*offset)])
+    if return_translation:
+        return max_score,best_loc
+    else:
+        return max_score
+
+
+#
+# this code here is just to get the number
+# of examples for each phone and how long the max example is
+#
+num_target_phns = np.zeros(len(phn_list))
+target_phns_max_length = np.zeros(len(phn_list))
+
+num_tune_data = 1386    
+offset = 7
+for phn_id in xrange(1):
+    print phn_id, phn_list[phn_id]
+    phn_tune_examples = []
+    phn_tune_examples_bg = []
+    for cur_data_pointer in xrange(num_tune_data):
+        if cur_data_pointer % 20 == 0:
+            print cur_data_pointer
+        E = np.load(data_dir+str(cur_data_pointer)+'tune_E.npy')
+        feature_label_transitions = np.load(data_dir+str(cur_data_pointer)+'feature_label_transitions.npy')
+        seq_phns = np.load(data_dir+str(cur_data_pointer)+'phns.npy')
+        for test_phn_id in xrange(seq_phns.shape[0]):
+            test_phn = seq_phns[test_phn_id]
+            # what's the id of the phone in the master list?
+            test_phn_id_list = np.arange(phn_list.shape[0])[phn_list == test_phn][0]
+            num_target_phns[test_phn_id_list] +=1
+            if test_phn_id + 1 < feature_label_transitions.shape[0]:
+                target_phns_max_length[test_phn_id_list] = max( target_phns_max_length[test_phn_id_list],
+                                                            min(E.shape[1],feature_label_transitions[test_phn_id+1]+offset) - max(0,feature_label_transitions[test_phn_id]-offset))
+            else:
+                target_phns_max_length[test_phn_id_list] = max( target_phns_max_length[test_phn_id_list],
+                                                            E.shape[1] - max(0,feature_label_transitions[test_phn_id]-offset))
+    
+
+
+num_tune_data = 1386    
+offset = 7
+for phn_id in xrange(len(phn_list)):
+    # the last column will be the background vector
+    # 2's indicate an unset value
+    phn_max_length = min(target_phns_max_length[phn_id],105)
+    phn_tune_example_mat = 2 * np.ones((num_target_phns[phn_id],
+                                        stored_bg.shape[0],
+                                        phn_max_length+1),dtype=np.uint8)
+    phn_tune_example_bg= np.ones((num_target_phns[phn_id],
+                                  stored_bg.shape[0]))
+    example_id = -1
+    for cur_data_pointer in xrange(num_tune_data):
+        if cur_data_pointer % 20 == 0:
+            print cur_data_pointer
+        E = np.load(data_dir+str(cur_data_pointer)+'tune_E.npy')
+        feature_label_transitions = np.load(data_dir+str(cur_data_pointer)+'feature_label_transitions.npy')
+        seq_phns = np.load(data_dir+str(cur_data_pointer)+'phns.npy')
+        for test_phn_id in xrange(seq_phns.shape[0]):
+            test_phn = seq_phns[test_phn_id]
+            # what's the id of the phone in the master list?
+            test_phn_id_list = np.arange(phn_list.shape[0])[phn_list == test_phn][0]
+            if test_phn_id_list != phn_id:
+                continue
+            else:
+                example_id +=1
+            # if this is the beginning silence, use stored background estimate
+            if test_phn_id == 0:
+                bg = stored_bg
+            else:
+                bg = np.minimum(.4,np.maximum(np.mean(test_phn_E,axis=1),.1))
+            if test_phn_id + 1 < feature_label_transitions.shape[0]:
+                start_idx = max(0,
+                                     feature_label_transitions[test_phn_id]-offset)
+                end_idx = min(min(E.shape[1],
+                                         feature_label_transitions[test_phn_id+1]+offset),
+                              start_idx + phn_max_length)
+                test_phn_E = E[:,start_idx:end_idx]
+            else:
+                start_idx = max(0,
+                                     feature_label_transitions[test_phn_id]-offset)
+                end_idx = min(E.shape[1],start_idx+phn_max_length)
+                test_phn_E =  E[:,start_idx:end_idx]
+            phn_tune_example_mat[example_id,:,:test_phn_E.shape[1]] = test_phn_E[:]
+            phn_tune_example_bg[example_id] = bg
+    np.save(data_dir+phn_list[phn_id]+'_tune_examples_plus_mat.npy',phn_tune_example_mat)
+    np.save(data_dir+phn_list[phn_id]+'_tune_examples_plus_bg.npy',phn_tune_example_bg)
+
+
+
+np.save('phn_max_lengths071812',phn_max_length)
+np.save('num_target_phns071812',num_target_phns)
+            
+
+for phn_id in xrange(len(phn_list)):
+    offset = 7
+    phn = phn_list[phn_id]
+    print "For classifier_list loading", phn+'_template070212.npy', ' '.join([ phn+str(num_mix)+'mix070412.npy' for num_mix in num_mix_list])
+    classifier_list = [cl.Classifier(np.load(phn+'_template070212.npy'))]+ [ cl.Classifier(list(np.load(phn+str(num_mix)+'mix070412.npy'))) for num_mix in num_mix_list]
+    # the 2 there signifies the fact that we are also storing the location
+    # of the optimal match
+    scores = [ np.zeros((num_target_phns[target_phn_id],
+                         len(classifier_list),2)) for target_phn_id in xrange(len(phn_list)) ]
+    for target_phn_id, target_phn in enumerate(phn_list):
+        print "working on classifying examples of %s" % target_phn
+        phn_tune_example_mat=np.load(data_dir+phn_list[target_phn_id]+'_tune_examples_plus_mat.npy')
+        phn_tune_example_bg=np.load(data_dir+phn_list[target_phn_id]+'_tune_examples_plus_bg.npy')
+        for example_id,example in enumerate(phn_tune_example_mat):
+            if example_id % 30 ==0:
+                print example_id
+            example_length = np.arange(example.shape[1])[example[0] == 2][0]
+            scores[target_phn_id][example_id]= np.array([  score_pad(classifier_fun,example[:,:example_length],
+                                                                phn_tune_example_bg[example_id],
+                                                                offset=offset,
+                                                                return_translation=True) for classifier_fun in
+                                                         classifier_list])
+    out = open(phn_list[phn_id]+'_tune_scores071812.pkl','wb')
+    cPickle.dump(scores,out)
+    out.close()
+
+example_id = 765
+
 
 #
 #
@@ -376,10 +530,9 @@ for phn_id in xrange(len(phn_list)):
             else:
                 test_phn_E = tune_data_iter.E[:,max(0,
                                                     tune_data_iter.feature_label_transitions[test_phn_id]-offset):]
-            scores[test_phn_id_list].append( map( lambda classifier_fun: classifier_fun.score_register(test_phn_E,bg),
+            scores[test_phn_id_list].append( map( lambda classifier_fun: classifier_fun.score_pad(test_phn_E,bg),
                                              classifier_list))
         datum_id += 1
-    out = open(phn_list[phn_id]+'_tune_scores070512.pkl','wb')
+    out = open(phn_list[phn_id]+'_tune_scores071512.pkl','wb')
     cPickle.dump(scores,out)
     out.close()
-

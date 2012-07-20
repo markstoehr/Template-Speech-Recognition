@@ -151,16 +151,13 @@ class Classifier:
         def score_pad(E_window,bg):
             diff = E_window.shape[1] - self.window[1]
             if diff >= 0:
-                return max(map(lambda loc:, 
-                               self.score(
-                            E_window[:,
-                                loc:loc+self.window[1]],
-                            bg),
-                               np.arange(diff,dtype=int)))
+                return max([self.score(E_window[:,
+                        loc:loc+self.window[1]],bg) for loc in np.arange(diff+1,dtype=int)])
             else: # diff < 0
                 # padd E_window with background
                 return self.score( np.hstack((E_window,
-                                       np.tile(bg,(-diff,1)).T)))
+                                       np.tile(bg,(-diff,1)).T)),
+                                   bg)
 
 
 
