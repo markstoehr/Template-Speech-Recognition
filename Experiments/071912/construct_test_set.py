@@ -131,7 +131,7 @@ for phn_id in xrange(phn_list.shape[0]):
             cur_example_idx += 1
     np.save(data_dir+phn_list[phn_id]+'_examples.npy',phn_test_examples)
     np.save(data_dir+phn_list[phn_id]+'_bgs.npy',phn_test_bgs)
-    np.save(data_dir+phn_list[phn_id]+'_lengths.npy',phn_test_lengths)
+    np.save(data_dir+phn_list[phn_id]+'_lengths.npy',phn_lengths)
             
             
 
