@@ -134,5 +134,3 @@ for phn_id in xrange(phn_list.shape[0]):
     np.save(data_dir+phn_list[phn_id]+'_lengths.npy',phn_lengths)
             
             
-
-
