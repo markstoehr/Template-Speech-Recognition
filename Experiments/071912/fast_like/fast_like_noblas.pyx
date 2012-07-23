@@ -1,5 +1,5 @@
-# cython fast_like.pyx
-# $ gcc -shared -pthread -fPIC -fwrapv -O2 -Wall -fno-strict-aliasing -I/usr/include/python2.7 -lgslcblas -lm -o fast_like.so fast_like.c
+# cython fast_like_noblas.pyx
+# $ gcc -shared -pthread -fPIC -fwrapv -O2 -Wall -fno-strict-aliasing -I/usr/include/python2.7 -lgslcblas -lm -o fast_like_noblas.so fast_like_noblas.c
 #!python
 # cython: boundscheck=False
 # cython: wraparound=False
@@ -21,70 +21,11 @@ cdef extern from "math.h":
     cdef extern float pow(float x, float y)
 
 
-cdef extern from "cblas.h":
-    float ddot "cblas_sdot"(int N,
-                            float *X, int incX,
-                            float *Y, int incY)
-
-    enum CBLAS_ORDER:     CblasRowMajor, CblasColMajor
-    enum CBLAS_TRANSPOSE: CblasNoTrans, CblasTrans, CblasConjTrans
-    enum CBLAS_UPLO:      CblasUpper, CblasLower
-    enum CBLAS_DIAG:      CblasNonUnit, CblasUnit
-    enum CBLAS_SIDE:      CblasLeft, CblasRight
-    
-    void lib_sgemm "cblas_sgemm"(CBLAS_ORDER Order, CBLAS_TRANSPOSE TransA,
-                                 CBLAS_TRANSPOSE TransB, int M, int N, int K,
-                                 float  alpha, float  *A, int lda, float  *B, int ldb,
-                                 float  beta, float  *C, int ldc)
-
-    void lib_dgemv "cblas_dgemv"(CBLAS_ORDER Order, CBLAS_TRANSPOSE TransA,
-                                 int M, int N, double  alpha, double  *A, int lda,
-                                               double  *x, int dx,
-                                 double  beta,  double  *y, int dy)
-
-
 
 
 ctypedef np.float64_t dtype_t64
 ctypedef np.float64_t dtype_t
 ctypedef np.uint8_t dtype_bool_t
-
-cdef void sgemm(np.ndarray[dtype_t, ndim=2] A,
-                np.ndarray[dtype_t, ndim=2] B,
-                np.ndarray[dtype_t, ndim=2] C):
-    lib_sgemm(CblasRowMajor,CblasNoTrans,CblasNoTrans, C.shape[0], C.shape[1],
-              B.shape[0], 1.0, <float*>A.data, A.shape[1], <float*>B.data,
-              B.shape[1], 0.0, <float*>C.data, C.shape[1])
-
-# transpose version
-cdef void dgemv_T(dtype_t* W,
-                   dtype_t* bg,
-                   dtype_t* W_bg,
-                   int W_height,
-                   int W_length):
-    lib_dgemv(CblasRowMajor, CblasTrans, W_height,
-              W_length, 1.0, W, W_length, bg,
-              1, 0.0, W_bg,1)
-
-cdef void dgemv(dtype_t* W,
-                   dtype_t* bg,
-                   dtype_t* W_bg,
-                   int W_height,
-                   int W_length):
-    lib_dgemv(CblasRowMajor, CblasNoTrans, W_height,
-              W_length, 1.0, W, W_length, bg,
-              1, 0.0, W_bg,1)
-
-def test_dgemv_T(np.ndarray[dtype_t,ndim=1] W,
-                  np.ndarray[dtype_t,ndim=1] bgd,
-                  np.ndarray[dtype_t,ndim=1] W_bgd,
-                  int W_height,
-                  int W_length):
-    dgemv_T(<dtype_t*> W.data,
-                   <dtype_t*>bgd.data,
-                   <dtype_t*>W_bgd.data,
-                   W_height,
-                   W_length)
 
 
 cdef dtype_t compute_W(dtype_t* T,
@@ -300,76 +241,7 @@ cdef dtype_t _fast_like2_handmult(np.ndarray[dtype_t, ndim=2] T,
                        T_num_rows,
                        T_num_cols)
     # compute the background and W matchup
-    cdef Py_ssize_t i,j
-    for i in range(T_num_cols):
-        for j in range(T_num_rows):
-            W_bg[i] += W[j*T_num_cols + i] * bg[j]
-    # computed the pad-matrix
-    # f is the frequency/edge type index
-    # t is the time, the current place in the
-    # num_detections
-    # also does the preliminary computation for getting
-    # the padding sums
-    compute_padding_scores(<dtype_t*> W_bg.data,
-                       <dtype_t*> detect_sums.data,
-                       num_detections,
-                       T_num_cols,
-                       pad_front,
-                       E_num_cols)
-    # we now get the detect sums
-    # now we do the sums based on binary features
-    filter_data(<dtype_t*> W.data,
-                 <dtype_t*> detect_sums.data,
-                 <dtype_bool_t*> E_window.data,
-                 num_detections,
-                 T_num_cols,
-                 T_num_rows,
-                 pad_front,
-                 E_num_cols)
-    return C
-
-
-cdef dtype_t _fast_like2(np.ndarray[dtype_t, ndim=2] T,
-              np.ndarray[dtype_t, ndim=1] bg,
-              np.ndarray[dtype_t, ndim=2] C_inv_long,
-              np.ndarray[dtype_t, ndim=2] W,
-              int T_num_rows,
-              int T_num_cols,
-              np.ndarray[dtype_bool_t,ndim=2] E_window,
-              int E_num_cols,
-              int num_detections,
-              int pad_front,
-              np.ndarray[dtype_t,ndim=1] W_bg,
-              np.ndarray[dtype_t,ndim=1] detect_sums):
-    """
-    
-    num_detections:
-        If this is greater than E_num_cols then we do padding, this is the number of places that we begin
-    pad_front:
-        how many background vectors to put at front,
-        also says how far to start from the beginning,
-        we use this to figure out the amount of back padding
-        If this is zero then we start all the detections
-        from the front of the vector        
-    W_bg:
-        product vector between the filter W and the
-        background, this allows us to compute
-        the contribution to the filter sums that comes
-        from the padding
-    """
-    # assumed that this is the height for E_window and the length of bgd
-    cdef dtype_t C = compute_W(<dtype_t*> T.data,
-                       <dtype_t*> bg.data,
-                       <dtype_t*> C_inv_long.data,
-                       <dtype_t*> W.data,
-                       T_num_rows,
-                       T_num_cols)
-    # compute the background and W matchup
-    dgemv_T(<dtype_t*> W.data,
-             <dtype_t*> bg.data,
-             <dtype_t*> W_bg.data,
-             T_num_rows,
-             T_num_cols)
+    W_bg = np.dot(bg,W)
     # computed the pad-matrix
     # f is the frequency/edge type index
     # t is the time, the current place in the
@@ -461,41 +333,6 @@ cdef dtype_t _fast_like_single(dtype_t* T,
     return C
 
 
-def templates_examples_fast_like(np.ndarray[dtype_t, ndim=3] Ts,
-                                          np.ndarray[dtype_t, ndim=2] bgs,
-                                          np.ndarray[dtype_bool_t,ndim=3] E_windows,
-                    np.ndarray[int,ndim=1] E_num_cols_array,
-                    int num_detections,
-                    int pad_front):
-    cdef int num_T = Ts.shape[0]
-    cdef int T_num_rows = Ts.shape[1]
-    cdef int T_num_cols = Ts.shape[2]
-    cdef int num_E_examples = E_windows.shape[0]
-    Cs = np.zeros((num_T,num_E_examples),dtype=np.float64)
-    cdef np.ndarray[dtype_t, ndim=1] W_bg = np.zeros(T_num_cols)
-    cdef np.ndarray[dtype_t,ndim=2] W = np.zeros((T_num_rows,
-                                                  T_num_cols))
-    cdef np.ndarray[dtype_t,ndim=2] C_inv_long = np.zeros((T_num_rows,
-                                                          T_num_cols))
-    detect_sums = np.zeros((num_T,
-                                                            num_E_examples,
-                                                            num_detections),dtype=np.float64)
-    cdef Py_ssize_t cur_E_idx, cur_T_idx
-    for cur_T_idx in range(num_T):
-        for cur_E_idx in range(num_E_examples):
-            Cs[cur_T_idx,cur_E_idx] = _fast_like2(Ts[cur_T_idx],
-                                        bgs[cur_E_idx],
-                                        C_inv_long,
-                                        W,
-                                        T_num_rows,
-                                        T_num_cols,
-                                        E_windows[cur_E_idx],
-                                        E_num_cols_array[cur_E_idx],
-                                        num_detections,
-                                        pad_front,
-                                        W_bg,
-                                        detect_sums[cur_T_idx,cur_E_idx])
-    return Cs,detect_sums
 
 def te_fl_handmult(np.ndarray[dtype_t, ndim=3] Ts,
                                           np.ndarray[dtype_t, ndim=2] bgs,
@@ -534,118 +371,3 @@ def te_fl_handmult(np.ndarray[dtype_t, ndim=3] Ts,
     return Cs,detect_sums
 
 
-def array_fast_like(np.ndarray[dtype_t, ndim=2] T,
-                    np.ndarray[dtype_t, ndim=2] bgs,
-                    int T_num_rows,
-                    int T_num_cols,
-                    np.ndarray[dtype_bool_t,ndim=3] E_windows,
-                    np.ndarray[int,ndim=1] E_num_cols_array,
-                    int num_detections,
-                    int pad_front):
-    cdef int num_E_examples = E_windows.shape[0]
-    Cs = np.zeros(num_E_examples,dtype=np.float64)
-    cdef np.ndarray[dtype_t, ndim=1] W_bg = np.zeros(T_num_cols)
-    cdef np.ndarray[dtype_t,ndim=2] W = np.zeros((T_num_rows,
-                                                  T_num_cols))
-    cdef np.ndarray[dtype_t,ndim=2] C_inv_long = np.zeros((T_num_rows,
-                                                          T_num_cols))
-    cdef np.ndarray[dtype_t,ndim=2] detect_sums = np.zeros((num_E_examples,
-                                                            num_detections))
-    cdef Py_ssize_t cur_E_idx
-    for cur_E_idx in range(num_E_examples):
-        Cs[cur_E_idx] = _fast_like2(T,
-                                    bgs[cur_E_idx],
-                                    C_inv_long,
-                                    W,
-                                    T_num_rows,
-                                    T_num_cols,
-                                    E_windows[cur_E_idx],
-                                    E_num_cols_array[cur_E_idx],
-                                    num_detections,
-                                    pad_front,
-                                    W_bg,
-                                    detect_sums[cur_E_idx])
-    return Cs,detect_sums
-
-
-def fast_like(np.ndarray[dtype_t, ndim=2] T,
-              np.ndarray[dtype_t, ndim=1] bg,
-              np.ndarray[dtype_t, ndim=2] C_inv_long,
-              np.ndarray[dtype_t, ndim=2] W,
-              int T_num_rows,
-              int T_num_cols,
-              np.ndarray[dtype_bool_t,ndim=2] E_window,
-              int E_num_cols,
-              int num_detections,
-              int pad_front,
-              np.ndarray[dtype_t,ndim=1] W_bg,
-              np.ndarray[dtype_t,ndim=1] detect_sums):
-    """
-    
-    num_detections:
-        If this is greater than E_num_cols then we do padding, this is the number of places that we begin
-    pad_front:
-        how many background vectors to put at front,
-        also says how far to start from the beginning,
-        we use this to figure out the amount of back padding
-        If this is zero then we start all the detections
-        from the front of the vector        
-    W_bg:
-        product vector between the filter W and the
-        background, this allows us to compute
-        the contribution to the filter sums that comes
-        from the padding
-    """
-    # assumed that this is the height for E_window and the length of bgd
-    cdef dtype_t C = compute_W(<dtype_t*> T.data,
-                       <dtype_t*> bg.data,
-                       <dtype_t*> C_inv_long.data,
-                       <dtype_t*> W.data,
-                       T_num_rows,
-                       T_num_cols)
-    # compute the background and W matchup
-    dgemv_T(<dtype_t*> W.data,
-             <dtype_t*> bg.data,
-             <dtype_t*> W_bg.data,
-             T_num_rows,
-             T_num_cols)
-    # computed the pad-matrix
-    # f is the frequency/edge type index
-    # t is the time, the current place in the
-    # num_detections
-    # also does the preliminary computation for getting
-    # the padding sums
-    compute_padding_scores(<dtype_t*> W_bg.data,
-                       <dtype_t*> detect_sums.data,
-                       num_detections,
-                       T_num_cols,
-                       pad_front,
-                       E_num_cols)
-    # we now get the detect sums
-    # now we do the sums based on binary features
-    filter_data(<dtype_t*> W.data,
-                 <dtype_t*> detect_sums.data,
-                 <dtype_bool_t*> E_window.data,
-                 num_detections,
-                 T_num_cols,
-                 T_num_rows,
-                 pad_front,
-                 E_num_cols)
-    return C
-        
-
-# def matmul(np.ndarray[dtype_t64, ndim=2] A,
-#            np.ndarray[dtype_t64, ndim=2] B,
-#            np.ndarray[dtype_t64, ndim=2] out):
-#     cdef Py_ssize_t i, j
-#     cdef np.ndarray[dtype_t64, ndim=1] A_row, B_col
-#     for i in range(A.shape[0]):
-#         A_row = A[i,:]
-#         for j in range(B.shape[1]):
-#             B_col = B[:, j]
-#             out[i,j] = ddot(
-#                 A_row.shape[0],
-#                 <dtype_t64*>A_row.data,
-#                 A_row.strides[0] // sizeof(dtype_t64),
-#                 <dtype_t64*>B_col.data,
-#                 B_col.strides[0] // sizeof(dtype_t64))
