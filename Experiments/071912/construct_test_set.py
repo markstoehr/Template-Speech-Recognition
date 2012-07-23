@@ -79,6 +79,38 @@ for cur_data_pointer in xrange(1,num_test_data+1):
 np.save('target_phns_max_length_test',target_phns_max_length)
 np.save('num_target_phns_test',num_target_phns)
 
+stored_bg = np.load('../070212/stored_bg.npy')
+
+for phn_id in xrange(1):
+    print phn_id, phn_list[phn_id]
+    phn_test_examples = np.zeros((num_target_phns[phn_id],
+                                  stored_bg.shape[0],
+                                  target_phns_max_length+1),dtype=np.uint8)
+    phn_test_examples_fp = np.memmap(data_dir+phn_list[phn_id]+'_examples.dat',
+                                     dtype=np.uint8,mode='w+',
+                                     shape=(num_target_phns[phn_id],
+                                  stored_bg.shape[0],
+                                  target_phns_max_length+1))
+    phn_test_examples_bg = np.zeros((num_target_phns[phn_id],
+                                     stored_bg.shape[0]),dtype=np.float32)
+    for cur_data_pointer in xrange(1,num_test_data+1):
+        if cur_data_pointer % 20 == 0:
+            print cur_data_pointer
+        E = np.load(data_dir+str(cur_data_pointer)+'tune_E.npy')
+        feature_label_transitions = np.load(data_dir+str(cur_data_pointer)+'feature_label_transitions.npy')
+        seq_phns = np.load(data_dir+str(cur_data_pointer)+'phns.npy')
+        for test_phn_id in xrange(seq_phns.shape[0]):
+            test_phn = seq_phns[test_phn_id]
+            # what's the id of the phone in the master list?
+            test_phn_id_list = np.arange(phn_list.shape[0])[phn_list == test_phn][0]
+            num_target_phns[test_phn_id_list] +=1
+            if test_phn_id + 1 < feature_label_transitions.shape[0]:
+                target_phns_max_length[test_phn_id_list] = max( target_phns_max_length[test_phn_id_list],
+                                                            min(E.shape[1],feature_label_transitions[test_phn_id+1]+offset) - max(0,feature_label_transitions[test_phn_id]-offset))
+            else:
+                target_phns_max_length[test_phn_id_list] = max( target_phns_max_length[test_phn_id_list],
+                                                            E.shape[1] - max(0,feature_label_transitions[test_phn_id]-offset))
+    
 
 
 
