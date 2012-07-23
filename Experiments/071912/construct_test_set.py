@@ -126,12 +126,12 @@ for phn_id in xrange(phn_list.shape[0]):
                                                               target_phn_start_idx-20):
                                                               target_phn_start_idx],axis=1),.1))
             phn_lengths[cur_example_idx] = target_phn_end_idx-target_phn_start_idx
-            phn_test_examples[cur_example_idx][:phn_lengths[cur_example_idx]] = E[:,target_phn_start_idx:target_phn_end_idx]
+            phn_test_examples[cur_example_idx][:,:phn_lengths[cur_example_idx]] = E[:,target_phn_start_idx:target_phn_end_idx]
             phn_test_bgs[cur_example_idx] = bg.copy()
             cur_example_idx += 1
     np.save(data_dir+phn_list[phn_id]+'_examples.npy',phn_test_examples)
     np.save(data_dir+phn_list[phn_id]+'_bgs.npy',phn_test_bgs)
-    np.save(data_dir+phn_list[phn_id]+'_lengths.npy',phn_test_lengths)
+    np.save(data_dir+phn_list[phn_id]+'_lengths.npy',phn_lengths)
             
             
 
