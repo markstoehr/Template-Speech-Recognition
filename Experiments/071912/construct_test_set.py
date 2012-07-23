@@ -80,13 +80,13 @@ for cur_data_pointer in xrange(1,num_test_data+1):
 np.save('target_phns_max_length_test',target_phns_max_length)
 np.save('num_target_phns_test',num_target_phns)
 
-stored_bg = np.load('../070212/stored_bg.npy')
+stored_bg = np.load('../070212/stored_bg071712.npy')
 
 for phn_id in xrange(phn_list.shape[0]):
     print phn_id, phn_list[phn_id]
     phn_test_examples = np.zeros((num_target_phns[phn_id],
                                   stored_bg.shape[0],
-                                  target_phns_max_length),dtype=np.uint8)
+                                  target_phns_max_length[phn_id]),dtype=np.uint8)
     phn_test_bgs = np.zeros((num_target_phns[phn_id],
                              stored_bg.shape[0]),dtype=np.float64)
     phn_lengths = np.zeros(num_target_phns[phn_id],dtype=int)
@@ -111,7 +111,7 @@ for phn_id in xrange(phn_list.shape[0]):
             test_phn = seq_phns[test_phn_id]
             # what's the id of the phone in the master list?
             test_phn_id_list = np.arange(phn_list.shape[0])[phn_list == test_phn][0]
-            if test_phn_id != phn_id:
+            if test_phn_id_list != phn_id:
                 continue
             if test_phn_id + 1 < feature_label_transitions.shape[0]:
                 target_phn_end_idx = min(E.shape[1],feature_label_transitions[test_phn_id+1]+offset)
@@ -125,9 +125,10 @@ for phn_id in xrange(phn_list.shape[0]):
                 bg = np.minimum(.4,np.maximum(np.mean(E[:,max(0,
                                                               target_phn_start_idx-20):
                                                               target_phn_start_idx],axis=1),.1))
-            phn_test_examples[cur_example_idx] = E[:,target_phn_start_idx:target_phn_end_idx]
-            phn_test_bgs[cur_example_idx] = bg.copy()
             phn_lengths[cur_example_idx] = target_phn_end_idx-target_phn_start_idx
+            phn_test_examples[cur_example_idx][:phn_lengths[cur_example_idx]] = E[:,target_phn_start_idx:target_phn_end_idx]
+            phn_test_bgs[cur_example_idx] = bg.copy()
+            cur_example_idx += 1
     np.save(data_dir+phn_list[phn_id]+'_examples.npy',phn_test_examples)
     np.save(data_dir+phn_list[phn_id]+'_bgs.npy',phn_test_bgs)
     np.save(data_dir+phn_list[phn_id]+'_lengths.npy',phn_test_lengths)
