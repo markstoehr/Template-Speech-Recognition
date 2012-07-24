@@ -1,5 +1,5 @@
 # cython fast_like_noblas.pyx
-# $ gcc -shared -pthread -fPIC -fwrapv -O2 -Wall -fno-strict-aliasing -I/usr/include/python2.7 -lgslcblas -lm -o fast_like_noblas.so fast_like_noblas.c
+# $ gcc -shared -pthread -fPIC -fwrapv -O2 -Wall -fno-strict-aliasing -I/usr/include/python2.7 -lm -o fast_like_noblas.so fast_like_noblas.c
 #!python
 # cython: boundscheck=False
 # cython: wraparound=False
