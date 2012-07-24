@@ -330,7 +330,7 @@ for phn_id in xrange(len(phn_list)):
     # of the optimal match
     scores = [ np.zeros((num_target_phns[target_phn_id],
                          len(classifier_list),2)) for target_phn_id in xrange(len(phn_list)) ]
-    for target_phn_id, target_phn in enumerate(phn_list):
+    for target_phn_id, target_phn in enumerate(phn_list[:1]):
         print "working on classifying examples of %s" % target_phn
         phn_tune_example_mat=np.load(data_dir+phn_list[target_phn_id]+'_tune_examples_plus_mat.npy')
         phn_tune_example_bg=np.load(data_dir+phn_list[target_phn_id]+'_tune_examples_plus_bg.npy')
