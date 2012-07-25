@@ -61,6 +61,32 @@ for phn in target_phn_list:
         last_utt_num = use_utt_num
     np.save(root_path+'Data/Train/'+phn+'_examples.npy',phn_examples)
 
+#
+# look for pa, ta, ka
+#
+#
+target_syll_list = (('p','aa'),('t','aa'),('k','aa'))
+num_utts = 1293
+for syll in target_syll_list:
+    syll_lengths  = np.zeros(0,dtype=np.uint16)
+    example_id2utt_num_pos = np.zeros((0,2),dtype=np.uint16)
+    for utt_num in xrange(num_utts):
+        phns = np.load(root_path+'Data/Train/phns' + str(utt_num)+'.npy')
+        feature_label_transitions = np.load(root_path+'Data/Train/feature_label_transitions' + str(utt_num)+'.npy')
+        syll_phn_length = len(syll)
+        for phn in xrange(phns.shape[0]-syll_phn_length+1):
+            if tuple(phns[phn:phn+syll_phn_length]) == syll:
+                syll_lengths = np.append(
+                    syll_lengths,
+                    feature_label_transitions[phn+syll_phn_length]-
+                    feature_label_transitions[phn])
+                example_id2utt_num_pos = np.vstack(
+                    (example_id2utt_num_pos,
+                     (utt_num,feature_label_transitions[phn])))
+        
+
+        
+    
 
 # construct the basic experiment to see how mixtures, and, in particular
 # mixtures of different lengths affect the classification rate
