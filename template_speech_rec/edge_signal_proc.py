@@ -1322,7 +1322,7 @@ def _get_edge_sample_stats(feature_start,feature_step, num_features):
     # num_edge_features  = num_features - 5/2 -3/2 +1
     return feature_start + 3./2 * feature_step,\
         feature_step,\
-        num_features - 3
+        num_features
         
 
 def _get_labels(label_times,
@@ -1346,7 +1346,7 @@ def _get_labels(label_times,
         label_time_start_idx +=1
     # initialize array that keeps track of when transitions
     # in the labels happen
-    feature_label_transitions = -np.int_(np.ones(label_times.shape[0]))
+    feature_label_transitions = -np.int_(np.ones(label_times.shape[0]+1))
     for ls_time_idx in xrange(label_time_start_idx,label_times.shape[0]):
         # find smallest k such that
         #    label_transitions[ls_time_idx,0] <= feature_start
@@ -1359,6 +1359,7 @@ def _get_labels(label_times,
             feature_start)/feature_step)),num_features-1)
         feature_labels[start_idx:end_idx+1] =labels[ls_time_idx]
         feature_label_transitions[ls_time_idx] = np.int(start_idx)
+    feature_label_transitions[-1] = num_features
     return feature_labels, feature_label_transitions
     
 
