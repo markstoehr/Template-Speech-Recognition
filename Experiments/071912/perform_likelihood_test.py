@@ -110,7 +110,7 @@ def get_correct_incorrect(plosive_idx,phn_target_results,
     for target_phn_id, target_phn_big_id in enumerate(plosive_idx):
         other_scores = 
         phn_target_results[
-
+]
 
 phn_target_results[43][43]
 pc = {}
@@ -118,4 +118,8 @@ for pl_id, pl1 in enumerate(plosive_idx[:-1]):
     for pl2 in plosive_idx[pl_id+1:]:
         print pl1, pl2
         pc[(pl1,pl2)] = (np.zeros((6,6)), np.zeros((6,6)))
-        
+        for i in range(6):
+            for j in range(6):
+                pc[(pl1,pl2)][0][i,j] = np.sum(phn_target_results[pl1][pl2][i][2]>phn_target_results[pl2][pl2][j][2])
+                pc[(pl1,pl2)][1][i,j] = np.sum(phn_target_results[pl2][pl1][i][2]>phn_target_results[pl1][pl1][j][2])
+                
