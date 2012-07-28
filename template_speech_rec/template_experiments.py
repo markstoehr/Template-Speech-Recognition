@@ -773,15 +773,16 @@ class AverageBackground:
         self.num_frames = 0
         self.processed_frames = False
     # Method to add frames
-    def add_frames(self,E,edge_feature_row_breaks,
-                   edge_orientations,abst_threshold):
+    def add_frames(self,E,edge_feature_row_breaks=None,
+                   edge_orientations=None,abst_threshold=None):
         new_E = E.copy()
-        esp._edge_map_threshold_segments(new_E,
-                                   40,
-                                 1, 
-                                 threshold=.3,
-                                 edge_orientations = edge_orientations,
-                                 edge_feature_row_breaks = edge_feature_row_breaks)
+        if abst_threshold is not None:
+            esp._edge_map_threshold_segments(new_E,
+                                             40,
+                                             1, 
+                                             threshold=.3,
+                                             edge_orientations = edge_orientations,
+                                             edge_feature_row_breaks = edge_feature_row_breaks)
         if not self.processed_frames:
             self.E = np.mean(new_E,axis=1)
             self.processed_frames = True
