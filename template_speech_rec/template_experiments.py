@@ -792,7 +792,7 @@ class AverageBackground:
 
 
 def get_exp_iterator(base_experiment,train_percent=.7):
-    last_train_idx = int(base_experiment.num_data*.7)
+    last_train_idx = int(base_experiment.num_data*train_percent)
     return Experiment_Iterator(base_experiment,data_paths=base_experiment.paths[:last_train_idx]),Experiment_Iterator(base_experiment,data_paths=base_experiment.paths[last_train_idx:])
 
 
