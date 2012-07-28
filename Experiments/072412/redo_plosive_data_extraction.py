@@ -1,5 +1,5 @@
 root_path = '/var/tmp/stoehr/Projects/Template-Speech-Recognition/'
-#root_path = '/home/mark/projects/Template-Speech-Recognition/'
+#root_path = '/home/mark/Template-Speech-Recognition/'
 
 import sys, os, cPickle
 sys.path.append(root_path)
@@ -94,4 +94,96 @@ for syll in target_syll_list:
 # load in the examples
 
 phn = target_phn_list[0]
+phn_examples = np.load(root_path+'Data/'+phn+'_examples.npy')
+phn_lengths = np.load(root_path+ 'Data/'+phn+'_lengths.npy')
+
+unregistered_examples = [p[:,:l] for p,l in zip(phn_examples,phn_lengths)]
+
+template_lengths= [6,7,8,9,10]
+template_versions = []
+for l in template_lengths:
+    t_len, t_height, _ , template = et.simple_estimate_template(unregistered_examples,template_length=l)
+    template_versions.append(template)
+
+
+
+# classification output
+# going to create a list of the experiments
+# each thing is going to be error rates and need some explanation
+# for the data provenance from the simulation
+# 
+
+#
+#1 /p/ itself
+# need to redo the feature extraction with the features being less spread
+# it would make sense to do this with the whole training data, this time, simply let it run over night
+# want to make sure that everything is in order
+
+
+p_bgs = np.load(root_path+'Data/p_bgs.npy')
+
+p_p_scores = np.zeros((phn_examples.shape[0],len(template_versions)))
+for t_id, t in enumerate(template_versions):
+    for p_id,p_ex in enumerate(phn_examples):
+        p_p_scores[p_id,t_id] = sum(tt.score_template_background_section(t,p_bgs[p_id],p_ex[:,:t.shape[1]]))
+
+# going to do a regression test based on length and look at
+# the residuals from that
+p_lengths_regress = np.vstack((np.ones(phn_lengths.shape[0]),
+                               np.vstack((phn_lengths,
+                                          phn_lengths**2)))).T
+
+p_p_max_idx = np.argsort(p_p_scores, axis=1)
+
+p_p_least_squares = np.linalg.solve(np.dot(p_lengths_regress.T ,
+                                           p_lengths_regress),
+                                    np.dot(p_lengths_regress.T,
+                                           p_p_max_idx))
+
+
+
+t_examples = np.load(root_path+'Data/t_examples.npy')
+t_lengths = np.load(root_path+'Data/t_lengths.npy')
+unregistered_examples = [p[:,:l] for p,l in zip(t_examples,t_lengths)]
+
+template_versions_t = []
+for l in template_lengths:
+    t_len, t_height, _ , template = et.simple_estimate_template(unregistered_examples,template_length=l)
+    template_versions_t.append(template)
+
+
+p_examples = np.load(root_path+'Data/p_examples.npy')
+t_p_scores = np.zeros((p_examples.shape[0],len(template_versions)))
+
+
+p_examples = np.load(root_path+'Data/p_examples.npy')
+
+p_bgs = np.load(root_path+'Data/p_bgs.npy')
+
+p_p_scores = np.zeros((p_examples.shape[0],len(template_versions)))
+for template_id, template in enumerate(template_versions_p):
+    for p_id,p_ex in enumerate(p_examples):
+        p_p_scores[p_id,template_id] = sum(tt.score_template_background_section(template,p_bgs[p_id],p_ex[:,:template.shape[1]]))
+
+t_p_scores = np.zeros((p_bgs.shape[0],len(template_versions)))
+for template_id, template in enumerate(template_versions_t):
+    for p_id,p_ex in enumerate(p_examples):
+        p_p_scores[p_id,template_id] = sum(tt.score_template_background_section(template,p_bgs[p_id],p_ex[:,:template.shape[1]]))
+
+p_p_t_p_compare = np.argmax(np.vstack((np.max(p_p_scores,axis=1),
+                             np.max(t_p_scores,axis=1))),axis=0)
+ #23 mistakes - not bad
+# want to see if there is a particular length distribution to the examples
+#maybe something about the phones themselves
+p_lengths = np.load(root_path+'Data/p_lengths.npy')
+p_lengths[p_p_t_p_compare.astype(bool)]
+#
+# median is 6
+# mean is 7 on those examples, so lengths aren't hurting us
+# curious about the phonetic context
+# example utt_num type question
+
+# we'll now do the reverse experiment on t's
+# this time we'll just take the mean lengths
+
 
