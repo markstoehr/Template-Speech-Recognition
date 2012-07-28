@@ -146,4 +146,5 @@ for phn in phn_list:
    phn_lengths = np.empty(phn_num_examples[phn],np.uint8)
    phn_loc_stats = np.empty((phn_num_examples[phn],
                              4),dtype=np.intc)
-   for data_id in xrange():
+   for data_id in xrange(num_data):
+       E = np.load(root_path + 
