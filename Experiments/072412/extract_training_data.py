@@ -6,7 +6,10 @@ import cPickle
 num_data = 4619
 
 root_path = '/var/tmp/stoehr/Projects/Template-Speech-Recognition/'
+root_path = '/var/tmp/stoehr/Projects/Template-Speech-Recognition/'
 data_path = root_path + 'Data/Train/'
+import sys, os, cPickle
+sys.path.append(root_path)
 
 import template_speech_rec.template_experiments as template_exp
 # first get the phn lengths and the number of examples
@@ -50,7 +53,7 @@ for datum in xrange(num_data):
     phns = np.load(data_path + str(datum+1)+'phns.npy')
     ftl =  np.load(data_path + str(datum+1)+'feature_label_transitions.npy')
     E = np.load(data_path + str(datum+1)+'E_spread3.npy')
-    stored_bg_obj(E)
+    stored_bg_obj.add_frames(E)
     for phn_id, phn in enumerate(phns):
         phn_class = model_classes[phn]
         max_phn_lengths[phn_class] = max(
@@ -60,7 +63,7 @@ for datum in xrange(num_data):
 
 np.save(data_path+'averageBackground.npy',stored_bg_obj.E)
 
-class_array = np.array(classes_to_phns.keys(),dtype=int)
+class_array = np.array(classes_to_phns.keys()).astype(int)
 class_to_int = dict( (v,k) for k,v in enumerate(class_array))
 np.save(data_path+'class_array',class_array)
 out = open(data_path + 'class_to_int.pkl','wb')
