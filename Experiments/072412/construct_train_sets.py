@@ -64,14 +64,17 @@ def kmedians_linear(k,x):
 
     
 
-for phn_class in class_array:
+for phn_class in class_array[1:]:
     print phn_class
     train_masks = np.load(exp_path+phn_class+'_train_masks.npy')
+    prev_lengths = np.zeros(np.sum(train_masks[0]))
     for fold_id, train_mask in enumerate(train_masks):
         print fold_id
         train_phn_examples =  np.load(data_path+phn_class+"class_examples5.npy")
         train_phn_lengths = np.load(data_path+phn_class+"class_examples_lengths.npy")
         lengths = train_phn_lengths[train_mask].copy()
+        assert not np.all(lengths==prev_lengths)
+        prev_lengths = lengths
         template_length = int(np.mean(lengths)+.5)
         template_height,template_length,registered_templates, template  = et.simple_estimate_template(
             [t[:,:l] for t,l in zip(
