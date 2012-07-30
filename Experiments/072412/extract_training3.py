@@ -14,77 +14,32 @@ sys.path.append(root_path)
 import template_speech_rec.template_experiments as template_exp
 # first get the phn lengths and the number of examples
 
-max_phn_lengths = defaultdict(int)
-num_phn_examples = defaultdict(int)
-
-phn_list = np.load(data_path+'phn_list.npy')
-model_classes48_fold_dict = {'ux' : 'uw',
-                             'axr': 'er',
-                             'em': 'm' ,
-                             'nx' : 'n',
-                             'eng': 'ng',
-                             'hv': 'hh',
-                             'pcl': 'cl',
-                             'tcl': 'cl',
-                             'kcl': 'cl',
-                             'qcl': 'cl',
-                             'bcl': 'vcl',
-                             'dcl': 'vcl',
-                             'gcl': 'vcl',
-                             'h#': 'sil',
-                             'pau': 'sil',
-                             '#h': 'sil'}
-model_classes = {}
-for phn in phn_list:
-    if phn not in model_classes48_fold_dict.keys():
-        model_classes[phn] = phn
-    else:
-        model_classes[phn] = model_classes48_fold_dict[phn]
-
-classes_to_phns = defaultdict(list)
-for phn, phn_class in model_classes.items():
-    classes_to_phns[phn_class].append(phn)
-
-
-    
-for datum in xrange(num_data):
-    phns = np.load(data_path + str(datum+1)+'phns.npy')
-    ftl =  np.load(data_path + str(datum+1)+'feature_label_transitions.npy')
-    for phn_id, phn in enumerate(phns):
-        phn_class = model_classes[phn]
-        max_phn_lengths[phn_class] = max(
-            max_phn_lengths[phn_class],
-            ftl[phn_id+1] - ftl[phn_id])
-        num_phn_examples[phn_class] += 1
-
-out = open(data_path+'max_phn_lengths.pkl','wb')
-cPickle.dump(max_phn_lengths,out)
+out = open(data_path+'max_phn_lengths.pkl','rb')
+max_phn_lengths = cPickle.load(out)
 out.close()
 
-out = open(data_path+'num_phn_examples.pkl','wb')
-cPickle.dump(num_phn_examples,out)
+out = open(data_path+'num_phn_examples.pkl','rb')
+num_phn_examples = cPickle.load(out)
 out.close()
 
 stored_bg = np.load(data_path+'averageBackground.npy')
+class_array = np.load(data_path+'class_array.npy')
 
-class_array = np.array(classes_to_phns.keys())
-class_to_int = dict( (v,k) for k,v in enumerate(class_array))
-np.save(data_path+'class_array',class_array)
-out = open(data_path + 'class_to_int.pkl','wb')
-cPickle.dump(class_to_int,out)
+out = open(data_path + 'class_to_int.pkl','rb')
+class_to_int=cPickle.load(out)
 out.close()
 
-out = open(data_path + 'model_classes.pkl','wb')
-cPickle.dump(model_classes,out)
+out = open(data_path + 'model_classes.pkl','rb')
+model_classes =cPickle.load(out)
 out.close()
 
-out = open(data_path + 'classes_to_phns.pkl','wb')
-cPickle.dump(classes_to_phns,out)
+out = open(data_path + 'classes_to_phns.pkl','rb')
+classes_to_phns =cPickle.load(out)
 out.close()
 
 # getting the examples as training examples
 # we use spread 5
-for phn_class in classes_to_phns.keys():
+for phn_class in class_array[21:]:
     print phn_class
     class_examples5 = np.empty((num_phn_examples[phn_class],
                                 stored_bg.shape[0],
