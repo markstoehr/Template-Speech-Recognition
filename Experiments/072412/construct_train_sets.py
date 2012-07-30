@@ -6,6 +6,8 @@ exp_path = root_path+'Experiments/072412/'
 import sys, os, cPickle
 sys.path.append(root_path)
 
+import template_speech_rec.estimate_template as et
+
 out = open(data_path+'num_phn_examples.pkl','rb')
 num_phn_examples = cPickle.load(out)
 out.close()
@@ -26,7 +28,60 @@ for phn_class in class_array:
     np.save(exp_path+phn_class+'_train_masks',train_masks)
                             
 
+def kmeans_linear(k,x):
+    x.sort()
+    numx = len(x)
+    prev_assignment_idx = np.zeros(numx,dtype=np.uint8)
+    assignment_idx = np.arange(numx,dtype=np.uint8) * k / numx
+    assignments = np.zeros((k,numx),dtype=bool)
+    assignments[assignment_idx,np.arange(numx)] = True
+    k_vals = np.array([ np.mean(a[assignments[i]]) for i in xrange(k)])
+    while np.all(prev_assignment_idx != assignment_idx):
+        prev_assignment_idx = assignment_idx[:]
+        assignment_idx = np.argmin((np.tile(a,(k,1)).T - np.tile(k_vals,(numx,1)))**2,axis=1)
+        assignments[:] = False
+        assignments[assignment_idx,np.arange(numx)] = True
+        k_vals = np.array([ np.mean(a[assignments[i]]) for i in xrange(k)])
+    return k_vals, assignment_idx
+        
+def kmedians_linear(k,x):
+    x.sort()
+    numx = len(x)
+    prev_assignment_idx = np.zeros(numx,dtype=np.uint8)
+    assignment_idx = np.arange(numx,dtype=np.uint8) * k / numx
+    assignments = np.zeros((k,numx),dtype=bool)
+    assignments[assignment_idx,np.arange(numx)] = True
+    k_vals = np.array([ np.median(a[assignments[i]]) for i in xrange(k)])
+    while np.all(prev_assignment_idx != assignment_idx):
+        prev_assignment_idx = assignment_idx[:]
+        assignment_idx = np.argmin(np.abs(np.tile(a,(k,1)).T - np.tile(k_vals,(numx,1))),axis=1)
+        assignments[:] = False
+        assignments[assignment_idx,np.arange(numx)] = True
+        k_vals = np.array([ np.median(a[assignments[i]]) for i in xrange(k)])
+    return k_vals, assignment_idx
+        
+
+
+    
+
 for phn_class in class_array:
     train_masks = np.load(exp_path+phn_class+'_train_masks.npy')
-    train_phn_examples =  np.load(data_path+phn_class+"class_examples5.npy")
-    train_phn_examples
+    for fold_id, train_mask in enumerate(train_masks):
+        train_phn_examples =  np.load(data_path+phn_class+"class_examples5.npy")
+        train_phn_lengths = np.load(data_path+phn_class+"class_examples_lengths.npy")
+        lengths = train_phn_lengths[train_mask].copy()
+        template_length = np.mean(lengths)
+        template_height,template_length,registered_templates, template  = et.simple_estimate_template(train_phn_examples[train_mask],template_length=template_length)
+        del registered_templates
+        np.save(exp_path+phn_class+str(train_mask)+'template1_1_0',template)
+        k_vals, assignment_idx = kmeans_linear(2,lengths)
+        k_vals = list(frozenset((k_vals + .5).astype(np.uint8)))
+        for i in xrange(len(k_vals)):
+            template_height,template_length,registered_templates, template  = et.simple_estimate_template(train_phn_examples[train_mask][assignment_idx == i],template_length=k_vals[i])
+            np.save(exp_path+phn_class+str(train_mask)+'template2_1_'+str(i),template)
+        k_vals, assignment_idx = kmeans_linear(3,lengths)
+        k_vals = list(frozenset((k_vals + .5).astype(np.uint8)))
+        for i in xrange(len(k_vals)):
+            template_height,template_length,registered_templates, template  = et.simple_estimate_template(train_phn_examples[train_mask][assignment_idx == i],template_length=k_vals[i])
+            np.save(exp_path+phn_class+str(train_mask)+'template3_1_'+str(i),template)
+        
