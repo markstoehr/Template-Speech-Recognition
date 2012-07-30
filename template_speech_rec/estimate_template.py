@@ -9,7 +9,7 @@ def simple_estimate_template(pattern_examples,template_length=None):
                                                    template_height,
                                                    template_length,
                                                    pattern_examples)
-    return template_height,template_length,registered_templates, np.minimum(np.maximum(np.mean(registered_templates,axis=0),.05),.95)
+    return template_height,template_length,registered_templates, np.clip(np.mean(registered_templates,axis=0),.05,.95)
 
 def get_template_subsample_mask(T,threshold):
     """
