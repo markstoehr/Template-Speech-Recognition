@@ -82,7 +82,7 @@ for phn_class in class_array[1:]:
                     lengths)],
             template_length=template_length)
         del registered_templates
-        np.save(exp_path+phn_class+str(train_mask)+'template1_1_0',template)
+        np.save(exp_path+phn_class+str(fold_id)+'template1_1_0',template)
         k_vals, assignment_idx = kmeans_linear(2,lengths)
         k_vals = list(frozenset((k_vals + .5).astype(np.uint8)))
         print k_vals
@@ -91,7 +91,7 @@ for phn_class in class_array[1:]:
                     train_phn_examples[train_mask],
                     lengths,
                     assignment_idx) if idx == i],template_length=k_vals[i])
-            np.save(exp_path+phn_class+str(train_mask)+'template2_1_'+str(i),template)
+            np.save(exp_path+phn_class+str(fold_id)+'template2_1_'+str(i),template)
         k_vals, assignment_idx = kmeans_linear(3,lengths)
         k_vals = list(frozenset((k_vals + .5).astype(np.uint8)))
         print k_vals
@@ -100,5 +100,47 @@ for phn_class in class_array[1:]:
                     train_phn_examples[train_mask],
                     lengths,
                     assignment_idx) if idx == i],template_length=k_vals[i])
-            np.save(exp_path+phn_class+str(train_mask)+'template3_1_'+str(i),template)
+            np.save(exp_path+phn_class+str(fold_id)+'template3_1_'+str(i),template)
         
+# got to cl, redo this later
+
+plosive_classes = ['p','t','k','b','d','g']
+for phn_class in plosive_classes:
+    print phn_class
+    train_masks = np.load(exp_path+phn_class+'_train_masks.npy')
+    prev_lengths = np.zeros(np.sum(train_masks[0]))
+    for fold_id, train_mask in enumerate(train_masks):
+        print fold_id
+        train_phn_examples =  np.load(data_path+phn_class+"class_examples5.npy")
+        train_phn_lengths = np.load(data_path+phn_class+"class_examples_lengths.npy")
+        lengths = train_phn_lengths[train_mask].copy()
+        assert not np.all(lengths==prev_lengths)
+        prev_lengths = lengths
+        template_length = int(np.mean(lengths)+.5)
+        template_height,template_length,registered_templates, template  = et.simple_estimate_template(
+            [t[:,:l] for t,l in zip(
+                    train_phn_examples[train_mask],
+                    lengths)],
+            template_length=template_length)
+        del registered_templates
+        np.save(exp_path+phn_class+str(fold_id)+'template1_1_0',template)
+        k_vals, assignment_idx = kmeans_linear(2,lengths)
+        k_vals = list(frozenset((k_vals + .5).astype(np.uint8)))
+        print k_vals
+        for i in xrange(len(k_vals)):
+            template_height,template_length,registered_templates, template  = et.simple_estimate_template([t[:,:l] for t,l,idx in zip(
+                    train_phn_examples[train_mask],
+                    lengths,
+                    assignment_idx) if idx == i],template_length=k_vals[i])
+            np.save(exp_path+phn_class+str(fold_id)+'template2_1_'+str(i),template)
+        k_vals, assignment_idx = kmeans_linear(3,lengths)
+        k_vals = list(frozenset((k_vals + .5).astype(np.uint8)))
+        print k_vals
+        for i in xrange(len(k_vals)):
+            template_height,template_length,registered_templates, template  = et.simple_estimate_template([t[:,:l] for t,l,idx in zip(
+                    train_phn_examples[train_mask],
+                    lengths,
+                    assignment_idx) if idx == i],template_length=k_vals[i])
+            np.save(exp_path+phn_class+str(fold_id)+'template3_1_'+str(i),template)
+        
+
