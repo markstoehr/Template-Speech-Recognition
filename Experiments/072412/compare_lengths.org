@@ -1,0 +1,67 @@
+* TODO Introduction
+Here we are testing the hypothesis that when we pad examples with
+background that we will recover the length clusters that were
+discovered by the $k$-means algorithm.  In the TIMIT corpus every
+recorded sentence has been phonetically transcibed such that the
+recordings are segmented into blocks and these blocks are phones, so
+that the transcription gives information about when the phone starts,
+the time length of the phone, and the linguistic identity.  
+
+In this experiment we aim to use the information provided to cluster
+the phones. In particular, we want to cluster the phones using only
+their length information, then we want to cluster the phones where we
+pad the end of the phones with background information. Our hypothesis
+is that these two clusterings will give the same result.
+
+We will actually compare several algorithms just to be sure that we are 
+getting a reasonable answer.  We will consider an EM algorithm based on
+a Gaussian mixture over lengths.
+* Length Clustering Algorithms
+** $k$-Means
+
+#+BEGIN_SRC python
+sqrt(42)
+#+END_SRC
+
+#+RESULTS:
+
+
+** $k$-Medians
+** EM for Gaussian Mixtures
+* Example Clustering Algorithm
+Our data are represented here as fixed length binary vectors.  The
+vector entries are all indexed by three indices $(t,f,e)$ where $t$ is
+the time index since the start of the phone, $f$ is the the frequency
+band, and $e$ is the edge-type. For an example $E$ the entry
+$E(t,f,e)$ is one if the edge feature $e$ is present in frequency band
+$f$ and at time $t$ and zero otherwise.
+
+We have examples $\{E_i\}_i$ where the time length of each example
+$E_i$ is the length of the longest example of the phone in the
+database - say $T$.  However, some examples of the phone have a time length
+shorter than this. Thus, for each $E_i$ we have that only the features
+$E_i(t,f,e)$ where $0\leq t < t_i$ correspond to features in the
+example phone where $t_i$ is the length of the phone.
+
+* Results
+
+#+begin_src python :tangle yes
+  print "hello world"
+  return "hello world"
+#+end_src
+
+
+
+#+begin_src python :results output graphics
+import numpy, matplotlib, matplotlib.pyplot
+figure = matplotlib.pyplot.figure()
+axes = figure.add_subplot(111, title=u"Hello", xlabel="x", ylabel="y")
+x = numpy.arange(-10, 10, 0.1)
+axes.plot(x, x**2)
+figure.savefig("/tmp/plot_test.png")
+figure.clf()
+#+end_src
+
+#+results:
+:None
+[[/tmp/plot_test.png]]
