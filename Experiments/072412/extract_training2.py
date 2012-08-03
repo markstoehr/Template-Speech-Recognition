@@ -74,6 +74,12 @@ out = open(data_path + 'class_to_int.pkl','wb')
 cPickle.dump(class_to_int,out)
 out.close()
 
+out = open(data_path + 'class_to_int.pkl','rb')
+class_to_int = cPickle.load(out)
+out.close()
+
+int_to_class = dict( (v,k) for k,v in class_to_int.items())
+
 out = open(data_path + 'model_classes.pkl','wb')
 cPickle.dump(model_classes,out)
 out.close()
