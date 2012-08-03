@@ -96,6 +96,8 @@ def bernoulli_likelihood(log_template,
                      (data_mat.shape[0],1)) * data_mat +
              np.tile(log_invtemplate,
                      (data_mat.shape[0],1)) * (1-data_mat),1)
+
+
     
 def bernoulli_model_loglike(bernoulli_model,data_mat,
                             use_weights=False):
@@ -127,7 +129,9 @@ def bernoulli_model_loglike(bernoulli_model,data_mat,
 bernoulli_mixture_induced_lengths = []
 bernoulli_mixture_spec_avgs = []
 dev_likelihoods = np.zeros((5,len(p_train_masks)))
+example_cluster_ids = []
 for mix_id, k in enumerate([2,3,4,5]):
+    example_cluster_ids_fold = []
     print k
     for train_mask_id , train_mask in enumerate(p_train_masks):
         medians_vec = np.zeros(k)
@@ -143,10 +147,12 @@ for mix_id, k in enumerate([2,3,4,5]):
             log_templates=bm.log_templates,
             log_invtemplates=bm.log_invtemplates,
             weights=bm.weights,
-            num_mix=mix_val)
+            num_mix=k)
         dev_likelihoods[mix_id+1,train_mask_id] = bernoulli_model_loglike(bernoulli_model,p_padded[True-train_mask],
                                                                           use_weights=False)
+        cluster_ids = []
         for i in xrange(k):
+            cluster_ids.append(bm.affinities[:,i] > .99)
             mix_lengths = p_lengths[bm.affinities[:,i] >.99]
             medians_vec[i] = np.median(mix_lengths)
             mean_vec[i] = np.mean(mix_lengths)
@@ -154,6 +160,7 @@ for mix_id, k in enumerate([2,3,4,5]):
             spec_meds[i] = np.median(p_specs[bm.affinities[:,i] > .99],axis=0)
             E_avgs[i] = np.mean(p_examples5[bm.affinities[:,i] > .99],axis=0)
             E_meds[i] = np.median(p_examples5[bm.affinities[:,i] > .99],axis=0)
+        example_cluster_ids_fold.append(tuple(cluster_ids))
         save_str = ('/var/tmp/stoehr/Projects/Template-Speech-Recognition/Experiments/080212/'
                 + str(k)+'_'+str(train_mask_id)+'_')
         np.save(save_str+'p_medians_vec',medians_vec)
@@ -163,6 +170,8 @@ for mix_id, k in enumerate([2,3,4,5]):
         np.save(save_str+'p_E_avgs',E_avgs)
         np.save(save_str+'p_E_meds',E_meds)
         np.save(save_str+'p_templates',bm.templates           )
+    example_cluster_ids.append(tuple(example_cluster_ids_fold))
+
 
 # handle the case where there is only one template
 for train_mask_id, train_mask in enumerate(p_train_masks):
