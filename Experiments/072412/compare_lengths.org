@@ -20,7 +20,7 @@ a Gaussian mixture over lengths.
 ** $k$-Means
 
 #+BEGIN_SRC python
-sqrt(42)
+return 42
 #+END_SRC
 
 #+RESULTS:
