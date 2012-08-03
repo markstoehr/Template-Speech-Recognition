@@ -84,6 +84,40 @@ def construct_spectrogram_mean(utt_id_E_loc,data_path,use_length,height):
     return smean
     
     
+import collections
+BernoulliMixtureSimple = collections.namedtuple('BernoulliMixtureSimple',
+                                                'log_templates log_invtemplates weights num_mix')
+
+
+def bernoulli_likelihood(log_template,
+                         log_invtemplate,
+                         data_mat):
+    return np.sum(np.tile(log_template,
+                     (data_mat.shape[0],1)) * data_mat +
+             np.tile(log_invtemplate,
+                     (data_mat.shape[0],1)) * (1-data_mat),1)
+    
+def bernoulli_model_loglike(bernoulli_model,data_mat,
+                            use_weights=False):
+    data_dim = data_mat.shape[1:]
+    num_data = data_mat.shape[0]
+    if len(data_dim) > 1:
+        data_mat = data_mat.reshape(num_data,np.prod(data_dim))
+    bernoulli_out = np.zeros((bernoulli_model.num_mix,
+                              data_mat.shape[0]
+                              ))
+    for mix_id in xrange(bernoulli_model.num_mix):
+        bernoulli_out[mix_id] = bernoulli_likelihood(bernoulli_model.log_templates[mix_id],
+                                                     bernoulli_model.log_invtemplates[mix_id],
+                                                     data_mat)
+    if use_weights:
+        bernoulli_out = bernoulli_out *np.tile(bernoulli_model.weights,
+                                               (num_data,1)).T
+        return np.sum(bernoulli_out)
+    if len(data_dim) > 1:
+        data_mat = data_mat.reshape((num_data,) + data_dim)
+    return np.sum(np.max(bernoulli_out,1))
+                                                     
                                   
                                   
 
@@ -92,7 +126,8 @@ def construct_spectrogram_mean(utt_id_E_loc,data_path,use_length,height):
 # is greater that .99
 bernoulli_mixture_induced_lengths = []
 bernoulli_mixture_spec_avgs = []
-for k in [2,3,4,5]:
+dev_likelihoods = np.zeros((5,len(p_train_masks)))
+for mix_id, k in enumerate([2,3,4,5]):
     print k
     for train_mask_id , train_mask in enumerate(p_train_masks):
         medians_vec = np.zeros(k)
@@ -104,6 +139,13 @@ for k in [2,3,4,5]:
         print train_mask_id
         bm = bernoulli_mixture.BernoulliMixture(k,p_padded[train_mask])
         bm.run_EM(.00001)
+        bernoulli_model = BernoulliMixtureSimple(
+            log_templates=bm.log_templates,
+            log_invtemplates=bm.log_invtemplates,
+            weights=bm.weights,
+            num_mix=mix_val)
+        dev_likelihoods[mix_id+1,train_mask_id] = bernoulli_model_loglike(bernoulli_model,p_padded[True-train_mask],
+                                                                          use_weights=False)
         for i in xrange(k):
             mix_lengths = p_lengths[bm.affinities[:,i] >.99]
             medians_vec[i] = np.median(mix_lengths)
