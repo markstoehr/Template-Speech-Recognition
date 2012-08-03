@@ -44,24 +44,6 @@ $E_i(t,f,e)$ where $0\leq t < t_i$ correspond to features in the
 example phone where $t_i$ is the length of the phone.
 
 * Results
-
-#+begin_src python :tangle yes
-  print "hello world"
-  return "hello world"
-#+end_src
-
-
-
-#+begin_src python :results output graphics
-import numpy, matplotlib, matplotlib.pyplot
-figure = matplotlib.pyplot.figure()
-axes = figure.add_subplot(111, title=u"Hello", xlabel="x", ylabel="y")
-x = numpy.arange(-10, 10, 0.1)
-axes.plot(x, x**2)
-figure.savefig("/tmp/plot_test.png")
-figure.clf()
-#+end_src
-
-#+results:
-:None
-[[/tmp/plot_test.png]]
+Main comparison is just to the table of the average (sorted lengths)
+as well as to check the average correlation between them (based on rank) as well. We do this by
+comparing the squared differences between the values
