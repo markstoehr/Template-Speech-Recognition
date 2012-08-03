@@ -12,8 +12,23 @@ import template_speech_rec.bernoulli_mixture as bernoulli_mixture
 p_examples5 = np.load(data_path+'pclass_examples5.npy')
 p_lengths = np.load(data_path+'pclass_examples_lengths.npy')
 p_bgs = np.load(data_path+'pclass_examples_bgs.npy')
+p_train_masks = np.load(exp_path+'p_train_masks.npy')
+p_utt_id_E_loc = np.load(data_path+'pexample_utt_id_E_loc.npy')
+p_specs = np.zeros((p_bgs.shape[0],
+                    p_bgs.shape[1]/8,
+                    p_examples5.shape[2]),dtype=np.float32)
 
+# store the spectrograms of the examples
+for p_id, p_utt in enumerate(p_utt_id_E_loc):
+    p_example = esp.get_spectrogram_features(
+        np.load(data_path+str(p_utt[0]+1)+'s.npy'),16000,320,80,512,3000,7)[
+        :,
+        p_utt[1]:p_utt[1]+p_specs.shape[2]]
+    p_specs[p_id][:,:p_example.shape[1]] = p_example
+ 
 # TODO: sample from edges
+
+
 
 
 def make_padded_example(example,length,bg):
@@ -39,6 +54,107 @@ p_padded = make_padded(p_examples5,
                        p_bgs)
 
 
+# need to construct a function now that performs averages over the 10 folds
+# to make sure that I have across fold consistency for these estimates
+# plan for comparison is to output the means for each 
+#
+#
+
+class SpecMean:
+    def __init__(self,use_length,height):
+        self.S = np.zeros((height,use_length),dtype=np.float32)
+        self.height = height
+        self.use_length = use_length
+        self.num_E = 0.
+    def add_new_example(self,example):
+        if example.shape[1] < self.use_length:
+            example = np.hstack((example,np.zeros((self.height,self.use_length-example.shape[1]))))
+        self.num_E += 1.
+        delta = example - self.S
+        self.S = self.S + delta/self.num_E
+
+def construct_spectrogram_mean(utt_id_E_loc,data_path,use_length,height):
+    smean = SpecMean(use_length,height)
+    [smean.add_new_example(
+            esp.get_spectrogram_features(
+                np.load(data_path+str(x[0])+'s.npy'),16000,320,80,512,3000,7)[
+                :,
+                x[1]:x[1]+use_length])
+            for x in utt_id_E_loc]
+    return smean
+    
+    
+                                  
+                                  
+
+# these are the mean and median lengths of the examples that are most
+# strongly associated with a particular mixture component so the affinity
+# is greater that .99
+bernoulli_mixture_induced_lengths = []
+bernoulli_mixture_spec_avgs = []
+for k in [2,3,4,5]:
+    print k
+    for train_mask_id , train_mask in enumerate(p_train_masks):
+        medians_vec = np.zeros(k)
+        mean_vec = np.zeros(k)
+        spec_avgs = np.zeros((k,p_specs.shape[1], p_specs.shape[2]),dtype=np.float32)
+        spec_meds = np.zeros((k,p_specs.shape[1], p_specs.shape[2]),dtype=np.float32)
+        E_avgs = np.zeros((k,p_examples5.shape[1], p_examples5.shape[2]),dtype=np.float32)
+        E_meds = np.zeros((k,p_examples5.shape[1], p_examples5.shape[2]),dtype=np.float32)
+        print train_mask_id
+        bm = bernoulli_mixture.BernoulliMixture(k,p_padded[train_mask])
+        bm.run_EM(.00001)
+        for i in xrange(k):
+            mix_lengths = p_lengths[bm.affinities[:,i] >.99]
+            medians_vec[i] = np.median(mix_lengths)
+            mean_vec[i] = np.mean(mix_lengths)
+            spec_avgs[i] = p_specs[bm.affinities[:,i] > .99].mean(0)
+            spec_meds[i] = np.median(p_specs[bm.affinities[:,i] > .99],axis=0)
+            E_avgs[i] = np.mean(p_examples5[bm.affinities[:,i] > .99],axis=0)
+            E_meds[i] = np.median(p_examples5[bm.affinities[:,i] > .99],axis=0)
+        save_str = ('/var/tmp/stoehr/Projects/Template-Speech-Recognition/Experiments/080212/'
+                + str(k)+'_'+str(train_mask_id)+'_')
+        np.save(save_str+'p_medians_vec',medians_vec)
+        np.save(save_str+'p_means_vec',mean_vec)
+        np.save(save_str+'p_spec_avgs',spec_avgs)
+        np.save(save_str+'p_spec_meds',spec_meds)
+        np.save(save_str+'p_E_avgs',E_avgs)
+        np.save(save_str+'p_E_meds',E_meds)
+        np.save(save_str+'p_templates',bm.templates           )
+
+# handle the case where there is only one template
+for train_mask_id, train_mask in enumerate(p_train_masks):
+    template = np.clip(
+        np.mean(p_padded[train_mask],axis=0),
+        .05,.95)
+    template = template.reshape(1,p_padded.shape[0],
+                                p.padded.shape[1])
+    k=1
+    save_str = ('/var/tmp/stoehr/Projects/Template-Speech-Recognition/Experiments/080212/'
+                + str(k)+'_'+str(train_mask_id)+'_')
+    means_vec = np.array([p_lengths[train_mask_id].mean(0)])
+    medians_vec = np.array([np.median(p_lengths[train_mask_id],axis=0)])
+    np.save(save_str+'p_medians_vec',medians_vec)
+    np.save(save_str+'p_means_vec',mean_vec)
+    np.save(save_str+'p_templates',template)
+    
+
+del bm
+
+
+for k in [2,3,4,5]:
+    print k
+    for train_mask_id , train_mask in enumerate(p_train_masks):
+        print train_mask_id
+        bm
+        bm = bernoulli_mixture.BernoulliMixture(k,p_padded[train_mask])
+        bm.run_EM(.00001)
+        save_str = ('/var/tmp/stoehr/Projects/Template-Speech-Recognition/Experiments/080212/'
+                + str(k)+'_'+str(train_mask_id)+'_')
+        np.save(save_str+'p_templates',bm.templates           )
+        
+        
+
 bm2 = bernoulli_mixture.BernoulliMixture(2,p_padded)
 bm2.run_EM(.00001)
 #
@@ -57,9 +173,13 @@ Mixtures not picking up on the example lengths
 8.7279752704791349
 """
 
+np.save(exp_path+"p_padded_templates2.npy",bm2.templates)
+
 
 bm3 = bernoulli_mixture.BernoulliMixture(3,p_padded)
 bm3.run_EM(.00001)
+
+np.save(exp_path+"p_padded_templates3.npy",bm3.templates)
 
 bm3_t_0_lengths = p_lengths[bm3.affinities[:,0] ==1]
 bm3_t_1_lengths = p_lengths[bm3.affinities[:,1] ==1]
@@ -85,11 +205,26 @@ Mixtures seem to picking up on the lengths of the examples:
 
 """
 
+"""
+Want to see if there is any correlation with context
+
+"""
+
+p3_affinities = bm3.affinities
+p3_templates = bm3.templates
+
+
+
+
 bm4 = bernoulli_mixture.BernoulliMixture(4,p_padded)
 bm4.run_EM(.00001)
 
 for i in xrange(4):
     print p_lengths[bm4.affinities[:,i] ==1].mean()
+
+
+np.save(exp_path+"p_padded_templates4.npy",bm4.templates)
+
     
 """
 from a length perspective we may not be getting much out
