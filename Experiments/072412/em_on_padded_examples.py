@@ -261,8 +261,77 @@ for mix_id, k in enumerate([2,3,4,5,6,8,10]):
         np.save(save_str+'p_E_avgs',E_avgs)
         np.save(save_str+'p_E_meds',E_meds)
         np.save(save_str+'p_templates',bm.templates           )
+        np.save(save_str+'p_affinites',bm.affinities           )
     example_cluster_ids3.append(tuple(example_cluster_ids_fold))
 
+
+
+out = open('example_cluster_ids.pkl','wb')
+cPickle.dump(example_cluster_ids,out)
+out.close()
+
+
+out = open('example_cluster_ids2.pkl','wb')
+cPickle.dump(example_cluster_ids2,out)
+out.close()
+
+
+out = open('example_cluster_ids3.pkl','wb')
+cPickle.dump(example_cluster_ids3,out)
+out.close()
+
+
+
+
+dev_likelihoods4 = np.zeros((5,len(p_train_masks)))
+example_cluster_ids4 = []
+for mix_id, k in enumerate([11,12,14,16,18]):
+    example_cluster_ids_fold = []
+    print k
+    for train_mask_id , train_mask in enumerate(p_train_masks):
+        medians_vec = np.zeros(k)
+        mean_vec = np.zeros(k)
+        spec_avgs = np.zeros((k,p_specs.shape[1], p_specs.shape[2]),dtype=np.float32)
+        spec_meds = np.zeros((k,p_specs.shape[1], p_specs.shape[2]),dtype=np.float32)
+        E_avgs = np.zeros((k,p_examples5.shape[1], p_examples5.shape[2]),dtype=np.float32)
+        E_meds = np.zeros((k,p_examples5.shape[1], p_examples5.shape[2]),dtype=np.float32)
+        print train_mask_id
+        bm = bernoulli_mixture.BernoulliMixture(k,p_padded[train_mask])
+        bm.run_EM(.00001)
+        bernoulli_model = BernoulliMixtureSimple(
+            log_templates=bm.log_templates,
+            log_invtemplates=bm.log_invtemplates,
+            weights=bm.weights,
+            num_mix=k)
+        dev_likelihoods4[mix_id,train_mask_id] = bernoulli_model_loglike(bernoulli_model,p_padded[True-train_mask],
+                                                                          use_weights=True)
+        cluster_ids = []
+        for i in xrange(k):
+            cluster_ids.append(bm.affinities[:,i] > .99)
+            mix_lengths = p_lengths[bm.affinities[:,i] >.99]
+            medians_vec[i] = np.median(mix_lengths)
+            mean_vec[i] = np.mean(mix_lengths)
+            spec_avgs[i] = p_specs[bm.affinities[:,i] > .99].mean(0)
+            spec_meds[i] = np.median(p_specs[bm.affinities[:,i] > .99],axis=0)
+            E_avgs[i] = np.mean(p_examples5[bm.affinities[:,i] > .99],axis=0)
+            E_meds[i] = np.median(p_examples5[bm.affinities[:,i] > .99],axis=0)
+        example_cluster_ids_fold.append(tuple(cluster_ids))
+        save_str = ('/var/tmp/stoehr/Projects/Template-Speech-Recognition/Experiments/080212/'
+                + str(k)+'_'+str(train_mask_id)+'_')
+        np.save(save_str+'p_medians_vec',medians_vec)
+        np.save(save_str+'p_means_vec',mean_vec)
+        np.save(save_str+'p_spec_avgs',spec_avgs)
+        np.save(save_str+'p_spec_meds',spec_meds)
+        np.save(save_str+'p_E_avgs',E_avgs)
+        np.save(save_str+'p_E_meds',E_meds)
+        np.save(save_str+'p_templates',bm.templates           )
+        np.save(save_str+'p_affinites',bm.affinities           )
+    example_cluster_ids4.append(tuple(example_cluster_ids_fold))
+
+
+out = open('example_cluster_ids4.pkl','wb')
+cPickle.dump(example_cluster_ids4,out)
+out.close()
 
 
 # handle the case where there is only one template
