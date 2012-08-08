@@ -1,5 +1,7 @@
 import numpy as np
 from scipy.signal import convolve
+from npufunc import log_quantizer
+
 
 def get_utterance_score(T,U,bg_len,maxima_radius=3):
     P,C,start_idx,end_idx = _apply_template_to_utterance(T,U,bg_len)
@@ -18,8 +20,7 @@ def get_j0_detections(T_mask,U):
         
        
     
-    
-
+                         
 
 def score_template_background_section(template,bgd,E,front_bgd_pad=0,back_bgd_pad=0):
     # check that the length of the example utterance
@@ -39,8 +40,30 @@ def score_template_background_section(template,bgd,E,front_bgd_pad=0,back_bgd_pa
     expW = (T/U_bgd) / C_exp_inv_long
     return (E*np.log(expW)).sum(),C 
 
+def score_template_background_section_quantizer(log_template,log_invtemplate,bg,E,return_both_summed=True):
+    """
+    We have a set of features, the size of that set is num_feautures.  Then we have a
+    time parameter
 
-
+    Parameters:
+    ===========
+    log_template: np.ndarray(ndim=2,dtype=np.float32)
+        log_template.shape == (template_length,num_features)
+    log_invtemplate: np.ndarray(ndim=2,dtype=np.float32)
+        log_invtemplate.shape == (template_length,num_features)
+    bgd: np.ndarray(ndim=1,dtype=np.float32)
+    E: np.ndarray(ndim=2,dtype=np.float32)
+        E.shape == (E_length, num_features)
+    """
+    length = min(E.shape[0],log_template.shape[0])
+    C_full = log_invtemplate[:length] - log_quantizer(1-bg)
+    W = log_template[:length] - log_quantizer(bg)
+    W -= C_full
+    if return_both_summed:
+        return (E[:length] * W + C_full).sum()
+    return (E[:length] * W).sum(), C_full.sum()
+    
+    
 
 def cmp_score_to_label(scores,scores_maxima,start_idx,pattern_times,detect_radius):
     pass
