@@ -1,6 +1,6 @@
 import numpy as np
 from scipy.signal import convolve
-from npufunc import log_quantizer
+from npufunc_log_quantizer import log_quantizer
 
 
 def get_utterance_score(T,U,bg_len,maxima_radius=3):
