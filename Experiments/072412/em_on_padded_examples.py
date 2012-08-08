@@ -37,10 +37,12 @@ def make_padded_example(example,length,bg):
     if residual_length > 0:
         return np.hstack(
             (example[:,:length],
-             (np.random.rand(height,residual_length) <
-             np.tile(bg,(residual_length,
-                         1)).T).astype(np.uint8)))
+             (np.random.rand(height,residual_length) < \
+                  np.tile(bg,(residual_length,
+                              1)).T).astype(np.uint8)))
     return example
+
+
          
 def make_padded(examples,lengths,bgs):
     return np.array([
