@@ -83,20 +83,25 @@ class TranslationInvariantGaussEM:
                                  dtype=int)] = 1.
         self.mix_weights = np.array([np.sum(rand_mix_idx==i) for i in xrange(self.num_mix)]).astype(np.float32)
         self.mix_weights /= np.sum(self.mix_weights)
+        self.norm_constant_constant =  -.5 * np.log((2.*np.pi)**num_mix)
        
     def run_EM(self,tol=.0001,num_iters=None):
         self.M_step()
         self.E_step()
         old_log_likelihood = self.log_likelihood/(2.* (1+tol))
         if num_iters == None:
+            cur_iter=0
             while (self.log_likelihood - old_log_likelihood)/old_log_likelihood > tol:
+                cur_iter += 1
+                if cur_iter % 50 == 0:
+                    print "Current Iteration is %d, likelihood=%f" % (cur_iter,self.log_likelihood)
                 old_log_likelihood = self.log_likelihood
                 self.M_step()
                 self.E_step()
         else:
             for i in xrange(num_iters):
                 if i % 50 == 0:
-                    print "On iteration %d" % i
+                    print "On iteration %d, likelihood=%f" % (i,self.log_likelihood)
                 old_log_likelihood = self.log_likelihood
                 self.M_step()
                 self.E_step()
@@ -116,10 +121,9 @@ class TranslationInvariantGaussEM:
                                                           component_affinities)])
                 for component_affinities in self.affinities])
         self.means = self.marginalized_translations.mean(1)
-        print self.means
         self.covs = ((self.marginalized_translations - self.means)**2).mean(1)
         # 
-        self.norm_constants = -.5 * np.log((2.*np.pi)**self.num_mix * np.prod(self.covs,1))
+        self.norm_constants = self.norm_constant_constant -.5 * np.sum(np.log(self.covs),1)
         
     def E_step(self):
         """
