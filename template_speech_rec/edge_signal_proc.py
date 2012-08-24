@@ -650,7 +650,8 @@ def get_edgemap_no_threshold(s,sample_rate,
                              fft_length,
                              freq_cutoff,kernel_length,
                              preemph=.95,
-                             use_mel = False):
+                             use_mel = False,
+                             return_S = False):
     s = _preemphasis(s,preemph)
     if not use_mel:
         S = _spectrograms(s,num_window_samples, 
@@ -676,6 +677,8 @@ def get_edgemap_no_threshold(s,sample_rate,
                         num_window_samples,
                         num_window_step_samples,
                         fft_length,)
+    if return_S:
+        return _edge_map_no_threshold(S) + (S,)
     return _edge_map_no_threshold(S)
 
 def threshold_edgemap(E,quantile_level,
