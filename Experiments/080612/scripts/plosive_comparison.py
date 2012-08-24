@@ -6,7 +6,7 @@ root_path = '/home/mark/Template-Speech-Recognition/'
 data_path = root_path + 'Data/Train/'
 tmp_data_path = root_path+'Experiments/080612/data/'
 old_exp_path = root_path+'Experiments/080312/'
-model_save_dir = root_path+'Experiments/080612/models/'
+model_save_dir = root_path+'Experiments/080612/models2/'
 import sys, os, cPickle
 sys.path.append(root_path)
 
@@ -14,7 +14,72 @@ import template_speech_rec.test_template as tt
 import template_speech_rec.bernoulli_mixture as bernoulli_mixture
 
 phns = ['p','t','k','b','d','g','iy','aa','uw']
-num_mixtures_set = [2,4,6,8,10,12,14]
+num_mixtures_set = [6,10,14]
+num_folds = 3
+
+
+def make_padded_example(example,length,bg):
+    residual_length = example.shape[0] - length
+    height = len(bg)
+    if residual_length > 0:
+        return np.vstack(
+            (example[:length],
+             (np.random.rand(residual_length,height) < \
+                  np.tile(bg,(residual_length,
+                              1))).astype(np.uint8)))
+    return example
+
+
+         
+def make_padded(examples,lengths,bgs):
+    return np.array([
+            make_padded_example(example,length,bg)\
+            for example,length, bg in \
+            zip(examples,lengths,bgs)])
+
+
+bmodels = []
+for phn in phns:
+    phn_examples5 = np.swapaxes(np.load(data_path+phn+'class_examples5.npy'),1,2)
+    phn_lengths = np.load(data_path+phn+'class_examples_lengths.npy')
+    phn_bgs = np.load(data_path+phn+'class_examples_bgs.npy')
+    phn_train_masks = np.load(old_exp_path+phn+'_train_masks.npy')
+    phn_padded = make_padded(phn_examples5,
+                       phn_lengths,
+                       phn_bgs)
+    phnModels = []
+    print phn
+    for mix_id, num_mixtures in enumerate(num_mixtures_set):
+        print num_mixtures
+        mixModels = []
+        for mask_id, train_mask in enumerate(phn_train_masks):
+            if mask_id > num_folds: continue
+            print mask_id
+            bm = bernoulli_mixture.BernoulliMixture(num_mixtures,phn_padded[train_mask])
+            bm.run_EM(.000001)
+            cluster_lists = bm.get_cluster_lists()
+            template_lengths = tuple(int(phn_lengths[train_mask][cluster_list].mean()+.5)\
+                                         for cluster_list in cluster_lists)
+            bms = bernoulli_mixture.BernoulliMixtureSimple(
+                log_templates=tuple(log_template[:l] for log_template,l in zip(bm.log_templates,
+                                                                               template_lengths)),
+                log_invtemplates=tuple(log_invtemplate[:l] for log_invtemplate,l in zip(bm.log_invtemplates,
+                                                                                        template_lengths)),
+                weights=bm.weights)
+            mixModels.append(bms)
+        phnModels.append(tuple(mixModels))
+    phnModels = tuple(phnModels)
+    out = open(model_save_dir+phn+'_bms_nested_tuples_padded.pkl','wb')
+    cPickle.dump(phnModels,out)
+    out.close()
+    bmodels.append(phnModels)
+
+bmodels = tuple(bmodels)
+
+out = open(model_save_dir+"bmodels_padded080812.pkl","wb")
+cPickle.dump(bmodels,out)
+out.close()
+
 
 
 BernoulliModelsByPhone = collections.namedtuple(
@@ -26,10 +91,17 @@ for phn in phns:
     phn_lengths = np.load(data_path+phn+'class_examples_lengths.npy')
     phn_bgs = np.load(data_path+phn+'class_examples_bgs.npy')
     phn_train_masks = np.load(old_exp_path+phn+'_train_masks.npy')
+    phn_padded = make_padded(phn_examples5,
+                       phn_lengths,
+                       phn_bgs)
     phnModels = []
+    print phn
     for mix_id, num_mixtures in enumerate(num_mixtures_set):
+        print num_mixtures
         mixModels = []
         for mask_id, train_mask in enumerate(phn_train_masks):
+            if mask_id > num_folds: continue
+            print mask_id
             bm = bernoulli_mixture.BernoulliMixture(num_mixtures,phn_examples5[train_mask])
             bm.run_EM(.000001)
             cluster_lists = bm.get_cluster_lists()
@@ -41,15 +113,78 @@ for phn in phns:
                 log_invtemplates=tuple(log_invtemplate[:l] for log_invtemplate,l in zip(bm.log_invtemplates,
                                                                                         template_lengths)),
                 weights=bm.weights)
-            out = open(model_save_dir+phn+'_'+str(num_mixtures)+'_'+str(mask_id)+'bms','wb')
-            cPickle.dump(bms,out)
-            out.close()
             mixModels.append(bms)
         phnModels.append(tuple(mixModels))
-    bmodels.append(tuple(phnModels))
+    phnModels = tuple(phnModels)
+    out = open(model_save_dir+phn+'_bms_nested_tuples.pkl','wb')
+    cPickle.dump(phnModels,out)
+    out.close()
+    bmodels.append(phnModels)
 
 bmodels = tuple(bmodels)
-        
+
+out = open(model_save_dir+"bmodels080812.pkl","wb")
+cPickle.dump(bmodels,out)
+out.close()
+
+def apply_bms_to_examples(phn_examples,phn_lengths,phn_bgs,bms):
+    return np.array(tuple(max(tt.score_template_background_section_quantizer(
+            bms.log_templates[i], bms.log_invtemplates[i],phn_bgs[j],
+            phn_examples[j][:phn_lengths[j]]) for i in xrange(len(bms.weights)))\
+                     for j in xrange(phn_examples.shape[0])))
+
+num_folds = 4
+# now we want to get the scores on all the different phones
+results_for_all_phns = {}
+for phn in phns:
+    phn_examples3 = np.swapaxes(np.load(data_path+phn+'class_examples3.npy'),1,2)
+    phn_lengths = np.load(data_path+phn+'class_examples_lengths.npy')
+    phn_bgs = np.load(data_path+phn+'class_examples_bgs.npy')
+    phn_train_masks = np.load(old_exp_path+phn+'_train_masks.npy')
+    num_dev = (True-phn_train_masks[0]).sum()
+    for train_mask in phn_train_masks:
+        assert num_dev == (True-train_mask).sum()
+    results_for_all_phns[phn] = {}
+    # load in the simple bernoulli models for each
+    print "Target phone is:",phn
+    for classifier_phn_id, classifier_phn in enumerate(phns):
+        print "Classifying phone is:", classifier_phn
+        results_for_all_phns[phn][classifier_phn] = np.zeros((len(num_mixtures_set),
+                                                              num_folds+1,
+                                                  num_dev),dtype=np.float32)
+        for mix_id,num_mixtures in enumerate(num_mixtures_set):
+            print "Mixture number being considered is:",num_mixtures
+            classifier_bms_list = []                
+            for fold_num, train_mask in enumerate(phn_train_masks):
+                if fold_num >= num_folds: continue
+                dev_mask = True-train_mask
+                results_for_all_phns[phn][classifier_phn][mix_id][fold_num] = np.array(apply_bms_to_examples(
+                    phn_examples3[dev_mask],
+                    phn_lengths[dev_mask],phn_bgs[dev_mask],bmodels[classifier_phn_id][mix_id][fold_num]))
+                                                  
+out = open(model_save_dir + 'results_for_all_phns080812.pkl','wb')
+cPickle.dump(results_for_all_phns,out)
+out.close()
+
+# compute the losses for the different datasets
+p_results = np.vstack(tuple(results_for_all_phns['p'][classifier_phn][2:] for classifier_phn in phns))
+p_argmax_results = np.argmax(p_results,0)
+p_bincounts = sum(tuple( np.bincount(argmax_result) for argmax_result in p_argmax_results[:-1]))
+for phn_idx, phn in enumerate(phns):
+    print "p was classified as",phn,"with frequency",p_bincounts[phn_idx]/float(num_dev*4)
+
+def get_phn_results_table(phn,results_for_all_phns,phns):
+    results = np.vstack(tuple(results_for_all_phns[phn][classifier_phn][2:] for classifier_phn in phns))
+    argmax_results = np.argmax(results,0)
+    bincounts = sum(tuple( np.bincount(argmax_result,minlength=len(phns)) for argmax_result in argmax_results[:-1]))
+    num_experiments = np.sum(bincounts)
+    bincount_ranks = np.argsort(-bincounts)
+    print '\n'
+    for phn_idx, phn2 in enumerate(phns):
+        print phn,"was classified as",phns[bincount_ranks[phn_idx]],"with frequency",bincounts[bincount_ranks[phn_idx]]/float(num_experiments)
+
+
+    
         
 p_lengths = np.load(exp_load_path+phn+'class_examples_lengths.npy')
 p_bgs = np.load(exp_load_path+phn+'class_examples_bgs.npy')
