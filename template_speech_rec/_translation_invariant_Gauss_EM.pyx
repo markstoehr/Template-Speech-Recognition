@@ -40,6 +40,3 @@ def normalize_affinities(np.ndarray[DTYPE_t, ndim=3] affinities,
         for data_idx in range(num_data):
             for trans_idx in range(trans_amount):
                 affinities[mix_idx,data_idx,trans_idx] /= affinity_sums[data_idx]
-
-def get_marginalized_transformations
-    
