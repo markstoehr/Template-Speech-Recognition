@@ -1,6 +1,6 @@
 import numpy as np
-root_path = '/var/tmp/stoehr/Projects/Template-Speech-Recognition/'
-#root_path = '/home/mark/projects/Template-Speech-Recognition/'
+#root_path = '/var/tmp/stoehr/Projects/Template-Speech-Recognition/'
+root_path = '/home/mark/Template-Speech-Recognition/'
 
 import sys, os, cPickle
 sys.path.append(root_path)
@@ -10,8 +10,8 @@ import template_speech_rec.estimate_template as et
 import template_speech_rec.test_template as tt
 import template_speech_rec.classification as cl
 
-edge_orientations = np.load(root_path+'Experiments/050812/edge_orientations.npy')
-abst_threshold = np.load(root_path+'Experiments/050812/abst_threshold.npy')
+abst_threshold=np.array([.025,.025,.015,.015,
+                                      .02,.02,.02,.02])
 
 texp = template_exp.\
     Experiment(patterns=[np.array(('aa','r')),np.array(('ah','r'))],
