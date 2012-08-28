@@ -1,5 +1,6 @@
 import numpy as np
 import bernoulli_em as bem
+import edge_signal_proc as esp
 
 def extract_local_features_tied(E,patch_height,patch_width,
                                 lower_quantile,upper_quantile,
@@ -164,8 +165,4 @@ def local_features_blocks(data_iter,num_iter,
         spec_patches = np.vstack((spec_patches,
                                   S[patch_row_indices,patch_col_indices].reshape(bp.shape[0],patch_height,patch_width)))
     return bps, spec_patches, signal_windows
-        
-        
-        
-        
-    
+
