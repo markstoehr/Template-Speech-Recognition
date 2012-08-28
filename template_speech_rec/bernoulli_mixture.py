@@ -1,4 +1,4 @@
-#import amitgroup as ag
+import amitgroup as ag
 import numpy as np
 import random, collections
 
@@ -71,7 +71,7 @@ class BernoulliMixture:
            [  9.97376426e-01,   2.62357439e-03]])
 
     """
-    def __init__(self,num_mix,data_mat,init_type='unif_rand'):
+    def __init__(self,num_mix,data_mat,init_type='unif_rand',init_seed=0):
         # TODO: opt_type='expected'
         self.num_mix = num_mix
         self.num_data = data_mat.shape[0]
@@ -80,8 +80,12 @@ class BernoulliMixture:
         self.data_length = np.prod(data_mat.shape[1:])
         self.data_mat = data_mat.reshape(self.num_data, self.data_length)
         self.iterations = 0
+        # set the random seed
+        self.seed = init_seed
+        np.random.seed(self.seed)
 
-        self.min_probability = 0.05
+
+        self.min_probability = 0.05 
 
         # If we change this to a true bitmask, we should do ~data_mat
         self.not_data_mat = 1 - self.data_mat
@@ -99,7 +103,7 @@ class BernoulliMixture:
 
 
     # TODO: save_template never used!
-    def run_EM(self, tol, min_probability=0.05):
+    def run_EM(self, tol, min_probability=0.05, debug_plot=False):
         """ 
         Run the EM algorithm to specified convergence.
         
@@ -110,15 +114,19 @@ class BernoulliMixture:
             If the loglikelihood decreased with less than ``tol``, then it will break the loop.
         min_probability : float
             Disallow probabilities to fall below this value, and extend below one minus this value.
+        init_seed : integer or None
         """
-        self.min_probability = 0.05
+        self.min_probability = min_probability 
         loglikelihood = -np.inf
         # First E step plus likelihood computation
         new_loglikelihood = self._compute_loglikelihoods()
 
+        if debug_plot:
+            plw = ag.plot.PlottingWindow(subplots=(1, self.num_mix), figsize=(self.num_mix*3, 3))
+
         self.iterations = 0
-        while new_loglikelihood - loglikelihood > tol:
-            #ag.info("Iteration {0}: loglikelihood {1}".format(self.iterations, loglikelihood))
+        while (new_loglikelihood - loglikelihood)/loglikelihood > tol:
+            ag.info("Iteration {0}: loglikelihood {1}".format(self.iterations, loglikelihood))
             loglikelihood = new_loglikelihood
             # M-step
             self.M_step()
@@ -127,11 +135,29 @@ class BernoulliMixture:
             
             self.iterations += 1
 
+            if debug_plot and not self._plot(plw):
+                raise ag.AbortException 
+
         self.set_templates()
         
+
+    def _plot(self, plw):
+        if not plw.tick():
+            return False 
+        self.set_templates()
+        for m in xrange(self.num_mix):
+            # TODO: Fix this somehow
+            if self.templates.ndim == 3:
+                plw.imshow(self.templates[m], subplot=m)
+            elif self.templates.ndim == 4:
+                plw.imshow(self.templates[m].mean(axis=0), subplot=m)
+            else:
+                raise ValueError("debug_plot not supported for 5 or more dimensional data")
+        return True
  
     def M_step(self):
         self.weights = np.mean(self.affinities,axis=0)
+        import pdb; pdb.set_trace()
         self.work_templates = np.dot(self.affinities.T, self.data_mat)
         self.work_templates /= self.num_data 
         self.work_templates /= self.weights.reshape((self.num_mix, 1))
@@ -139,17 +165,11 @@ class BernoulliMixture:
         self.log_templates = np.log(self.work_templates)
         self.log_invtemplates = np.log(1-self.work_templates)
 
-    def get_bernoulli_mixture_named_tuple(self):
+    def get_bernoulli_mixture_named_tuple():
         return BernoulliMixtureSimple(log_templates=self.log_templates,
                                       log_invtemplates=self.log_invtemplates,
                                       weights=self.weights)
-                            
-    def get_cluster_lists(self,affinity_threshold=.99):
-        return tuple((
-                np.arange(self.num_data)[
-                    affinity > affinity_threshold]\
-                    for affinity in self.affinities.T))
-          
+                                      
         
     def threshold_templates(self):
         self.work_templates = np.clip(self.work_templates, self.min_probability, 1-self.min_probability) 
@@ -189,12 +209,10 @@ class BernoulliMixture:
         self.templates = np.zeros((self.num_mix,
                                    self.data_length))
 
-    def set_templates(self,do_log_templates=True):
+    def set_templates(self):
         self.templates = self.work_templates.reshape((self.num_mix,)+self.data_shape)
-        if do_log_templates:
-            new_shape=(self.num_mix,)+self.data_shape
-            self.log_templates = self.log_templates.reshape(new_shape)
-            self.log_invtemplates = self.log_invtemplates.reshape((self.num_mix,)+self.data_shape)
+        self.log_templates = np.log(self.templates)
+        self.log_invtemplates = np.log(1-self.templates)
                                      
 
     def set_weights(self,new_weights):
