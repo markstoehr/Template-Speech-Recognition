@@ -1,4 +1,3 @@
-import amitgroup as ag
 import numpy as np
 import random, collections
 
@@ -121,12 +120,10 @@ class BernoulliMixture:
         # First E step plus likelihood computation
         new_loglikelihood = self._compute_loglikelihoods()
 
-        if debug_plot:
-            plw = ag.plot.PlottingWindow(subplots=(1, self.num_mix), figsize=(self.num_mix*3, 3))
 
         self.iterations = 0
-        while (new_loglikelihood - loglikelihood)/loglikelihood > tol:
-            ag.info("Iteration {0}: loglikelihood {1}".format(self.iterations, loglikelihood))
+        while abs((new_loglikelihood - loglikelihood)/loglikelihood) > tol:
+            #ag.info("Iteration {0}: loglikelihood {1}".format(self.iterations, loglikelihood))
             loglikelihood = new_loglikelihood
             # M-step
             self.M_step()
@@ -135,8 +132,8 @@ class BernoulliMixture:
             
             self.iterations += 1
 
-            if debug_plot and not self._plot(plw):
-                raise ag.AbortException 
+            #if debug_plot and not self._plot(plw):
+            #    raise ag.AbortException 
 
         self.set_templates()
         
