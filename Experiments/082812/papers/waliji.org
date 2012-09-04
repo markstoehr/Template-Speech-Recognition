@@ -1,3 +1,5 @@
+#+AUTHOR: Mark Stoehr
+#+TITLE: Waliji Experiments
 * Notation
   - $\pi_k$ is a mixture weight
   - $e$ is an index for the edge orientation
@@ -448,37 +450,155 @@ for num_mix in [10,20,30,50,80,100]:
 [[./spec_avg_parts_100.png]]
 
 
+We also want to see what the parts are when we use a single utterance.
+There is a noticeable lack of parts for vertical objects, whereas this
+was observed in Waliji's experiment based on the figures provided.
 
 #+begin_src python
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from matplotlib import rc
 import numpy as np
-rc('text', usetex=True)
+num_mix =20
+spec_avg_parts = np.load('../data/1spec_avg_parts%d.npy' 
+                         % num_mix)
 fig = plt.figure()
-templates = np.load('../data/bm_templates%d.npy' % num_mix)
-templates_stacked = np.hstack(tuple(
-    t for t in templates))
-plt.imshow(templates_stacked,cmap=cm.bone,interpolation='nearest')
-
-templates_cur_orient = templates[:,:5,:]
-templates_stacked = np.vstack(tuple(
-    np.hstack(tuple(
-        t for t in templates_cur_orient[10*i:10*(i+1)]))
-    for i in xrange(10)))
-
-
-plt.title('CDFs over $\max_k P(Z_i=k\mid X_i = x_i)$')
-for mix_id, num_mix in enumerate([10,20,30,50,80,100]):
-    plt.subplot(2,3,mix_id+1)
-    sorted_affinities= np.sort(np.load('../data/bm_affinities%d.npy' % num_mix).astype(np.float32).max(1))
-    plt.plot(sorted_affinities,
-             np.arange(sorted_affinities.shape[0])/float(len(sorted_affinities))
-             )
-    plt.title('Empirical cdf \nfor %d components' % num_mix)
-
-plt.subplots_adjust(wspace=.5,hspace=.5)
-
-plt.savefig('mixture_affinities_cdfs.png')
+for i in xrange(num_mix):
+    plt.subplot((num_mix-1)/4+1,min(num_mix+1,4),i+1)
+    plt.imshow(spec_avg_parts[i],cmap=cm.bone,interpolation='nearest')
+    frame = plt.gca()
+    frame.axes.get_xaxis().set_visible(False)
+    frame.axes.get_yaxis().set_visible(False)
+plt.savefig('1spec_avg_parts_%d.png' % num_mix)  
 
 #+end_src
+
+Even with only 2600 patches we see roughly the same patterns as we do
+with many more patches as in \ref{1spec_avg_parts_20}.
+
+#+CAPTION:    Spectrogram Part Clusters - 20 components, 1 Utterance
+#+LABEL:      fig:1spec_avg_parts_20
+#+ATTR_LaTeX: height=10cm
+[[./1spec_avg_parts_20.png]]
+
+The apparent lack of time-edges, that is, edges where the gradient is
+zero across frequency bands but large between successive time points,
+is likely going to be problematic for classification.  A useful
+statistic to compute is in what clusters are those vertical edges
+being assigned?  Additionally, one question is whether vertical edge
+structure preserved under the feature map?  There are a couple of
+approaches to answering these questions:
+- cluster assignment inspection: among those patches that we declare
+  non-background, how does the number of time edges correlate with cluster
+  assignment.  Are time-edge heavy patches assigned to many different clusters
+  or are they assigned to a particular set.
+- Time edges usually indicate broad-band noise (this is also something to verify)
+  about the speech signal, we should note when those occur versus when they don't
+  how that correlates to the patches
+- we should see if the patches with the most time-edges are unfairly penalized
+  in that they tend to have fewer edges of the other types, and hence get ignored
+- we should also see what the classification performance of using these feature maps
+  are, in particular, does the presence of time edges correlate with our
+  misclassifications?
+
+*** Cluster Mapping
+
+In order to do the cluster mapping process and get a proper feature
+map, we take as input an edge map $E(t,f,e)\in \{0,1\}$ and we construct
+a feature map $\Phi(t,f)\in \{-1,0,\ldots,num\_parts-1\}$ where
+$num\_parts$ is the number of parts in our system.  $-1$ denotes background
+and $0,\dots,num\_parts-1$ denote the indices for the part that is chosen.
+
+It is important to note that while the edge map $E(t,f,e)$ is a coding over particular
+time-frequency regions whether a particular edge type is present,
+the feature map $\Phi(t,f)$ is a coding over regions of the edge map, in particular
+its over the region $[t,t+part\_width) \times [f,f+part\_height)$ and over all edge
+types.  Since we model the edge map features as conditionally independent bernoullis
+the coding follows the formula:
+
+$$ \underset{k}{\arg\max} \sum_{s\in[0,part\_width),g\in[0,part\_height],e} 
+             E(t+s,f+g,e)\log p_{k,s,g,e} +(1 - E(t,f,e))\log (1-p_{k,s,g,e}).$$
+
+We only perform this feature transformation on patches with sufficient edge activity:
+
+$$ \sum_{s\in[0,part\_width),g\in[0,part\_height],e} 
+             E(t+s,f+g,e) \geq \tau_{.9},$$
+
+i.e. time-frequency regions where the edge activity is greater than
+the 90$th$ percentile.  We can then think of a coding induced on the
+spectrogram by doing this.  Namely, for non-background patch $b$ with
+part code $k$ whose root location is at $(t,f)$ we construct a kernel
+$\eta_b$ such that $\eta_b(t+s,f+g) = spec\_patch_k$ where
+$spec\_patch_k$ is the average over the implicitly clustered
+spectrogram clustering induced by the bernoulli model clustering.
+
+
+#+begin_src python
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import numpy as np
+plt.figure()
+plt.subplot(4,1,1)
+S = np.load('../data/1S.npy')
+plt.imshow(S[::-1],interpolation='nearest',aspect=3)
+plt.xticks(np.arange(7)*100,tuple(str(i*100/5) for i in xrange(7)))
+# since 8*16000 (sample rate)/512 (fft length) = 250
+plt.yticks(np.arange(6)*8,tuple(str(i*250) for i in xrange(6))[::-1])
+plt.xlabel('time (ms)')
+plt.ylabel('freq (Hz)')
+
+for code_id,num_parts in enumerate([15,20,25]):
+    plt.subplot(4,1,code_id+2)
+    S_coded = np.load('../data/1S_coded%d.npy' % num_parts)
+    plt.imshow(S_coded[::-1],cmap=cm.bone,interpolation='nearest',aspect=3)
+    plt.title('S coded with %d parts' %num_parts)
+    plt.xticks(np.arange(7)*100,tuple(str(i*100/5) for i in xrange(7)))
+    # since 8*16000 (sample rate)/512 (fft length) = 250
+    plt.yticks(np.arange(6)*8,tuple(str(i*250) for i in xrange(6))[::-1])
+    plt.xlabel('time (ms)')
+    plt.ylabel('freq (Hz)')
+
+plt.subplots_adjust(hspace=1,left=0)
+plt.savefig('1S_coded_compare.png')
+
+
+plt.figure()
+plt.subplot(4,1,1)
+S = np.load('../data/1S.npy')
+plt.imshow(S[::-1],interpolation='nearest',aspect=3)
+plt.xticks(np.arange(7)*100,tuple(str(i*100/5) for i in xrange(7)))
+# since 8*16000 (sample rate)/512 (fft length) = 250
+plt.yticks(np.arange(6)*8,tuple(str(i*250) for i in xrange(6))[::-1])
+plt.xlabel('time (ms)')
+plt.ylabel('freq (Hz)')
+
+for code_id,num_parts in enumerate([15,20,25]):
+    plt.subplot(4,1,code_id+2)
+    S_coded = np.load('../data/1S_coded%d.npy' % num_parts)
+    plt.imshow(S_coded[::-1],interpolation='nearest',aspect=3)
+    plt.title('S coded with %d parts' %num_parts)
+    plt.xticks(np.arange(7)*100,tuple(str(i*100/5) for i in xrange(7)))
+    # since 8*16000 (sample rate)/512 (fft length) = 250
+    plt.yticks(np.arange(6)*8,tuple(str(i*250) for i in xrange(6))[::-1])
+    plt.xlabel('time (ms)')
+    plt.ylabel('freq (Hz)')
+
+plt.subplots_adjust(hspace=1,left=0)
+plt.savefig('1S_coded_compare_color.png')
+
+
+
+#+end_src
+
+
+#+CAPTION:    Spectrogram Coding Comparison
+#+LABEL:      fig:1S_coded_compare
+#+ATTR_LaTeX: height=15cm
+[[./1S_coded_compare_color.png]]
+
+
+
+The next step is to visualize what happens when we denoise or code a
+spectrogram using the parts.  We take the estimated templates from the
+EM algorithm and we are going to use these to code spectrograms.  The
+step is going
