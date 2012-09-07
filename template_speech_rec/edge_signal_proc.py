@@ -340,7 +340,7 @@ E_slep = np.array([[9.9382605e-05,0.00077593566,0.0040407525,0.015842045,0.04697
 [0.00015194448,-0.0010903375,0.0052229954,-0.018881048,0.051884752,-0.10317456,],
 [0.00012418049,-0.00092638741,0.00461454,-0.017338766,0.049435795,-0.10169631,],
 [9.9382605e-05,-0.00077593566,0.0040407525,-0.015842045,0.046973574,-0.10006025,],
-])
+]).T
 
 
 def has_pattern(pattern,labels):
@@ -352,7 +352,7 @@ def has_pattern(pattern,labels):
 
 
 
-            
+
 class Pattern_Examples:
     def __init__(self,data_files_iter,pattern,
                  sample_rate,num_window_samples,
@@ -367,7 +367,7 @@ class Pattern_Examples:
         self.fft_length = fft_length
         self.freq_cutoff = freq_cutoff
         self.kernel_length = kernel_length
-        
+
     def __iter__(self):
         return self
 
@@ -404,11 +404,11 @@ class Pattern_Examples:
                                               self.fft_length,
                                               self.freq_cutoff,
                                               self.kernel_length)
-                self.examples.extend([self.E[:,p[0]:p[1]] 
+                self.examples.extend([self.E[:,p[0]:p[1]]
                                          for p in self.times])
-                print "pattern_examples now has length",len(self.examples)                
+                print "pattern_examples now has length",len(self.examples)
             break
-            
+
 
 def get_pattern_examples(data_files_iter,pattern,
                          sample_rate,num_window_samples,
@@ -421,7 +421,7 @@ def get_pattern_examples(data_files_iter,pattern,
             if not(has_pattern(pattern,labels)):
                 continue
             else:
-                s = get_s()                     
+                s = get_s()
             feature_start, \
                 feature_step, num_features =\
                 _get_feature_label_times(s,
@@ -447,9 +447,9 @@ def get_pattern_examples(data_files_iter,pattern,
                                          fft_length,
                                          freq_cutoff,
                                          kernel_length)
-                pattern_examples.extend([E[:,p[0]:p[1]] 
+                pattern_examples.extend([E[:,p[0]:p[1]]
                                          for p in pattern_times])
-                print "pattern_examples now has length",len(pattern_examples)                
+                print "pattern_examples now has length",len(pattern_examples)
         except: # exhausted iterator
             return pattern_examples
 
@@ -465,7 +465,7 @@ def get_pattern_times(patterns,labels,feature_label_transitions):
     feature_label_transitions:
         array of positive integers that says at which edge map
         feature the next label starts
-       
+
     Output
     ------
     pattern_times:
@@ -493,7 +493,7 @@ def get_pattern_part_times(pattern,labels,feature_label_transitions):
     feature_label_transitions:
         array of positive integers that says at which edge map
         feature the next label starts
-       
+
     Output
     ------
     pattern_times:
@@ -524,7 +524,7 @@ def get_pattern_negative(pattern,labels,feature_label_transitions,length):
     feature_label_transitions:
         array of positive integers that says at which edge map
         feature the next label starts
-       
+
     Output
     ------
     pattern_times:
@@ -555,9 +555,9 @@ def _get_spectrogram_label_times(s,
 def get_spectrogram_features(s,sample_rate,num_window_samples,
                           num_window_step_samples,fft_length,
                              freq_cutoff,kernel_length,
-                             preemph=.95):
+                             preemph=.95,mode="valid"):
     s = _preemphasis(s,preemph)
-    S = _spectrograms(s,num_window_samples, 
+    S = _spectrograms(s,num_window_samples,
                       num_window_step_samples,
                       fft_length,
                       sample_rate)
@@ -570,8 +570,13 @@ def get_spectrogram_features(s,sample_rate,num_window_samples,
     S = np.log(S.transpose())
     #S = S[::-1,:]
     # smooth the spectrogram
-    smoothing_kernel = make_gaussian_kernel(kernel_length)
-    S_smoothed = convolve(S,smoothing_kernel,mode = "same")
+    x = np.arange(0, kernel_length, 1, np.float64)
+    x0 = kernel_length // 2.
+    sigma = 1
+    g=1/(sigma * np.sqrt(2*np.pi)) *np.exp(-((x-x0)**2  / 2* sigma**2))
+    smoothing_kernel = g/g.sum()
+    S_smoothed = convolve(S,smoothing_kernel.reshape(kernel_length,1),mode ='valid')
+    S_smoothed= convolve(S_smoothed,smoothing_kernel.reshape(1,kernel_length),mode='same')
     S_subsampled = S_smoothed[::2,:]
     # compute the edgemap
     return S_subsampled
@@ -581,25 +586,11 @@ def get_edgemap_features(s,sample_rate,num_window_samples,
                           num_window_step_samples,fft_length,
                           freq_cutoff,kernel_length,
                            preemph=.95, quantile_level=.25):
-    s = _preemphasis(s,preemph)
-    S = _spectrograms(s,num_window_samples, 
-                      num_window_step_samples,
-                      fft_length,
-                      sample_rate)
-    print "Frequency cutoff was", freq_cutoff
-    freq_idx = int(freq_cutoff/(float(sample_rate)/fft_length))
-    S = S[:,:freq_idx]
-    # correct for the shape
-    # we want each row of S to correspond to a frequency
-    # and we want the bottom row to represent the lowest
-    # frequency
-    S = np.log(S.transpose())
-    #S = S[::-1,:]
-    # smooth the spectrogram
-    smoothing_kernel = make_gaussian_kernel(kernel_length)
-    S_smoothed = convolve(S,smoothing_kernel,mode = "same")
-    S_subsampled = S_smoothed[::2,:]
-    # compute the edgemap
+    S = get_spectrogram_features(s,sample_rate,
+                                 num_window_samples,
+                                 num_window_step_samples,
+                                 fft_length,
+                                 freq_cutoff,kernel_length)
     E = _edge_map(S_subsampled,quantile_level)
     return E
 
@@ -610,7 +601,7 @@ def get_log_spectrogram(s,sample_rate,
                         preemph=.95,
                         return_freqs=False):
     s = _preemphasis(s,preemph)
-    S = _spectrograms(s,num_window_samples, 
+    S = _spectrograms(s,num_window_samples,
                       num_window_step_samples,
                       fft_length,
                       sample_rate)
@@ -652,27 +643,14 @@ def get_edgemap_no_threshold(s,sample_rate,
                              preemph=.95,
                              use_mel = False,
                              return_S = False):
-    s = _preemphasis(s,preemph)
+
     if not use_mel:
-        S = _spectrograms(s,num_window_samples, 
-                          num_window_step_samples,
-                          fft_length,
-                          sample_rate)
-        freq_idx = int(freq_cutoff/(float(sample_rate)/fft_length))
-        S = S[:,:freq_idx]
-        # correct for the shape
-        # we want each row of S to correspond to a frequency
-        # and we want the bottom row to represent the lowest
-        # frequency
-        S = np.log(S.transpose())
-        #S = S[::-1,:]
-        # smooth the spectrogram
-        smoothing_kernel = make_gaussian_kernel(kernel_length)
-        S_smoothed = convolve(S,smoothing_kernel,mode = "same")
-        S_subsampled = S_smoothed[::2,:]
-        S = S_subsampled
+        S = get_spectrogram_features(s,sample_rate,num_window_samples,
+                          num_window_step_samples,fft_length,
+                             freq_cutoff,kernel_length)
         # compute the edgemap
     else: # use mels
+        s = _preemphasis(s,preemph)
         S = get_mel_spec(s,sample_rate,
                         num_window_samples,
                         num_window_step_samples,
@@ -741,7 +719,7 @@ def _compute_max_edges(Cand_max,Cmp1,Cmp2):
     non_maxima_idx = np.logical_or(np.logical_or(np.logical_or(Cand_max<
                                Cmp1,
                                Cand_max<
-                               Cmp2), 
+                               Cmp2),
                                    np.logical_and(
             Cand_max == Cmp1,
             Cand_max == Cmp2)),
@@ -755,7 +733,7 @@ def _compute_max_and_threshold(Cand_max,Cmp1,Cmp2,
     non_maxima_idx = np.logical_or(np.logical_or(Cand_max<
                                Cmp1,
                                Cand_max<
-                               Cmp2), 
+                               Cmp2),
                                    np.logical_and(
             Cand_max == Cmp1,
             Cand_max == Cmp2))
@@ -807,14 +785,14 @@ def _edge_map_no_threshold_old(S):
     in this case the entry
     E[0,0] = 0 if S[2,0] - S[1,0] < max(S[1,0]-S[0,0],
                                         S[3,0]-S[2,0])
-            
+
     E[i,j] = 0 if S[i+2,j]-S[i+1,j] < max(S[i+1,j]-S[i,j],
 d                                          S[i+2,j]-S[i+1,j])
 
     T_diff = T[1:,:]-T[:-1,:]
     T_bigger_left = (T_diff[1:-1,:]>T_diff[:-2,:])
     T_bigger_right = (T_diff[1:-1,:]>T_diff[2:,:])
-    
+
     T_other_diff = -T_diff
     T_other_big_left = (T_other_diff[1:-1,:]-T_other_diff[:-2,:]) > 0.
     T_other
@@ -822,10 +800,10 @@ d                                          S[i+2,j]-S[i+1,j])
     in the case [-1,0]
     E[0,0]=0 if S[1,0]-S[2,0] < max(S[0,0]-S[1,0],
                                     S[2,0]-S[3,0])
-    
+
     E[i,j] = 0 if S[i+1,j]-S[i+2,j] < max(S[i,j]-S[i+1,j],
                                           S[i+1,j]-S[i+2,j])
-                                    
+
     [0,1]
     E[i,j]
     """
@@ -853,7 +831,7 @@ d                                          S[i+2,j]-S[i+1,j])
     edge_orientations[1,0]=-1
     edge_orientations[1,1]=0
     edge_feature_row_breaks[1] = cur_E_idx
-    cur_E_idx = cur_E_idx + T_use.shape[0]    
+    cur_E_idx = cur_E_idx + T_use.shape[0]
     # edge is [0,1]
     T_diff = T[:,1:]- T[:,:-1]
     T_use = _compute_max_edges(T_diff[:,1:-1],
@@ -872,7 +850,7 @@ d                                          S[i+2,j]-S[i+1,j])
     edge_orientations[3,0]=0
     edge_orientations[3,1]=-1
     edge_feature_row_breaks[3] = cur_E_idx
-    cur_E_idx = cur_E_idx + T_use.shape[0]    
+    cur_E_idx = cur_E_idx + T_use.shape[0]
     # edge is [1,1]
     T_diff = T[1:,1:] - T[:-1,:-1]
     T_use = _compute_max_edges(T_diff[1:-1,1:-1],
@@ -914,8 +892,8 @@ d                                          S[i+2,j]-S[i+1,j])
     edge_feature_row_breaks[8] = cur_E_idx
     return E,edge_feature_row_breaks, edge_orientations
 
-def _edge_map_threshold_segments(E,block_length, 
-                                 spread_length, 
+def _edge_map_threshold_segments(E,block_length,
+                                 spread_length,
                                  threshold=.3,
                                  edge_orientations = np.array([[ 1.,  0.],
                                     [-1.,  0.],
@@ -925,8 +903,8 @@ def _edge_map_threshold_segments(E,block_length,
                                         [-1., -1.],
                                         [ 1., -1.],
                                 [-1.,  1.]]), edge_feature_row_breaks = None,
-                                 abst_threshold=np.array([ 0.025,  0.025,  0.015, 
-                                                           0.015,  0.02 ,  0.02 ,  
+                                 abst_threshold=np.array([ 0.025,  0.025,  0.015,
+                                                           0.015,  0.02 ,  0.02 ,
                                                            0.02 ,  0.02 ])):
     """
     Parameters:
@@ -934,7 +912,7 @@ def _edge_map_threshold_segments(E,block_length,
     E:
        Raw edge intensities
     block_length:
-       The length of the thresholded segments   
+       The length of the thresholded segments
     """
     height,length = E.shape
     if edge_feature_row_breaks is None:
@@ -969,8 +947,8 @@ def _edge_map_threshold_segments(E,block_length,
                        edge_feature_row_breaks,
                        edge_orientations,
                        spread_length=spread_length)
-    
-    
+
+
 
 def compute_edge_feature_row_breaks(base_height,
                                     edge_orientations):
@@ -998,14 +976,14 @@ def _edge_map_no_threshold(S):
     in this case the entry
     E[0,0] = 0 if S[2,0] - S[1,0] < max(S[1,0]-S[0,0],
                                         S[3,0]-S[2,0])
-            
+
     E[i,j] = 0 if S[i+2,j]-S[i+1,j] < max(S[i+1,j]-S[i,j],
 d                                          S[i+2,j]-S[i+1,j])
 
     T_diff = T[1:,:]-T[:-1,:]
     T_bigger_left = (T_diff[1:-1,:]>T_diff[:-2,:])
     T_bigger_right = (T_diff[1:-1,:]>T_diff[2:,:])
-    
+
     T_other_diff = -T_diff
     T_other_big_left = (T_other_diff[1:-1,:]-T_other_diff[:-2,:]) > 0.
     T_other
@@ -1013,10 +991,10 @@ d                                          S[i+2,j]-S[i+1,j])
     in the case [-1,0]
     E[0,0]=0 if S[1,0]-S[2,0] < max(S[0,0]-S[1,0],
                                     S[2,0]-S[3,0])
-    
+
     E[i,j] = 0 if S[i+1,j]-S[i+2,j] < max(S[i,j]-S[i+1,j],
                                           S[i+1,j]-S[i+2,j])
-                                    
+
     [0,1]
     E[i,j]
     """
@@ -1122,14 +1100,14 @@ def _edge_map(S,quantile_level,spread_length=3):
     in this case the entry
     E[0,0] = 0 if S[2,0] - S[1,0] < max(S[1,0]-S[0,0],
                                         S[3,0]-S[2,0])
-            
+
     E[i,j] = 0 if S[i+2,j]-S[i+1,j] < max(S[i+1,j]-S[i,j],
 d                                          S[i+2,j]-S[i+1,j])
 
     T_diff = T[1:,:]-T[:-1,:]
     T_bigger_left = (T_diff[1:-1,:]>T_diff[:-2,:])
     T_bigger_right = (T_diff[1:-1,:]>T_diff[2:,:])
-    
+
     T_other_diff = -T_diff
     T_other_big_left = (T_other_diff[1:-1,:]-T_other_diff[:-2,:]) > 0.
     T_other
@@ -1137,10 +1115,10 @@ d                                          S[i+2,j]-S[i+1,j])
     in the case [-1,0]
     E[0,0]=0 if S[1,0]-S[2,0] < max(S[0,0]-S[1,0],
                                     S[2,0]-S[3,0])
-    
+
     E[i,j] = 0 if S[i+1,j]-S[i+2,j] < max(S[i,j]-S[i+1,j],
                                           S[i+1,j]-S[i+2,j])
-                                    
+
     [0,1]
     E[i,j]
     """
@@ -1164,7 +1142,7 @@ d                                          S[i+2,j]-S[i+1,j])
                                        quantile_level)
     T_spread = _spread_edges(T_use,(1,0))
     E[cur_E_idx:cur_E_idx+T_use.shape[0],:] = T_spread.copy()
-    cur_E_idx = cur_E_idx + T_use.shape[0]    
+    cur_E_idx = cur_E_idx + T_use.shape[0]
     # edge is [0,1]
     T_diff = T[:,1:]- T[:,:-1]
     T_use = _compute_max_and_threshold(T_diff[:,1:-1],
@@ -1181,14 +1159,14 @@ d                                          S[i+2,j]-S[i+1,j])
                                        quantile_level)
     T_spread = _spread_edges(T_use,(0,1))
     E[cur_E_idx:cur_E_idx+T_use.shape[0],:] = T_spread.copy()
-    cur_E_idx = cur_E_idx + T_use.shape[0]    
+    cur_E_idx = cur_E_idx + T_use.shape[0]
     # edge is [1,1]
     T_diff = T[1:,1:] - T[:-1,:-1]
     T_use = _compute_max_and_threshold(T_diff[1:-1,1:-1],
                                        T_diff[:-2,:-2],
                                        T_diff[2:,2:],
                                        quantile_level)
-    T_spread = _spread_edges(T_use,(1,1)) 
+    T_spread = _spread_edges(T_use,(1,1))
     E[cur_E_idx:cur_E_idx+T_use.shape[0],:] = T_spread.copy()
     cur_E_idx = cur_E_idx + T_use.shape[0]
     T_diff = - T[1:,1:] + T[:-1,:-1]
@@ -1196,7 +1174,7 @@ d                                          S[i+2,j]-S[i+1,j])
                                        T_diff[:-2,:-2],
                                        T_diff[2:,2:],
                                        quantile_level)
-    T_spread = _spread_edges(T_use,(1,1)) 
+    T_spread = _spread_edges(T_use,(1,1))
     E[cur_E_idx:cur_E_idx+T_use.shape[0],:] = T_spread.copy()
     cur_E_idx = cur_E_idx + T_use.shape[0]
     # edge [-1,1]
@@ -1213,18 +1191,18 @@ d                                          S[i+2,j]-S[i+1,j])
                                        T_diff[:-2,2:],
                                        T_diff[2:,:-2],
                                        quantile_level)
-    T_spread = _spread_edges(T_use,(1,-1))     
+    T_spread = _spread_edges(T_use,(1,-1))
     E[cur_E_idx:cur_E_idx+T_use.shape[0],:] = T_spread.copy()
     cur_E_idx = cur_E_idx + T_use.shape[0]
     return E
 
-    
+
 
 
 def _get_edge_diffs(S):
     # edge [0,-1]
     top_bottom = S[:,:-1] - S[:,1:]
-    
+
     # edge [0,1]
     bottom_top = -top_bottom
     # edge [-1,0]
@@ -1239,13 +1217,13 @@ def _get_edge_diffs(S):
     righttop_leftbot = S[1:,:-1] - S[:-1,1:]
     # edge [-1,1]
     leftbot_righttop=-righttop_leftbot
-    
 
-    
+
+
 
 def _preemphasis(s,preemph=.95):
     return np.concatenate([[s[0]],
-                           s[1:]- preemph*s[:-1]]) 
+                           s[1:]- preemph*s[:-1]])
 
 
 def make_gaussian_kernel(size,fwhm=3):
@@ -1273,7 +1251,7 @@ def _get_windows_signal(s,num_window_samples,num_window_step_samples):
     # 0 ... last_win_idx
     # the sample index for the first entry of window last_win_idx
     # will be last_win_idx*num_window_step_samples
-    # so its the largest integer such that 
+    # so its the largest integer such that
     # last_win_idx*num_window_step_samples + num_window_samples -1 <= len(s)-1
     # division computes floor implicitly
     last_win_idx = (len(s)-num_window_samples)/num_window_step_samples
@@ -1291,7 +1269,7 @@ def _get_windows(s,num_window_samples,num_window_step_samples):
     # 0 ... last_win_idx
     # the sample index for the first entry of window last_win_idx
     # will be last_win_idx*num_window_step_samples
-    # so its the largest integer such that 
+    # so its the largest integer such that
     # last_win_idx*num_window_step_samples + num_window_samples -1 <= len(s)-1
     # division computes floor implicitly
     last_win_idx = (len(s)-num_window_samples)/num_window_step_samples
@@ -1326,7 +1304,7 @@ def _get_edge_sample_stats(feature_start,feature_step, num_features):
     return feature_start + 3./2 * feature_step,\
         feature_step,\
         num_features
-        
+
 
 def _get_labels(label_times,
                 labels,
@@ -1364,22 +1342,22 @@ def _get_labels(label_times,
         feature_label_transitions[ls_time_idx] = np.int(start_idx)
     feature_label_transitions[-1] = num_features
     return feature_labels, feature_label_transitions
-    
 
 
 
 
-def _spectrograms_old(s,num_window_samples, 
+
+def _spectrograms_old(s,num_window_samples,
                   num_window_step_samples,
                   fft_length,
                   sample_rate):
-    # pre-emphasis 
+    # pre-emphasis
     s=_preemphasis(s)
     windows = _get_windows(s,num_window_samples,num_window_step_samples)
     swindows = np.vectorize(lambda i: s[i])(windows)
     return np.abs(fft(hanning(num_window_samples) * swindows,fft_length)[:,:fft_length/2+1])
 
-def _spectrograms(s,num_window_samples, 
+def _spectrograms(s,num_window_samples,
                   num_window_step_samples,
                   fft_length,
                   sample_rate,
@@ -1390,13 +1368,13 @@ def _spectrograms(s,num_window_samples,
 
     K parameter is the number of slepian sequences to use
     """
-    # pre-emphasis 
-    s=_preemphasis(s)
-    windows = _get_windows_signal(s,num_window_samples,num_window_step_samples)
-    Slep = np.zeros((windows.shape[0],fft_length/2+1))
-    for win_id in xrange(windows.shape[0]):
-        J = fft(np.tile(windows[win_id],(K,1)) * E_slep[:,:K].T,fft_length)
-        Slep[win_id] = np.sum((np.abs(J)**2)[:,:fft_length/2+1],axis=0)
+    num_windows = int(.5 + (len(s)-num_window_samples)/float(num_window_step_samples))
+    Slep = np.zeros((num_windows,
+                     fft_length/2))
+    for win_id in xrange(num_windows):
+        J = fft(E_slep[:5] * s[win_id*num_window_step_samples:win_id*num_window_step_samples+num_window_samples],fft_length)
+        J=J[:,:fft_length/2]
+        Slep[win_id] = (np.abs(J)**2).sum(0)/5
     return Slep
 
 def audspec(spectrogram,sample_rate,nbands=None,
@@ -1417,14 +1395,14 @@ def audspec(spectrogram,sample_rate,nbands=None,
                     minfreq,maxfreq)
     wts = wts[:, :nfreqs]
     return np.dot(wts, spectrogram)
-    
+
 
 def fft2melmx(nfft,sample_rate,nfilts=40,width=1.0,minfrq=0,
               maxfrq=None):
     """
     Copied nearly directly from Dan Ellis' code:
     http://labrosa.ee.columbia.edu/matlab/rastamat/fft2melmx.m
-    
+
     Parameters:
     ===========
     nfft: int
@@ -1451,21 +1429,21 @@ def fft2melmx(nfft,sample_rate,nfilts=40,width=1.0,minfrq=0,
         loslope = (fftfrqs - fs[0])/(fs[1] - fs[0])
         hislope = (fs[2] - fftfrqs)/(fs[2] - fs[1])
         wts[filt,:] = np.maximum(0,
-                              np.minimum(loslope, 
+                              np.minimum(loslope,
                                          hislope))
     wts = np.dot(np.diag(2./(binfrqs[2+np.arange(nfilts)]-binfrqs[:nfilts])),wts)
     wts[:,(nfft/2+1):nfft+1]=0.
     return wts, binfrqs
 
-    
+
 
 def mel2hz(mel):
     f_0 = 0; # 133.33333;
     f_sp = 200./3; # 66.66667;
     brkfrq = 1000;
     # starting mel value for log region
-    brkpt  = (brkfrq - f_0)/f_sp;  
-    if mel > brkpt:        
+    brkpt  = (brkfrq - f_0)/f_sp;
+    if mel > brkpt:
         # log(exp(log(6.4)/27))
         # magic log step number
         logstep = 0.068751777420949123
@@ -1473,13 +1451,13 @@ def mel2hz(mel):
     else:
         return f_0 + f_sp*mel
 
-      
+
 
 def hz2mel_num(freq):
     """
     Copied from Dan Ellis' code
     http://labrosa.ee.columbia.edu/matlab/rastamat/hz2mel.m
-    
+
     Completed
     """
     f_0 = 0.
@@ -1491,7 +1469,7 @@ def hz2mel_num(freq):
         brkpt = (brkfrq - f_0)/f_sp
         step = 0.068751777420949123 # np.log(6.4)/27
         return brkpt + np.log(freq/brkfrq)/step
-    
+
 
 def htk_hz2mel(freq):
     """
@@ -1504,10 +1482,10 @@ def htk_hz2mel(freq):
 def hz2bark(freq):
     return 6. * np.arcsinh(freq/600.)
 
-def _mel_filter_freq():    
-    
+def _mel_filter_freq():
+
     pass
- 
+
 
 def edge_map_times(N, window_length, hop_length,
                    kernel_length):
@@ -1516,16 +1494,16 @@ def edge_map_times(N, window_length, hop_length,
     time in the signal that these features are considered
     to occur.  This is used in the process of labeling
     the phonetic class that particular edge map features
-    are associated with 
+    are associated with
 
-    The assumption is that the signal is uniformly sampled. 
+    The assumption is that the signal is uniformly sampled.
     The times returned will sometimes occur within a sample
 
     Parameters
     ----------
     N: int
        Number of samples in the signal
-       
+
     window_length:
        Number of samples in a given window
 
@@ -1540,19 +1518,19 @@ def edge_map_times(N, window_length, hop_length,
     num_windows = (N-window_length)/hop_length+1
     window_points = window_length/2. \
         + hop_length * np.arange(num_windows)
-    
+
     # correct for kernel length
     window_points = window_points[kernel_length/2:\
                                       end-kernel_length/2]
 
     window_points = window_points[1:end-1]
-    
 
 
-def labels_for_edgemaps(T, sr, label_times, labels, 
-                        window_length, hop_length, 
+
+def labels_for_edgemaps(T, sr, label_times, labels,
+                        window_length, hop_length,
                         kernel_length):
-                        
+
     """Returns the the labels for the edge map computation on
     a digital signal. The labels are given as start times for
     when a given sound begins
@@ -1565,7 +1543,7 @@ def labels_for_edgemaps(T, sr, label_times, labels,
         samples per second
     label_times: array
         N-dimensional array of floats, each time should be
-        less than T/sr 
+        less than T/sr
     labels: ndarray
         labels can be any datatype, should be the same length
         as label_times
@@ -1575,7 +1553,7 @@ def labels_for_edgemaps(T, sr, label_times, labels,
         number of samples between successive windows
     kernel_length: int
         number of frames used in the smoothing kernel
-        
+
     Returns
     -------
     edge_map_labels: array
@@ -1597,7 +1575,7 @@ def labels_for_edgemaps(T, sr, label_times, labels,
     # convert to label times to sample indices
     edge_map_transitions = np.ceil(sr * label_times)
     edge_map_labels = np.empty([num_windows],dtype=labels.dtype)
-    # we find all the samples that for a given t are such 
+    # we find all the samples that for a given t are such
     # that they are in the half-open interval
     #  \[edge_map_transitions[t],
     #    edge_map_transitions[t+1] \)
@@ -1614,7 +1592,7 @@ def labels_for_edgemaps(T, sr, label_times, labels,
 
 def _get_start_samples(T,window_length,hop_length,kernel_length):
     """
-    Returns the start and end window sample indices for the 
+    Returns the start and end window sample indices for the
     frames in the short time fourier transform after
     smoothing with a kernel over kernel_length frames
 
@@ -1632,13 +1610,13 @@ def _get_start_samples(T,window_length,hop_length,kernel_length):
     Returns
     -------
     start_sample: double
-        sample index for the middle sample of the first 
+        sample index for the middle sample of the first
         window (possibly not an integer)
     num_windows: int
         total number of windows
 
     """
-    # the kernel_length/2 +1 takes care of the boundary 
+    # the kernel_length/2 +1 takes care of the boundary
     # windows lost to smoothing
     start_window = kernel_length/2+1
     # the -2 takes care of the fact we lose one window
