@@ -3,6 +3,50 @@ import bernoulli_em as bem
 import edge_signal_proc as esp
 
 def extract_local_features_tied(E,patch_height,patch_width,
+                                lower_cutoff,upper_cutoff,
+                                edge_feature_row_breaks):
+    """
+    Version 3 of the local feature extraction code, this time we can associate row indices
+    and column indices with the extracted patches:
+
+    Typical Usage is:
+    bp,all_patch_row,all_patch_cols = extract_local_features_tied(E,patch_height,
+                                                                  patch_width, lower_quantile,
+                                                                  upper_quantile, edge_feature_row_breaks)
+
+    """
+    # segment_ms - number of milliseconds over which we compute the quantile thresholds
+    # hop_ms is says how many milliseconds pass in between each frame
+    segment_length = segment_ms/hop_ms
+    bp = np.zeros((0,patch_height*(edge_feature_row_breaks.shape[0]-1),
+                   patch_width))
+    # keeps track of which patch is associated with what row and column of E, and in turn, the spectrogram
+    # that generated E
+    all_patch_rows = np.zeros(0,dtype=np.uint16)
+    all_patch_cols = np.zeros(0,dtype=np.uint16)
+    patch_row_ids, patch_col_ids = get_flat_patches2E_indices(E[edge_feature_row_breaks[0]:
+                                                                edge_feature_row_breaks[1]],
+                                                            patch_height,patch_width)
+    bp_tmp = _extract_block_local_features_tied(
+                        E[edge_feature_row_breaks[0]:
+                              edge_feature_row_breaks[1]],
+                        patch_height,patch_width)
+    for edge_id in xrange(1,edge_feature_row_breaks.shape[0]-1):
+        bp_tmp = np.hstack((bp_tmp,
+                            _extract_block_local_features_tied(
+        E[edge_feature_row_breaks[edge_id]:
+          edge_feature_row_breaks[edge_id+1]],
+          patch_height,patch_width)))
+        use_indices = np.argsort(np.sum(np.sum(bp_tmp,axis=1),axis=1))[lower_quantile*bp_tmp.shape[0]:
+                                                                           upper_quantile*bp_tmp.shape[0]]
+        all_patch_rows = np.hstack((all_patch_rows,patch_row_ids[use_indices]))
+        all_patch_cols = np.hstack((all_patch_cols,patch_col_ids[use_indices]))
+        bp_tmp=bp_tmp[use_indices]
+        bp = np.vstack((bp,bp_tmp))
+
+    return bp,all_patch_rows,all_patch_cols
+
+def extract_local_features_tied_segments(E,patch_height,patch_width,
                                 lower_quantile,upper_quantile,
                                 edge_feature_row_breaks,segment_ms=500,
                            hop_ms = 5):
@@ -77,6 +121,7 @@ def extract_local_features_tied(E,patch_height,patch_width,
     bp_tmp=bp_tmp[use_indices]
     bp = np.vstack((bp,bp_tmp))
     return bp,all_patch_rows,all_patch_cols
+
 
 def get_flat_patches2E_indices(E,patch_height,patch_width):
     """
