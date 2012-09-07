@@ -23,9 +23,10 @@ def extract_local_features_tied(E,patch_height,patch_width,
                    patch_width))
     # keeps track of which patch is associated with what row and column of E, and in turn, the spectrogram
     # that generated E
-    all_patch_rows = np.zeros(0,dtype=int)
-    all_patch_cols = np.zeros(0,dtype=int)
-    for segment_id in xrange(E.shape[1]/segment_length-1):
+    all_patch_rows = np.zeros(0,dtype=np.uint16)
+    all_patch_cols = np.zeros(0,dtype=np.uint16)
+    num_segs = E.shape[1]/segment_length
+    for segment_id in xrange(num_segs-1):
         patch_row_ids, patch_col_ids = get_flat_patches2E_indices(E[edge_feature_row_breaks[0]:
                                                                   edge_feature_row_breaks[1],
                                                               segment_id*segment_length:
@@ -50,13 +51,38 @@ def extract_local_features_tied(E,patch_height,patch_width,
         all_patch_cols = np.hstack((all_patch_cols,patch_col_ids[use_indices]))
         bp_tmp=bp_tmp[use_indices]
         bp = np.vstack((bp,bp_tmp))
+    # finish of the last segment
+    segment_id = num_segs-1
+    patch_row_ids, patch_col_ids = get_flat_patches2E_indices(E[edge_feature_row_breaks[0]:
+                                                                edge_feature_row_breaks[1],
+                                                                segment_id*segment_length:],
+                                                                patch_height,patch_width)
+    patch_col_ids += segment_id*segment_length
+    bp_tmp = _extract_block_local_features_tied(
+        E[edge_feature_row_breaks[0]:
+          edge_feature_row_breaks[1],
+          segment_id*segment_length:],
+                        patch_height,patch_width)
+    for edge_id in xrange(1,edge_feature_row_breaks.shape[0]-1):
+        bp_tmp = np.hstack((bp_tmp,
+                            _extract_block_local_features_tied(
+        E[edge_feature_row_breaks[edge_id]:
+          edge_feature_row_breaks[edge_id+1],
+          segment_id*segment_length:],
+                          patch_height,patch_width)))
+    use_indices = np.argsort(np.sum(np.sum(bp_tmp,axis=1),axis=1))[lower_quantile*bp_tmp.shape[0]:
+                                                                           upper_quantile*bp_tmp.shape[0]]
+    all_patch_rows = np.hstack((all_patch_rows,patch_row_ids[use_indices]))
+    all_patch_cols = np.hstack((all_patch_cols,patch_col_ids[use_indices]))
+    bp_tmp=bp_tmp[use_indices]
+    bp = np.vstack((bp,bp_tmp))
     return bp,all_patch_rows,all_patch_cols
 
 def get_flat_patches2E_indices(E,patch_height,patch_width):
     """
     Patches are just in a matrix, where the first index indexes the patch order
     they are grabbed from E in row-column order.
-    
+
     So the patch dimensionality is (num_patches,patch_height,patch_width)
 
     For each such index this function
@@ -66,8 +92,8 @@ def get_flat_patches2E_indices(E,patch_height,patch_width):
     num_patches_across = E.shape[1] - patch_width+1
     num_patches_down = E.shape[0] - patch_height+1
     num_patches = num_patches_across * num_patches_down
-    patch_row_ids = np.arange(num_patches) / num_patches_across
-    patch_col_ids = np.arange(num_patches) % num_patches_across
+    patch_row_ids = np.arange(num_patches,dtype=np.uint16) / num_patches_across
+    patch_col_ids = np.arange(num_patches,dtype=np.uint16) % num_patches_across
     return patch_row_ids, patch_col_ids
 
 def _extract_block_local_features_tied(E,patch_height,patch_width):
@@ -103,7 +129,7 @@ def _extract_block_local_features_tied(E,patch_height,patch_width):
 def generate_patch_row_indices(patch_rows,patch_height,patch_width):
     patch_size = patch_height*patch_width
     base_patch_row_indices = np.tile(np.arange(patch_height),(patch_width,1)).T.reshape(patch_size)
-    base_patch_row_rep = np.tile(base_patch_row_indices,patch_rows.shape[0]) 
+    base_patch_row_rep = np.tile(base_patch_row_indices,patch_rows.shape[0])
     patch_row_rep = np.tile(patch_rows,(patch_size,1)).T.reshape(base_patch_row_rep.shape[0])
     return base_patch_row_rep + patch_row_rep
 
@@ -114,7 +140,7 @@ def generate_patch_col_indices(patch_cols,patch_height,patch_width):
     patch_col_rep = np.tile(patch_cols,(patch_size,1)).T.reshape(base_patch_col_rep.shape[0])
     return base_patch_col_rep + patch_col_rep
 
-    
+
 def patch_col_idx_to_s(patch_col_idx,patch_width,data_iter):
     start_idx = patch_col_idx*data_iter.num_window_step_samples
     end_idx = (patch_col_idx+(patch_width-1))*data_iter.num_window_step_samples + data_iter.num_window_samples
@@ -154,7 +180,7 @@ def local_features_blocks(data_iter,num_iter,
         S = data_iter.S
         bp,all_patch_rows,all_patch_cols = extract_local_features_tied(E,patch_height,
                                                                       patch_width, lower_quantile,
-                                                                      upper_quantile, 
+                                                                      upper_quantile,
                                                                       edge_feature_row_breaks,
                                                                       segment_ms=500,
                                                                       hop_ms = 5)

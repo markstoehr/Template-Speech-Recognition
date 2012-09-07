@@ -124,10 +124,11 @@ class BernoulliMixture:
 
         #        if debug_plot:
         #   plw = ag.plot.PlottingWindow(subplots=(1, self.num_mix), figsize=(self.num_mix*3, 3))
-
+        loglikelihood = new_loglikelihood/(1-tol) - 10
         self.iterations = 0
-        while np.abs((loglikelihood - new_loglikelihood)/loglikelihood) > tol:
-            #   ag.info("Iteration {0}: loglikelihood {1}".format(self.iterations, loglikelihood))
+        print ((loglikelihood - new_loglikelihood)/loglikelihood)
+        while ((loglikelihood - new_loglikelihood)/loglikelihood) > tol:
+            print("Iteration {0}: loglikelihood {1}".format(self.iterations, loglikelihood))
             loglikelihood = new_loglikelihood
             # M-step
             self.M_step()
@@ -139,6 +140,7 @@ class BernoulliMixture:
             #if debug_plot and not self._plot(plw):
             #    raise ag.AbortException
 
+        print "Likelihood is %f after %d iterations" % (loglikelihood,self.iterations)
         self.set_templates()
 
 
@@ -158,7 +160,6 @@ class BernoulliMixture:
 
     def M_step(self):
         self.weights = np.mean(self.affinities,axis=0)
-        import pdb; pdb.set_trace()
         self.work_templates = np.dot(self.affinities.T, self.data_mat)
         self.work_templates /= self.num_data
         self.work_templates /= self.weights.reshape((self.num_mix, 1))
