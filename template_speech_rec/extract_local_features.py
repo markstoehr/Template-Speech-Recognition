@@ -22,8 +22,6 @@ def extract_local_features_tied(E,patch_height,patch_width,
                    patch_width))
     # keeps track of which patch is associated with what row and column of E, and in turn, the spectrogram
     # that generated E
-    all_patch_rows = np.zeros(0,dtype=np.uint16)
-    all_patch_cols = np.zeros(0,dtype=np.uint16)
     patch_row_ids, patch_col_ids = get_flat_patches2E_indices(E[edge_feature_row_breaks[0]:
                                                                 edge_feature_row_breaks[1]],
                                                             patch_height,patch_width)
@@ -37,14 +35,10 @@ def extract_local_features_tied(E,patch_height,patch_width,
         E[edge_feature_row_breaks[edge_id]:
           edge_feature_row_breaks[edge_id+1]],
           patch_height,patch_width)))
-        use_indices = np.argsort(np.sum(np.sum(bp_tmp,axis=1),axis=1))[lower_quantile*bp_tmp.shape[0]:
-                                                                           upper_quantile*bp_tmp.shape[0]]
-        all_patch_rows = np.hstack((all_patch_rows,patch_row_ids[use_indices]))
-        all_patch_cols = np.hstack((all_patch_cols,patch_col_ids[use_indices]))
-        bp_tmp=bp_tmp[use_indices]
-        bp = np.vstack((bp,bp_tmp))
+    edge_counts = np.sum(np.sum(bp_tmp,axis=1),axis=1))
+    use_indices = np.logical_and(edge_counts >= lower_cutoff, edge_counts < upper_cutoff)
 
-    return bp,all_patch_rows,all_patch_cols
+    return bp_tmp[use_indices],patch_row_ids[use_indices],patch_col_ids[use_indices]
 
 def extract_local_features_tied_segments(E,patch_height,patch_width,
                                 lower_quantile,upper_quantile,
