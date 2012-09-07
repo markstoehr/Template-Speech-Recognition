@@ -1,0 +1,7 @@
+* Redoing Waliji -- Again
+The change that we are making to what was going on last time has to do
+with the fact that the signal processing is better (the thresholding
+is picking up on significant edges) and we are not using adaptive thresholding
+for the image patch extraction
+
+
