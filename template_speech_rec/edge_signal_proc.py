@@ -10,6 +10,7 @@
 #
 #
 
+
 import numpy as np
 from scipy import linalg
 from scipy.fftpack import fft
@@ -681,7 +682,7 @@ def threshold_edgemap(E,quantile_level,
                                      quantile_level,
                                      report_level,
                                      abst_threshold[edge_feat_idx-1])
-            assert np.max(E_new[start_idx:end_idx,:]) == 1
+            assert np.max(E_new[start_idx:end_idx,:]) <= 1 and np.min(E_new[start_idx:end_idx]) >= 0 
     if report_level:
         return E_new, edge_thresholds
 
@@ -702,8 +703,10 @@ def threshold_edge_block(E_block,quantile_level,
     A = E_block[maxima_idx]
     # get the indices for the significant edges
     sig_idx = E_block[maxima_idx] > max(tau_quant,abst_threshold)
-    A[np.logical_not(sig_idx)] = 0.
-    A[sig_idx] =1
+    if np.any(-sig_idx):
+        A[-sig_idx] = 0.
+    if np.any(sig_idx):
+        A[sig_idx] =1
     E_block[maxima_idx] = A
     E_block[np.logical_not(maxima_idx)]=0
     if report_level:
@@ -894,7 +897,7 @@ d                                          S[i+2,j]-S[i+1,j])
 
 def _edge_map_threshold_segments(E,block_length,
                                  spread_length,
-                                 threshold=.3,
+                                 threshold=.7,
                                  edge_orientations = np.array([[ 1.,  0.],
                                     [-1.,  0.],
                                         [ 0.,  1.],
@@ -936,6 +939,7 @@ def _edge_map_threshold_segments(E,block_length,
                        edge_orientations,
                        spread_length=spread_length)
         E[:,-last_block_length:] = last_E[:,-last_block_length:]
+
     for cur_block in xrange(num_full_blocks):
         E_block = E[:,cur_block*block_length:(1+cur_block)*block_length]
         threshold_edgemap(E_block,
