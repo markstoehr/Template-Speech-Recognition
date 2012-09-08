@@ -15,9 +15,6 @@ def extract_local_features_tied(E,patch_height,patch_width,
                                                                   upper_quantile, edge_feature_row_breaks)
 
     """
-    # segment_ms - number of milliseconds over which we compute the quantile thresholds
-    # hop_ms is says how many milliseconds pass in between each frame
-    segment_length = segment_ms/hop_ms
     bp = np.zeros((0,patch_height*(edge_feature_row_breaks.shape[0]-1),
                    patch_width))
     # keeps track of which patch is associated with what row and column of E, and in turn, the spectrogram
@@ -35,7 +32,7 @@ def extract_local_features_tied(E,patch_height,patch_width,
         E[edge_feature_row_breaks[edge_id]:
           edge_feature_row_breaks[edge_id+1]],
           patch_height,patch_width)))
-    edge_counts = np.sum(np.sum(bp_tmp,axis=1),axis=1))
+    edge_counts = np.sum(np.sum(bp_tmp,axis=1),axis=1)
     use_indices = np.logical_and(edge_counts >= lower_cutoff, edge_counts < upper_cutoff)
 
     return bp_tmp[use_indices],patch_row_ids[use_indices],patch_col_ids[use_indices]
