@@ -1,7 +1,7 @@
 import numpy as np
 
-root_path = '/var/tmp/stoehr/Template-Speech-Recognition/'
-#root_path = '/home/mark/Template-Speech-Recognition/'
+#root_path = '/var/tmp/stoehr/Template-Speech-Recognition/'
+root_path = '/home/mark/Template-Speech-Recognition/'
 data_path = root_path + 'Data/'
 exp_path = root_path + 'Experiments/092112/'
 tmp_data_path = exp_path+'data/'
@@ -48,10 +48,50 @@ example_S_dict = cPickle.load(out)
 out.close()
 
 avg_bgd = np.load(tmp_data_path+'avg_E_bgd.npy')
+avg_bgd_S = -10 * np.ones(example_S_dict[('aa','r')][0].shape[0])
+
+max_lengths = dict( (k,max(e.shape[1] for e in v)) for k,v in example_S_dict.items())
 
 import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
+
+def pad_example_bgd(S,bgd,max_length):
+   if S.shape[1] < max_length:
+      return np.hstack((S,np.tile(bgd,(max_length-S.shape[1],1)).T))
+   else:
+      return S
+
+def multi_page_display(f_path, examples_list,avg_bgd,aspect=3):
+   pdf = PdfPages(f_path)
+   max_length = max(e.shape[1] for e in examples_list)
+   for example in examples_list:
+      plt.figure()
+      S = pad_example_bgd(example,avg_bgd,max_length)
+      plt.imshow(S[::-1],interpolation='nearest',aspect=aspect)
+      plt.xlabel('time (ms)')
+      plt.ylabel('freq (Hz)')
+      pdf.savefig()
+      plt.close()
+   pdf.close()
+
+multi_page_display('test.pdf',example_S_dict[('aa','r')][:10],avg_bgd_S,aspect=5)
+
+for k,v in example_S_dict.items():
+   f_path = paper_path+k[0]+'_'+k[1]+'_examples_S.pdf'
+   multi_page_display(f_path,v,avg_bgd_S,aspect=.5)
+
+null_bgd_E = np.ones(example_E_dict[('aa','r')][0].shape[0],dtype=np.uint8)
+
+for k,v in example_E_dict.items():
+   print k
+   f_path = paper_path+k[0]+'_'+k[1]+'_examples_E.pdf'
+   multi_page_display(f_path,v,null_bgd_E,aspect=.5)
 
 
+
+
+f_path = 'test.pdf'
+pdf = PdfPages(f_path)
 
 for syllable,examples_S in example_S_dict.items():
    multi_page_display(paper_path+syllable+'_example_S.pdf',
