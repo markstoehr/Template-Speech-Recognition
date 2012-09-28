@@ -38,7 +38,7 @@ offset=3
 syllables = np.array([['aa','r'],['p','aa'],['t','aa'],['k','aa'],['b','aa'],['d','aa'],['g','aa']])
 example_E_dict = defaultdict(list)
 example_S_dict = defaultdict(list)
-example_locs = defaultdict{}
+
 
 def phns_syllable_matches(phns,syllable):
     syllable_len = len(syllable)
@@ -76,10 +76,10 @@ for s_idx, s_fname in enumerate(s_fnames):
     for syllable_id, syllable_loc_list in enumerate(syllable_locs):
         syllable = tuple(syllables[syllable_id])
         example_E_dict[syllable].extend([
-            E[:,max(flts[loc]-offset,0):min(flts[loc+len(syllable)]+offset,E.shape[1])]
+            E[:,max(flts[loc]-offset,0):min(flts[loc+len(syllable)]+offset,E.shape[1])].astype(np.uint8)
             for loc in syllable_loc_list])
         example_S_dict[syllable].extend([
-            E[:,max(flts[loc]-offset,0):min(flts[loc+len(syllable)]+offset,E.shape[1])]
+            S[:,max(flts[loc]-offset,0):min(flts[loc+len(syllable)]+offset,E.shape[1])].astype(np.float32)
             for loc in syllable_loc_list])
 
 
