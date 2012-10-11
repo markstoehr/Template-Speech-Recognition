@@ -556,7 +556,7 @@ def _get_spectrogram_label_times(s,
 def get_spectrogram_features(s,sample_rate,num_window_samples,
                           num_window_step_samples,fft_length,
                              freq_cutoff,kernel_length,
-                             preemph=.95,mode="valid"):
+                             preemph=.95,mode="valid",dim_0_is='features'):
     s = _preemphasis(s,preemph)
     S = _spectrograms(s,num_window_samples,
                       num_window_step_samples,
@@ -564,23 +564,42 @@ def get_spectrogram_features(s,sample_rate,num_window_samples,
                       sample_rate)
     freq_idx = int(freq_cutoff/(float(sample_rate)/fft_length))
     S = S[:,:freq_idx]
-    # correct for the shape
-    # we want each row of S to correspond to a frequency
-    # and we want the bottom row to represent the lowest
-    # frequency
-    S = np.log(S.transpose())
-    #S = S[::-1,:]
-    # smooth the spectrogram
-    x = np.arange(0, kernel_length, 1, np.float64)
-    x0 = kernel_length // 2.
-    sigma = 1
-    g=1/(sigma * np.sqrt(2*np.pi)) *np.exp(-((x-x0)**2  / 2* sigma**2))
-    smoothing_kernel = g/g.sum()
-    S_smoothed = convolve(S,smoothing_kernel.reshape(kernel_length,1),mode ='valid')
-    S_smoothed= convolve(S_smoothed,smoothing_kernel.reshape(1,kernel_length),mode='same')
-    S_subsampled = S_smoothed[::2,:]
-    # compute the edgemap
-    return S_subsampled
+    if dim_0_is == 'features':
+        # correct for the shape
+        # we want each row of S to correspond to a frequency
+        # and we want the bottom row to represent the lowest
+        # frequency
+        S = np.log(S.transpose())
+        # S = S[::-1,:]
+        # smooth the spectrogram
+        x = np.arange(0, kernel_length, 1, np.float64)
+        x0 = kernel_length // 2.
+        sigma = 1
+        g=1/(sigma * np.sqrt(2*np.pi)) *np.exp(-((x-x0)**2  / 2* sigma**2))
+        smoothing_kernel = g/g.sum()
+        # feature smoothing should leave only meaningful features
+        S_smoothed = convolve(S,smoothing_kernel.reshape(kernel_length,1),mode ='valid')
+        # preserve time length of spectrogram, smooth over time
+        S_smoothed= convolve(S_smoothed,smoothing_kernel.reshape(1,kernel_length),mode='same')
+        S_subsampled = S_smoothed[::2,:]
+        # compute the edgemap
+        return S_subsampled
+    elif dim_0_is == 'time':
+        S = np.log(S)
+        # smooth the spectrogram
+        x = np.arange(0, kernel_length, 1, np.float64)
+        x0 = kernel_length // 2.
+        sigma = 1
+        g=1/(sigma * np.sqrt(2*np.pi)) *np.exp(-((x-x0)**2  / 2* sigma**2))
+        smoothing_kernel = g/g.sum()
+        # preserve time length of spectrogram, smooth over time
+        S_smoothed = convolve(S,smoothing_kernel.reshape(kernel_length,1),mode ='same')
+        # feature smoothing should leave only meaningful features
+        S_smoothed= convolve(S_smoothed,smoothing_kernel.reshape(1,kernel_length),mode='valid')
+        return S_smoothed[:,::2]
+
+
+        
 
 
 def get_edgemap_features(s,sample_rate,num_window_samples,
@@ -970,7 +989,11 @@ def compute_edge_feature_row_breaks(base_height,
     X = np.tile(np.arange(9),(9,1))
     return np.dot(row_heights, X>=X.T)
 
-def _edge_map_no_threshold(S):
+
+
+def _edge_map_no_threshold(S,
+                           return_3_dimensions=False,
+                           time_axis_0=False):
     """ function to do the edge processing
     somewhat complicated we have eight different directions
     for the edges to run
@@ -1002,6 +1025,8 @@ d                                          S[i+2,j]-S[i+1,j])
     [0,1]
     E[i,j]
     """
+    if time_axis_0:
+        S = S.T
     edge_feature_row_breaks = np.zeros(9)
     edge_orientations = np.zeros((8,2))
     # get [1,0] and [-1,0] features
@@ -1091,7 +1116,21 @@ d                                          S[i+2,j]-S[i+1,j])
             (T_diff[1:-1,1:-1] <= 0))
     edge_orientations[7,0]=1
     edge_orientations[7,1]=-1
-    return E,edge_feature_row_breaks, edge_orientations
+    if time_axis_0:
+        if return_3_dimensions:
+            E = np.array([E[i*H:(i+1)*H].T
+                          for i in xrange(8)])
+        else:
+            E = E.T
+    elif return_3_dimensions:
+        E = np.array([E[i*H:(i+1)*H]
+                      for i in xrange(8)])
+    if time_axis_0:
+        # TODO: have this work generally for all features
+        # Possible TODO: develop with amitgroup code
+        return E.T,edge_feature_row_breaks, edge_orientations
+    else:
+        return E,edge_feature_row_breaks, edge_orientations
 
 
 def _edge_map(S,quantile_level,spread_length=3):
