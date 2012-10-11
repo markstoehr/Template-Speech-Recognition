@@ -133,6 +133,21 @@ def get_flat_patches2E_indices(E,patch_height,patch_width):
     return patch_row_ids, patch_col_ids
 
 def _extract_block_local_features_tied(E,patch_height,patch_width):
+    """
+    Parameters:
+    ===========
+    E: ndarray[ndim=2]
+        dimension 0 is over frequency and dimension 1 is over time, this
+        is a binary matrix
+    patch_height: int
+    patch_width: int
+
+    Output:
+    =======
+    patches: ndarray[ndim=3]
+        dimension 0 is over the different patches, dimension 1 is features,
+        and dimension 2 is over time
+    """
     height, width = E.shape
     col_indices = np.tile(
         # construct the base set of repeating column indices
