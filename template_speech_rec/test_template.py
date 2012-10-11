@@ -82,7 +82,7 @@ def score_templates_background_section_quantizer(log_templates,log_invtemplates,
     C_full = np.array(tuple(log_invtemplate[:length] - log_quantizer(1-bg) 
                             for log_invtemplate in log_invtemplates))
     W = np.array(tuple(log_template[:length] - log_quantizer(bg)
-                       for log_template iin log_templates))
+                       for log_template in log_templates))
     W -= C_full
     return max((E[:length] * w + c).sum()
                for w,c in zip(W,C_full))
