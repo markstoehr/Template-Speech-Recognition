@@ -602,3 +602,44 @@ The next step is to visualize what happens when we denoise or code a
 spectrogram using the parts.  We take the estimated templates from the
 EM algorithm and we are going to use these to code spectrograms.  The
 step is going
+
+*** Object Models
+
+The model proposed by Waliji we treat the presence of a feature as
+independent bernoulli random variables.  We denote by $Y^*_k(t,f)$
+whether the feature $k$ is present at time frequency location
+$(t,f)\in L$ where $L$ is a coarse grid of locations over which we
+build the model.  Waliji proposes to only use frequency locations
+$f=D_{freq}/2,3D_{freq}/2,\ldots$ up to the max odd multiple of
+$D_{freq}/2$ that is less than $num\_freq$. We abuse notation and
+write these as $f=1,2,\ldots,F_{coarse}$ with a similar coarsening of
+the time dimension: $t=1,2,\ldots,T_{coarse}$ where they are centered
+at $D_{time},3D_{time}/2,\ldots$.  In these coarser coordinates we let
+Y*_k(t,f) denote whether the feature $k$ was observed within the coarsening rectangle
+$D_{freq}\times D_{time}$.  Thus the coordinates $(t,f)$ actually refer to rectangles
+in the original spectrogram and the vector $Y^*(t,f)=(Y^*_k(t,f))_{k=1}^{K_C}$ describes
+which features were observed within that rectangle. The complete feature map is modeled
+using a mixture of Bernoullis:
+
+$$\mathbb{P}Y^*=\sum_{j=1}^{K_C} \theta_j \mathbb{P}_j Y^*$$
+
+where $\theta_j$ is the weight of the $j$th model and $\mathbb{P}_j$
+is the probability mass function for the $j$th model.  An object
+sub-model in the mixture, say model $j$, is defined over a coarse
+time-frequency grid $L$ as mentioned above and we have
+
+$$\log \mathbb{P}_j Y^* = \sum_{(t,f)\in L} \sum_k Y_k^*(t,f) \log p_{t,f,k,j} + (1-Y_k^*(t,f))\log (1-p_{t,f,k,j})$$
+
+an alternative background model is also estimated as
+
+$$\log \mathbb{P}_{bg} Y^* = \sum_{(t,f)\in L} \sum_k Y_k^*(t,f) \log p_{f,k,bg} + (1-Y_k^*(t,f))\log (1-p_{f,k,bg})$$
+
+where we do not estimate the time structure.  We can then construct the log-likelihood ratio as
+
+$$\begin{array}{rcl}\log \frac{\mathbb{P}_j Y^*}{\mathbb{P}_{bg} Y^*} 
+    &=& \sum_{(t,f)\in L}\sum_k Y_k^*(t,f)\frac{\log p_{t,f,k,j}\log (1-p_{f,k,bg})}{\log p_{f,k,bg}\log (1-p_{t,f,k,j})}\\
+    &&+ \sum_{(t,f)\in L}\sum_k \frac{\log (1-p_{t,f,k,j})}{\log (1-p_{f,k,bg})}, $$
+which gives us a convolutional filter plus a constant term that does not depend on the data.
+
+Another option is to do spreading before we do this, and also to implement this whole thing using mel-spectral coefficients
+rather than the simple processing.
