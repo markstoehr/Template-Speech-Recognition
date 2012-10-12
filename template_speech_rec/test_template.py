@@ -62,6 +62,30 @@ def score_template_background_section_quantizer(log_template,log_invtemplate,bg,
     if return_both_summed:
         return (E[:length] * W + C_full).sum()
     return (E[:length] * W).sum(), C_full.sum()
+
+def score_templates_background_section_quantizer(log_templates,log_invtemplates,bg,E):
+    """
+    We have a set of features, the size of that set is num_feautures.  Then we have a
+    time parameter which is over axis 0, features are over axis 1
+
+    Parameters:
+    ===========
+    log_template: np.ndarray(ndim=2,dtype=np.float32)
+        log_template.shape == (template_length,num_features)
+    log_invtemplate: np.ndarray(ndim=2,dtype=np.float32)
+        log_invtemplate.shape == (template_length,num_features)
+    bgd: np.ndarray(ndim=1,dtype=np.float32)
+    E: np.ndarray(ndim=2,dtype=np.float32)
+        E.shape == (E_length, num_features)
+    """
+    length = min(E.shape[0],log_template.shape[1])
+    C_full = np.array(tuple(log_invtemplate[:length] - log_quantizer(1-bg) 
+                            for log_invtemplate in log_invtemplates))
+    W = np.array(tuple(log_template[:length] - log_quantizer(bg)
+                       for log_template in log_templates))
+    W -= C_full
+    return max((E[:length] * w + c).sum()
+               for w,c in zip(W,C_full))
     
     
 

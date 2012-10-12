@@ -13,6 +13,162 @@
     $X_{i,e,f,s}$ is functions in the same role for a data point $X_i$.
   - $X$ denotes the random variable, $x$ denotes the realized value
   - $[n]=\{1,\ldots,n\}$
+* Comparison to Koloydenko
+#+begin_src python
+import matplotlib.pyplot as plt
+import numpy as np
+S = np.loadtxt('../data/1S_matlab.dat')
+plt.imshow(S[::-1],interpolation='nearest',aspect=3)
+plt.xticks(np.arange(7)*100,tuple(str(i*100/5) for i in xrange(7)))
+# since 8*16000 (sample rate)/512 (fft length) = 250
+plt.yticks(np.arange(6)*8,tuple(str(i*250) for i in xrange(6))[::-1])
+plt.xlabel('time (ms)')
+plt.ylabel('freq (Hz)')
+plt.savefig('1S_koloydenko.png')
+#+end_src
+
+
+#+CAPTION:    Example utterance Spectrogram
+#+LABEL:      fig:1S_koloydenko
+#+ATTR_LaTeX: height=10cm
+[[./1S_koloydenko.png]]
+
+
+#+begin_src python
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import numpy as np
+plt.title('Edge Map Representation')
+plt.xticks(np.arange(7)*100,tuple(str(i*100/5) for i in xrange(7)))
+# since 8*16000 (sample rate)/512 (fft length) = 250
+plt.yticks(np.arange(8)*48 + 24,tuple(str(i+1) for i in xrange(8))[::-1])
+plt.xlabel('time (ms)')
+plt.ylabel('freq (Hz)')
+
+plt.subplot(2,1,1)
+E = np.loadtxt('../data/1E_matlab.dat')
+plt.imshow(E[::-1],interpolation='nearest',
+               cmap=cm.bone)
+plt.subplot(2,1,2)
+E = np.load('../data/1E.npy')
+plt.imshow(E[::-1],interpolation='nearest',
+               cmap=cm.bone)
+
+
+plt.savefig('edge_map_koloydenko.png')
+
+
+#+end_src
+
+#+CAPTION:    Edge Map Representation
+#+LABEL:      fig:edge_map_koloydenko
+#+ATTR_LaTeX: height=10cm
+[[./edge_map_koloydenko.png]]
+
+
+After a comprehensive comparison to koloydenko's matlab code this is the new spectrogram estimation:
+
+#+begin_src python
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import numpy as np
+plt.title('Edge Map Representation Top is New, Bottom is Old')
+plt.xticks(np.arange(7)*100,tuple(str(i*100/5) for i in xrange(7)))
+# since 8*16000 (sample rate)/512 (fft length) = 250
+plt.yticks(np.arange(8)*48 + 24,tuple(str(i+1) for i in xrange(8))[::-1])
+plt.xlabel('time (ms)')
+plt.ylabel('freq (Hz)')
+
+plt.subplot(2,1,1)
+E = np.load('../data/1E_70_fixed.npy')
+plt.imshow(E[::-1],interpolation='nearest',
+               cmap=cm.bone)
+plt.subplot(2,1,2)
+E = np.load('../data/1E.npy')
+plt.imshow(E[::-1],interpolation='nearest',
+               cmap=cm.bone)
+
+plt.savefig('edge_map_new_compare.png')
+
+
+#+end_src
+
+#+CAPTION:    Edge Map Representation : (top) New, (bottom) Old
+#+LABEL:      fig:edge_map_new_compare
+#+ATTR_LaTeX: height=10cm
+[[./edge_map_new_compare.png]]
+
+Now we are going to show what the different edge plots look like and where they register the edge locations
+
+
+#+begin_src python
+import matplotlib.pyplot as plt
+yimport matplotlib.cm as cm
+import numpy as np
+S = np.load('../data/1S_fixed.npy')
+E = np.load('../data/1E_70_fixed.npy')
+
+for cur_edge_feature in xrange(8):
+    plt.subplot(2,1,1)
+    implot = plt.imshow(S[::-1],interpolation='nearest',aspect=5)
+    plt.subplot(2,1,2)
+    implot = plt.imshow(S[::-1],interpolation='nearest',aspect=5,cmap=cm.bone)
+    edge_feature_row_breaks = np.arange(0,8*45+1,45)
+    row_length = E.shape[1]
+    nz_idx = np.arange(45 * row_length)[(E[edge_feature_row_breaks[cur_edge_feature]:
+                                 edge_feature_row_breaks[cur_edge_feature+1]][::-1] > 0).ravel()]
+    plt.scatter(x=nz_idx %row_length,y=nz_idx / row_length,c='r',marker='+')
+    plt.xticks(np.arange(7)*100,tuple(str(i*100/5) for i in xrange(7)))
+    # since 8*16000 (sample rate)/512 (fft length) = 250
+    plt.xlabel('time (ms)')
+    plt.subplots_adjust(left=.1)
+    plt.savefig('1S_edge%d.png' % cur_edge_feature)
+    plt.close()
+
+#+end_src
+
+#+CAPTION:    Edge Locations: Edge type 1
+#+LABEL:      fig:1S_edge1
+#+ATTR_LaTeX: height=12cm
+[[./1S_edge0.png]]
+
+#+CAPTION:    Edge Locations: Edge type 2
+#+LABEL:      fig:1S_edge2
+#+ATTR_LaTeX: height=12cm
+[[./1S_edge1.png]]
+
+#+CAPTION:    Edge Locations: Edge type 3
+#+LABEL:      fig:1S_edge3
+#+ATTR_LaTeX: height=12cm
+[[./1S_edge2.png]]
+
+#+CAPTION:    Edge Locations: Edge type 4
+#+LABEL:      fig:1S_edge4
+#+ATTR_LaTeX: height=12cm
+[[./1S_edge3.png]]
+
+#+CAPTION:    Edge Locations: Edge type 5
+#+LABEL:      fig:1S_edge5
+#+ATTR_LaTeX: height=12cm
+[[./1S_edge4.png]]
+
+#+CAPTION:    Edge Locations: Edge type 6
+#+LABEL:      fig:1S_edge6
+#+ATTR_LaTeX: height=12cm
+[[./1S_edge5.png]]
+
+#+CAPTION:    Edge Locations: Edge type 7
+#+LABEL:      fig:1S_edge7
+#+ATTR_LaTeX: height=12cm
+[[./1S_edge6.png]]
+
+#+CAPTION:    Edge Locations: Edge type 8
+#+LABEL:      fig:1S_edge8
+#+ATTR_LaTeX: height=12cm
+[[./1S_edge7.png]]
+
+
+
 * Reproduce Waliji Parts
 Reproducing the work from the Masters thesis
 ** Sample work through
@@ -602,6 +758,7 @@ The next step is to visualize what happens when we denoise or code a
 spectrogram using the parts.  We take the estimated templates from the
 EM algorithm and we are going to use these to code spectrograms.  The
 step is going
+
 
 *** Object Models
 
