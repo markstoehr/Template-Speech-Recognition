@@ -27,7 +27,7 @@ class AverageBackground:
         if abst_threshold is not None:
             esp._edge_map_threshold_segments(new_E,
                                              40,
-                                             1, 
+                                             1,
                                              threshold=.3,
                                              edge_orientations = edge_orientations,
                                              edge_feature_row_breaks = edge_feature_row_breaks)
@@ -37,7 +37,7 @@ class AverageBackground:
         else:
             self.E = (self.E * self.num_frames + np.sum(new_E,axis=time_axis))/(self.num_frames+new_E.shape[time_axis])
         self.num_frames += new_E.shape[time_axis]
-        
+
 
 def reorg_part_for_fast_filtering(part,feature_types=8):
     """
@@ -80,7 +80,7 @@ def collapse_to_grid(E_coded,grid_time,grid_frequency):
     grid_frequency: int
     """
     return E_coded[::grid_time,::grid_frequency]
-    
+
 def map_array_to_coarse_coordinates(xs,
                                     coarsen_factor):
     return ((xs + coarsen_factor/2.)/coarsen_factor).astype(int)
@@ -103,7 +103,7 @@ def get_examples_from_phns_ftls(syllable,
         points where a new phone label begins.
     log_part_blocks: np.ndrray[ndim=4,dtype=np.float32]
         contains the model for the features, main
-        data from this is knowing what the subsampling parameters 
+        data from this is knowing what the subsampling parameters
         are going to work
     """
     phn_matches = phns_syllable_matches(phns,syllable)
@@ -117,11 +117,11 @@ def get_examples_from_phns_ftls(syllable,
                             syllable_starts+1,
                             coarse_length)
     return syllable_starts, syllable_ends
-    
-    
-    
-    
-    
+
+
+
+
+
 
 def get_waliji_feature_map(s,
                            log_part_blocks,
@@ -146,7 +146,7 @@ def get_waliji_feature_map(s,
     log_part_blocks: np.ndarray[ndim=4,dtype=np.float32]
         First dimension is over the different features
     log_invpart_blocks: np.ndarray[ndim=4,dtype=np.float32]
-        Essentially the same array as log_part_blocks. Related 
+        Essentially the same array as log_part_blocks. Related
         by its equal to np.log(1-np.exp(log_part_blocks))
     """
     S = esp.get_spectrogram_features(s,
@@ -175,15 +175,16 @@ def get_waliji_feature_map(s,
                                   log_part_blocks.shape[0])
     return collapse_to_grid(F,log_part_blocks.shape[1],
                             log_part_blocks.shape[2])
-    
 
-    
+
+
 
 def _get_syllable_examples_background_files(train_data_path,
                                             data_file_idx,
                                             avg_bgd,
                                             syllable,
                                             syllable_examples,
+                                            backgrounds,
                                             log_part_blocks,
                                             log_invpart_blocks,
                                             abst_threshold=np.array([.025,.025,.015,.015,
@@ -213,7 +214,8 @@ def _get_syllable_examples_background_files(train_data_path,
                                freq_cutoff=freq_cutoff,
                                sample_rate=sample_rate,
                                num_window_samples=num_window_samples,
-                               kernel_length=kernel_length)
+                               kernel_length=kernel_length,
+background_length=3)
     print "F has been estimated and it has shape ", str(F.shape)
     example_starts, example_ends = get_examples_from_phns_ftls(syllable,
                                                                phns,
@@ -225,6 +227,9 @@ def _get_syllable_examples_background_files(train_data_path,
     if example_starts is not None:
         syllable_examples.extend([F[s:e]
                                  for s,e in itertools.izip(example_starts,example_ends)])
+        backgrounds.extend([
+            F[max(0,s-background_length):s].mean(0)
+            for s in example_starts])
 
 
 def get_syllable_examples_backgrounds_files(train_data_path,
@@ -238,24 +243,26 @@ def get_syllable_examples_backgrounds_files(train_data_path,
     syllable_examples = []
     if num_examples == -1:
         num_examples = len(data_files_indices)
+    backgrounds = []
     for i,data_file_idx in enumerate(data_files_indices[:num_examples]):
         if verbose:
             if ((i % verbose) == 0 ):
                 print "Getting examples from example %d" % i
-            
+
         _get_syllable_examples_background_files(train_data_path,
                                                  data_file_idx,
                                                  avg_bgd,
                                                 syllable,
                                                  syllable_examples,
+                                                 backgrounds,
                                                  log_part_blocks,
                                                  log_invpart_blocks)
-    return avg_bgd, syllable_examples
-        
+    return avg_bgd, syllable_examples, backgrounds
+
 
 
 def get_training_examples(syllable,train_data_path):
     data_files_indices = get_data_files_indices(train_data_path)
-    
+
 
 
