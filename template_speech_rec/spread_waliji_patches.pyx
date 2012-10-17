@@ -12,7 +12,7 @@ ctypedef np.float32_t DTYPE_t
 
 ctypedef np.uint8_t UINT_t
 
-def spread_waliji_patches(np.ndarray[ndim=2,dtype=int] X,
+def spread_waliji_patches(np.ndarray[ndim=2,dtype=np.int64_t] X,
                           int spread_0_dim,
                           int spread_1_dim,
                           int num_parts):
