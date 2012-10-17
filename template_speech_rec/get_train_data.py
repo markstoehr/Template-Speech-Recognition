@@ -1,19 +1,13 @@
 import numpy as np
 from scipy import ndimage
 
-root_path = '/var/tmp/stoehr/Template-Speech-Recognition/'
-data_path = root_path + 'Data/'
-exp_path = root_path + 'Experiments/092412/'
-tmp_data_path = exp_path + 'data/'
-scripts_path = exp_path + 'scripts/'
 import sys, os, cPickle,re,itertools
-sys.path.append(root_path)
 
-import template_speech_rec.bernoulli_mixture as bernoulli_mixture
-import template_speech_rec.edge_signal_proc as esp
-import template_speech_rec.extract_local_features as elf
-import template_speech_rec.code_parts as cp
-import template_speech_rec.spread_waliji_patches as swp
+import bernoulli_mixture as bernoulli_mixture
+import edge_signal_proc as esp
+import extract_local_features as elf
+import code_parts as cp
+import spread_waliji_patches as swp
 
 class AverageBackground:
     def __init__(self):

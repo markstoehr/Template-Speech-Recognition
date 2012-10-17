@@ -86,6 +86,39 @@ avg_bgd, syllable_examples = gad.get_syllable_examples_backgrounds_files(train_d
                                                                          log_invpart_blocks,
                                                                          verbose=10)
 
+clipped_bgd = np.clip(avg_bgd.E,.1,.4).astype(np.float32)
+
+np.save(tmp_data_path+'clipped_train_bgd.npy',clipped_bgd)
+
+def get_example_lengths(syllable_examples):
+    return np.array(
+        tuple(
+            np.uint16(x.shape[0]) for x in syllable_examples))
+
+aar_lengths = get_example_lengths(syllable_examples)
+np.save(tmp_data_path+'aar_lengths.npy',aar_lengths)
+
+def extend_example_to_max(syllable_example,clipped_bgd,max_length):
+    if syllable_example.shape[0] >= max_length:
+        return syllable_example.astype(np.uint8)
+    else:
+        return np.vstack((syllable_example,
+                          np.tile(clipped_bgd,
+                                  (max_length-syllable_example.shape[0],1,1)))).astype(np.uint8)
+
+
+
+
+def extend_examples_to_max(clipped_bgd,syllable_examples,aar_lengths):
+    max_length = aar_lengths.max()
+    return np.array(tuple(
+        extend_example_to_max(syllable_example,clipped_bgd,max_length)
+        for syllable_example in syllable_examples))
+
+aar_examples = extend_examples_to_max(clipped_bgd,syllable_examples,aar_lengths)
+
+np.save(tmp_data_path+'aar_examples.npy',aar_examples)
+
 # time to check that the examples are looking reasonable, particularly
 # in the context of the parts
 # we want to find the first example that was recorded
