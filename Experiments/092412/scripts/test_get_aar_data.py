@@ -1,7 +1,7 @@
 import numpy as np
 from scipy import ndimage
 
-root_path = '/home/mark/Template-Speech-Recognition/'
+root_path = '/var/tmp/stoehr/Template-Speech-Recognition/'
 data_path = root_path + 'Data/'
 exp_path = root_path + 'Experiments/092412/'
 tmp_data_path = exp_path + 'data/'
@@ -79,10 +79,11 @@ avg_bgd.add_frames(F2,time_axis=0)
 assert np.all(avg_bgd.E == np.vstack((F,F2)).mean(0))
 
 
+file_indices = [f for f in file_indices if f != '']
+
 avg_bgd, syllable_examples = gad.get_syllable_examples_backgrounds_files(train_data_path,file_indices,np.array(['aa','r']),
                                                                          log_part_blocks,
                                                                          log_invpart_blocks,
-                                                                         num_examples=500,
                                                                          verbose=10)
 
 # time to check that the examples are looking reasonable, particularly

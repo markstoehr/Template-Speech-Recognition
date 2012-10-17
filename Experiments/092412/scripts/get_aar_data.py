@@ -1,7 +1,7 @@
 import numpy as np
 from scipy import ndimage
 
-root_path = '/home/mark/Template-Speech-Recognition/'
+root_path = '/var/tmp/stoehr/Template-Speech-Recognition/'
 data_path = root_path + 'Data/'
 exp_path = root_path + 'Experiments/092412/'
 tmp_data_path = exp_path + 'data/'
@@ -60,7 +60,7 @@ def reorg_parts_for_fast_filtering(parts,feature_types=8,min_prob = .01):
 
 def get_data_files_indices(train_data_path):
     num_pattern = re.compile('[0-9]+s.npy')
-    return [s_name[:-len('s.phns')] for fname in os.listdir(train_data_path)
+    return [s_name[:-len('s.npy')] for fname in os.listdir(train_data_path)
      for s_name in num_pattern.findall(fname)]
 
 
