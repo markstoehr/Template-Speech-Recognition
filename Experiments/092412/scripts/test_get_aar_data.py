@@ -10,7 +10,6 @@ import sys, os, cPickle
 sys.path.append(root_path)
 
 
-import get_aar_data as gad
 
 
 lower_cutoff=10
