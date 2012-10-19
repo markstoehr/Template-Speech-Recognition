@@ -1,6 +1,24 @@
 import numpy as np
 import itertools
 
+def extend_example_to_max(syllable_example,clipped_bgd,max_length):
+    if syllable_example.shape[0] >= max_length:
+        return syllable_example.astype(np.uint8)
+    else:
+        return np.vstack((syllable_example,
+                          (np.random.rand(max_length-syllable_example.shape[0],
+                                          1,1) > np.tile(clipped_bgd,
+                                  (max_length-syllable_example.shape[0],1,1))).astype(np.uint8))).astype(np.uint8)
+
+
+
+def extend_examples_to_max(clipped_bgd,syllable_examples,lengths):
+    max_length = lengths.max()
+    return np.array(tuple(
+        extend_example_to_max(syllable_example,clipped_bgd,max_length)
+        for syllable_example in syllable_examples))
+
+
 def pad_examples_bgd_samples(examples,lengths,bgd_probs):
     max_length = examples.shape[1]
     out = []
