@@ -2,7 +2,7 @@
 # to make this basic bit work
 import numpy as np
 
-root_path = '/home/mark/Template-Speech-Recognition/'
+root_path = '/var/tmp/stoehr/Template-Speech-Recognition/'
 data_path = root_path + 'Data/'
 exp_path = root_path + 'Experiments/092412/'
 tmp_data_path = exp_path + 'data/'
