@@ -434,6 +434,8 @@ def _save_detection_results(s,phns,flts,
         example_start_end_times.append([])
 
 
+
+
 def get_detection_scores(data_path,                        
                          detection_array,
                          syllable,
@@ -479,6 +481,45 @@ def get_detection_scores(data_path,
                                 log_invpart_blocks
                                 )
     return detection_array,example_start_end_times, detection_lengths
+
+def get_detection_scores_mixture(data_path,                        
+                         detection_array,
+                         syllable,
+                         linear_filters_cs,
+                         log_part_blocks,
+                         log_invpart_blocks,
+                         abst_threshold=np.array([.025,.025,.015,.015,
+                                                     .02,.02,.02,.02]),
+                         spread_length=3,
+                         fft_length=512,
+                         num_window_step_samples=80,
+                           freq_cutoff=3000,
+                           sample_rate=16000,
+                           num_window_samples=320,
+                           kernel_length=7,
+                         verbose = False,
+                         num_examples =-1):
+    detection_array[:] = -np.inf
+    print syllable
+    print linear_filters_cs
+    for i in xrange(len(linear_filters_cs)):
+        linear_filter = linear_filters_cs[i][0]
+        c = linear_filters_cs[i][1]
+
+        new_detection_array = np.zeros(detection_array.shape,
+                                       dtype=detection_array.dtype)
+        #import pdb; pdb.set_trace()
+        new_detection_array,example_start_end_times, detection_lengths = get_detection_scores(data_path,                        
+                                                                                                       new_detection_array,
+                                                                                                       syllable,
+                                                                                                       linear_filter,c,
+                                                                                                       log_part_blocks,
+                                                                                                       log_invpart_blocks,verbose=True)
+        
+        detection_array = np.maximum(new_detection_array,detection_array).astype(detection_array.dtype)
+        
+    return detection_array,example_start_end_times, detection_lengths
+        
 
 
 def get_training_examples(syllable,train_data_path):
