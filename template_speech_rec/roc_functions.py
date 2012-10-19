@@ -3,10 +3,22 @@ import itertools
 import cluster_times
 
 def get_auto_syllable_window(template):
-    return int( -np.ceil(template.shape[0]/3.)), - int(np.ceil(template.shape[0]/3.))
+    return int( -np.ceil(template.shape[0]/3.)), int(np.ceil(template.shape[0]/3.))
+
+def get_auto_syllable_window_mixture(templates):
+    tshape = max(tuple(t.shape[0] for t in templates))
+    return int( -np.ceil(tshape/3.)), int(np.ceil(tshape/3.))
 
 def get_C0_C1(template):
     return template.shape[0], int(np.ceil(template.shape[0]*1.5))
+
+def get_C0_C1_mixture(templates):
+    tshape = max(tuple(t.shape[0] for t in templates))
+    return tshape, int(np.ceil(tshape*1.5))
+
+def compute_fom(true_positive_rates, false_positive_rates):
+    main_detect_area = (false_positive_rates <= 10./360) * (false_positive_rates >= 1./360)
+    return true_positive_rates[main_detect_area].sum()/main_detect_area.sum()
 
 def get_max_detection_in_syllable_windows(detection_array,
                                           example_start_end_times,
