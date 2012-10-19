@@ -201,8 +201,8 @@ def _get_syllables_examples_background_files(train_data_path,
                                             freq_cutoff=3000,
                                             sample_rate=16000,
                                             num_window_samples=320,
-                                            kernel_length=7
-                                            ):
+                                            kernel_length=7,
+                                            feature_type='waliji'):
     """
     Perform main signal processin
     """
@@ -328,7 +328,8 @@ def get_syllables_examples_backgrounds_files(train_data_path,
                                             log_part_blocks,
                                             log_invpart_blocks,
                                             num_examples=-1,
-                                            verbose=False):
+                                            verbose=False,
+                                             feature_type='waliji'):
     avg_bgd = AverageBackground()
     syllable_examples = dict( (syll,[]) for syll in syllables)
     if num_examples == -1:
@@ -346,7 +347,8 @@ def get_syllables_examples_backgrounds_files(train_data_path,
                                                  syllable_examples,
                                                  backgrounds,
                                                  log_part_blocks,
-                                                 log_invpart_blocks)
+                                                 log_invpart_blocks,
+                                                 feature_type=feature_type)
     return avg_bgd, syllable_examples, backgrounds
 
 
