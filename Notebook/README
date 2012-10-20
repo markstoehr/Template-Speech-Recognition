@@ -1,0 +1,44 @@
+This is the Amit laboratory notebook code for Mark Stoehr.  The goals for this project are:
+
+1) Record the exact experiment done and enable anyone to reproduce the
+   experiments.  Previously, I was using the 'Experiments' directory
+   primarily to develop new code.  This was because it was
+   conceptually useful to divide the code that had bugs and was being
+   worked on versus the code I could generally rely on to do my
+   experiments.  Tests are still getting to the point where they are
+   going to be incorporated.  My current idea is to have code
+   development and experiments happen in completely separate
+   directories.  The experiments are special in that they need to be
+   able to run for essentially anybody who has the data and who has
+   downloaded the code.
+
+2) Have a simpler way of specifying which experiments have been done
+   and organizing the experiments based on that as well as giving
+   basic summaries of what happened in the experiment.  One way to go
+   about this is to have config files that are transformed into python
+   code.  At present I am using something like that but doing it in an
+   inelegant way within the script.  Config files mean that generating
+   summaries will be easier although the code generation is harder,
+   and I might end up using something crazy like Haskell.
+
+3) Have graphics generated automatically
+
+4) Keep a writeup for the experiment, with two components: the setup
+   (related to potential config files) and a discussion of the
+   experimental results.
+
+5) Record of inter-experimental provenance.  I want to keep track of why
+   an experiment is run and what led me to think that experiment is a good idea
+   to run, and I want this to reflect what else holds within the code.  These links
+   should be written in a simple and general format so that I can easily generate
+   graphs and summaries of how the experiments relate to each other.
+
+6) Building off of the ideas in (5) I want a general bibliography for
+   everything so that when papers are influencing my ideas they should
+   also be included in the provenance map.
+
+7) Parallel to this notebook is the development of the algorithms that
+   make the experiments possible.  I also want to make references to
+   those algorithms as they are developed.  The algorithm notebook is
+   in the 'Development' directory.
+
