@@ -12,7 +12,10 @@ def extend_example_to_max(syllable_example,clipped_bgd,max_length):
 
 
 
-def extend_examples_to_max(clipped_bgd,syllable_examples,lengths):
+def extend_examples_to_max(clipped_bgd,syllable_examples,lengths=None):
+    if lengths is None:
+        lengths = np.array(tuple(syllable_example.shape[0]
+                                 for syllable_example in syllable_examples))
     max_length = lengths.max()
     return np.array(tuple(
         extend_example_to_max(syllable_example,clipped_bgd,max_length)
@@ -40,13 +43,13 @@ def recover_different_length_templates(affinities,examples,lengths):
     avg_lengths = (np.dot(affinities_trans,lengths)  + .5).astype(int)
     example_shapes = examples.shape[1:]
     return tuple(
-        template[:length] 
+        template[:length]
         for template,length in itertools.izip(np.dot(affinities_trans,examples.reshape(examples.shape[0],
                                                                                        np.prod(example_shapes))).reshape((avg_lengths.shape[0],)+example_shapes),avg_lengths))
 
-        
-    
-            
+
+
+
 
 def _register_template_time_zero(T,template_time_length):
     """

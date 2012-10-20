@@ -50,7 +50,7 @@ syllables = (('p','aa'),
              ('m','iy'),
              ('l','aa'),
              ('l','iy'),)
-             
+
 
 train_data_path = root_path+'Data/Train/'
 
@@ -63,3 +63,46 @@ avg_bgd, syllable_examples, backgrounds = gtrd.get_syllables_examples_background
                                             log_invpart_blocks,
                                             num_examples=-1,
                                             verbose=True)
+
+clipped_bgd = np.clip(avg_bgd.E,.1,.4)
+np.save(tmp_data_path+'clipped_bgd_101812.npy',clipped_bgd)
+import template_speech_rec.estimate_template as et
+
+for syllable,examples in syllable_examples.items():
+    np.save(tmp_data_path+'%s_%s_examples.npy' % syllable,
+            et.extend_examples_to_max(clipped_bgd,examples))
+
+padded_examples_syllable_dict = dict(
+    (syll,
+     et.extend_examples_to_max(clipped_bgd,examples))
+     for syll, examples in syllable_examples.items())
+
+del backgrounds
+
+
+# estimate mixture models
+#
+import template_speech_rec.bernoulli_mixture as bm
+
+mixture_models_syllable = {}
+for syllable, examples in padded_examples_syllable_dict.items():
+    mixture_models_syllable[syllable] = bm.BernoulliMixture(2,examples)
+    mixture_models_syllable[syllable].run_EM(.000001)
+    print syllable
+
+template_tuples_syllable = {}
+for syllable, mm in mixture_models_syllable.items():
+    template_tuples_syllable[syllable] = et.recover_different_length_templates(mm.affinities,padded_examples_syllable_dict[syllable],
+                                                                               np.array([e.shape[0] for e in syllable_examples[syllable]]))
+
+
+for syllable, template_tuples in template_tuples_syllable.items():
+    for i, template in enumerate(template_tuples):
+        np.save(tmp_data_path+'template_%s_%s__%d_%d.npy' % (syllable[0],
+                                                             syllable[1],
+                                                             len(template_tuples),
+                                                             i),
+                                                             template)
+
+
+        
