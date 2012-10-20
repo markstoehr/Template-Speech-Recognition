@@ -516,7 +516,7 @@ def get_detection_scores_mixture(data_path,
                                                                                                        log_part_blocks,
                                                                                                        log_invpart_blocks,verbose=True)
         
-        detection_array = np.maximum(new_detection_array,detection_array).astype(detection_array.dtype)
+        detection_array = np.maximum(new_detection_array+c,detection_array).astype(detection_array.dtype)
         
     return detection_array,example_start_end_times, detection_lengths
         
