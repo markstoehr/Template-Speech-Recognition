@@ -105,4 +105,22 @@ for syllable, template_tuples in template_tuples_syllable.items():
                                                              template)
 
 
-        
+test_example_lengths = gtrd.get_detect_lengths(data_path+'Test/')
+
+detection_array = np.zeros((test_example_lengths.shape[0],
+                            int(test_example_lengths.max()/float(log_part_blocks.shape[1]) + .5) + 2),dtype=np.float32)
+
+linear_filters_cs = et.construct_linear_filters(aar_mixture,
+                                             clipped_bgd)
+# need to state the syllable we are working with
+syllable = np.array(['aa','r'])
+
+
+detection_array,example_start_end_times, detection_lengths = gtrd.get_detection_scores_mixture(data_path+'Test/',                        
+                                                                                         detection_array,
+                                                                                         syllable,
+                                                                                         linear_filters_cs,
+                                                                                         log_part_blocks,
+                                                                                         log_invpart_blocks,verbose=True)
+
+
