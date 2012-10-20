@@ -101,14 +101,18 @@ def get_examples_from_phns_ftls(syllable,
         data from this is knowing what the subsampling parameters
         are going to work
     """
+    if log_part_blocks is None:
+        coarse_factor = 1
+    else:
+        coarse_factor = log_part_blocks.shape[1]
     phn_matches = phns_syllable_matches(phns,syllable)
     if phn_matches.shape[0] ==0:
         return None, None
     syllable_starts = flts[ phn_matches]
     syllable_ends = flts[phn_matches + len(syllable)]
-    syllable_starts = map_array_to_coarse_coordinates(syllable_starts,log_part_blocks.shape[1])
+    syllable_starts = map_array_to_coarse_coordinates(syllable_starts,coarse_factor)
     syllable_ends = np.clip(map_array_to_coarse_coordinates(syllable_ends,
-                                                            log_part_blocks.shape[1]),
+                                                            coarse_factor),
                             syllable_starts+1,
                             coarse_length)
     return syllable_starts, syllable_ends
@@ -183,6 +187,83 @@ def get_waliji_feature_map(s,
 
     return return_tuple
 
+def get_feature_map(s,
+                           log_part_blocks=None,
+                           log_invpart_blocks=None,
+                           abst_threshold=np.array([.025,.025,.015,.015,
+                                                     .02,.02,.02,.02]),
+                           spread_length=3,
+                           fft_length=512,
+                           num_window_step_samples=80,
+                           freq_cutoff=3000,
+                           sample_rate=16000,
+                           num_window_samples=320,
+                           kernel_length=7,
+                           return_S=False,
+                           return_E=False):
+    """
+    Input is usually just the signal s as the rest of the parameters
+    are not going to change very often
+
+    Parameters:
+    ===========
+    s: np.ndarray[ndim=1]
+        Raw signal data that we are extracting feature from
+    log_part_blocks: np.ndarray[ndim=4,dtype=np.float32]
+        First dimension is over the different features
+    log_invpart_blocks: np.ndarray[ndim=4,dtype=np.float32]
+        Essentially the same array as log_part_blocks. Related
+        by its equal to np.log(1-np.exp(log_part_blocks))
+    """
+    S = esp.get_spectrogram_features(s,
+                                     sample_rate,
+                                     num_window_samples,
+                                     num_window_step_samples,
+                                     fft_length,
+                                     freq_cutoff,
+                                     kernel_length,
+                                 )
+    E, edge_feature_row_breaks,\
+        edge_orientations = esp._edge_map_no_threshold(S)
+    esp._edge_map_threshold_segments(E,
+                                 40,
+                                 1,
+                                 threshold=.7,
+                                 edge_orientations = edge_orientations,
+                                 edge_feature_row_breaks = edge_feature_row_breaks)
+    if log_part_blocks is None:
+        E = reorg_part_for_fast_filtering(E)
+        if not return_S:
+            return E
+        else:
+            return S,E
+    # implicitly else just says that we are doing the further E processing
+    if return_E:
+        E2 = reorg_part_for_fast_filtering(E.copy())
+        F = cp.code_parts_fast(E2,log_part_blocks,log_invpart_blocks,10)
+    else:
+        E = reorg_part_for_fast_filtering(E)
+        F = cp.code_parts_fast(E,log_part_blocks,log_invpart_blocks,10)
+    F = np.argmax(F,2)
+    # the amount of spreading to do is governed by the size of the part features
+    F = swp.spread_waliji_patches(F,
+                                  log_part_blocks.shape[1],
+                                  log_part_blocks.shape[2],
+                                  log_part_blocks.shape[0])
+    F = collapse_to_grid(F,log_part_blocks.shape[1],
+                         log_part_blocks.shape[2])
+    if not return_S and not return_E:
+        return F
+    else:
+        return_tuple = (F,)
+        if return_S:
+            return_tuple += (S,)
+        if return_E:
+            return_tuple += (E,)
+
+    return return_tuple
+
+
 
 
 def _get_syllables_examples_background_files(train_data_path,
@@ -249,8 +330,8 @@ def _get_syllable_examples_background_files(train_data_path,
                                             syllable,
                                             syllable_examples,
                                             backgrounds,
-                                            log_part_blocks,
-                                            log_invpart_blocks,
+                                            log_part_blocks=None,
+                                            log_invpart_blocks=None,
                                             abst_threshold=np.array([.025,.025,.015,.015,
                                       .02,.02,.02,.02]),
                                             spread_length=3,
@@ -268,7 +349,7 @@ def _get_syllable_examples_background_files(train_data_path,
     phns = np.load(train_data_path+data_file_idx+'phns.npy')
     # we divide by 5 since we coarsen in the time domain
     flts = np.load(train_data_path+data_file_idx+'feature_label_transitions.npy')
-    F = get_waliji_feature_map(s,
+    F = get_feature_map(s,
                                log_part_blocks,
                                log_invpart_blocks,
                                abst_threshold=abst_threshold,
@@ -279,7 +360,10 @@ def _get_syllable_examples_background_files(train_data_path,
                                sample_rate=sample_rate,
                                num_window_samples=num_window_samples,
                                kernel_length=kernel_length)
-    background_length=3
+    if log_part_blocks is None:
+        background_length = 20
+    else:
+        background_length=4* log_part_blocks.shape[1]
     example_starts, example_ends = get_examples_from_phns_ftls(syllable,
                                                                phns,
                                                                flts,
@@ -298,8 +382,8 @@ def _get_syllable_examples_background_files(train_data_path,
 def get_syllable_examples_backgrounds_files(train_data_path,
                                             data_files_indices,
                                             syllable,
-                                            log_part_blocks,
-                                            log_invpart_blocks,
+                                            log_part_blocks=None,
+                                            log_invpart_blocks=None,
                                             num_examples=-1,
                                             verbose=False):
     avg_bgd = AverageBackground()
@@ -516,7 +600,7 @@ def get_detection_scores_mixture(data_path,
                                                                                                        log_part_blocks,
                                                                                                        log_invpart_blocks,verbose=True)
         
-        detection_array = np.maximum(new_detection_array,detection_array).astype(detection_array.dtype)
+        detection_array = np.maximum(new_detection_array+c,detection_array).astype(detection_array.dtype)
         
     return detection_array,example_start_end_times, detection_lengths
         

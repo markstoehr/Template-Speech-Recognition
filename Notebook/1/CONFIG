@@ -1,0 +1,13 @@
+Database: TIMIT
+Reference Paper: "Robust Acoustic Object Detection" Alexey Koloydenko, Yali Amit, Partha Niyogi
+Task:
+    Type: Detection
+    Object: aa,r
+    Data: Binary Vector Time Series
+Signal Processing:
+    Features: Amit Edges on Spectrogram
+    Frequency Cutoff: 3000
+    Frequency Downsample Factor: 2
+    Time Downsample Factor: 1
+    
+
