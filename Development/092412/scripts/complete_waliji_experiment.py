@@ -56,6 +56,8 @@ train_data_path = root_path+'Data/Train/'
 
 file_indices = gtrd.get_data_files_indices(train_data_path)
 
+sorted_diphones = gtrd.get_ordered_kgram_phone_list(train_data_path,file_indices,2)
+
 avg_bgd, syllable_examples, backgrounds = gtrd.get_syllables_examples_backgrounds_files(train_data_path,
                                             file_indices,
                                             syllables,
