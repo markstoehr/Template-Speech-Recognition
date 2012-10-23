@@ -12,14 +12,21 @@ def extend_example_to_max(syllable_example,clipped_bgd,max_length):
 
 
 
-def extend_examples_to_max(clipped_bgd,syllable_examples,lengths=None):
+def extend_examples_to_max(clipped_bgd,syllable_examples,lengths=None,
+                           return_lengths=False):
     if lengths is None:
         lengths = np.array(tuple(syllable_example.shape[0]
                                  for syllable_example in syllable_examples))
     max_length = lengths.max()
-    return np.array(tuple(
-        extend_example_to_max(syllable_example,clipped_bgd,max_length)
-        for syllable_example in syllable_examples))
+    if return_lengths:
+        return (np.array(tuple(
+            extend_example_to_max(syllable_example,clipped_bgd,max_length)
+            for syllable_example in syllable_examples)),
+            lengths)
+    else:
+        return np.array(tuple(
+            extend_example_to_max(syllable_example,clipped_bgd,max_length)
+            for syllable_example in syllable_examples))
 
 
 def pad_examples_bgd_samples(examples,lengths,bgd_probs):
@@ -61,7 +68,9 @@ def _register_template_time_zero(T,template_time_length):
     template_time_length = float(template_time_length)
     return T[np.clip(((np.arange(template_time_length)/template_time_length) * example_time_length + .5).astype(int),0,int(T.shape[0]-1))]
 
-def register_templates_time_zero(examples,lengths,min_prob=.01):
+def register_templates_time_zero(examples,lengths=None,min_prob=.01):
+    if lengths is None:
+        lengths = np.array([len(e) for e in examples])
     mean_length = int(lengths.mean()+.5)
     registered_examples = np.array(
         tuple(
