@@ -1,0 +1,84 @@
+We begin with stating one of the basic problems encountered in the
+pure speech recognition problem.  This back-of-the-envelope comparison
+is given in Rabiner.  There are $2^5 = 32$ symbols or so in English
+(if you include punctuation) and people tend to speak at a rate below
+10 symbols per second, so the information rate is 5 bits per symbol by
+10 symbols per second giving 50 bps (bits per second) where we assume
+that all bits are independent (this is an upperbound on the
+information rate).  If we add in phonemic and prosodic cues (such as
+pitch and stress) we can make an argument that the information rate of
+speech is upperbounded by 200 bps.
+
+Compare this relatively low information rate to the 64,000 bps that
+characterize the infromation rate of the digitized speech waveform.
+In order to achieve perceptual fidelity by human listeners (e.g. on a
+telephone) the digitized waveform must preserve the frequencies of the
+original signal in a bandwidth of 0-4Hz and hence 8,000 samples per
+second are required of the analog speech waveform.  The samples can be
+quantized on a log scale using 8 bits, thus we have 64,000 bits per
+second.  Thus, the task of speech recognition consists in generating a relatively
+low information rate signal from a high information rate signal.
+
+* The Source Filter Model
+
+We begin by considering the recognition of vowels. There are a number
+of reasons to do this since vowels are generally easier to decode in
+noise, additionally, most of the information in vowels is contained in
+the 0-1kHz.  If we take the basic problem to be signal processing for analyzing vowels
+we can use a basic model of speech called the source filter model.
+
+The motivation is based on the acoustics of vowel production.  The
+basic mechanism for the source is the glottal pulse prodced just above
+the trachea and before the rest of the vocal tract.  During vowel
+sounds the vocal tract is relatively open and can be modeled as a
+filter being applied to the source.  This filter has a given set of
+resonances which corresponds to the poles of the filter. These
+observations form the basis for the LPC signal model.
+
+* Bank of Filters
+
+Another feature extraction technique is to use a filter bank for
+feature processing.  These filters have compact support in time, and
+like the LPC coefficients, they are computed over a sliding window
+which samples small segments (usually 10-30 ms long) of the speech signal.
+The segments are usually sampled every 5ms to 15 ms.
+
+In practice the bank of filters approach is implemented as a
+short-time Fourier transform, and we take the magnitude of the
+coefficients.  The reason for this relates back to the source-filter
+model for vowels: the phase information of the coefficients largely
+conveys information about the glottal pulse.  In order to recognize
+vowels we are mostly interested in the shape of the vocal tract and at
+what frequencies the formants occur at: given that those frequencies
+represent the resonances of the vocal tract and hence communicate the
+shape of the vocal tract.
+
+Ideally, these filters will give a low-dimensional representation that
+just communicates the shape of the vocal tract.  Essentially the same
+shape can give rise to some variation of the coefficients so usually
+some form of smoothing is applied to the transformed Fourier
+coefficients.  Linear smoothing was popular in many old systems, but
+it is more common for modern systems to use non-linear
+smoothing.
+
+The nonlinear smoothing is usually applied as following: let $X(f)$
+be the Although the filter bank might be linear or non-linear
+usOften a nonlinear filtering operation is the applied to
+
+We begin by surveying Reddy.  In order to write this review I'm going
+to discuss the different features and how they solve different
+problems that arise in solving particular problems that arise in
+speech recognition.  We begin
+
+-----------------------------------------------------------------------------------------------------------
+
+-----------------------------------------------------------------------------------------------------------
+| Task                                    | Mode of Speech   | Vocabulary Size | Take Specific Information | Language                    | Speaker     | Environment |
+| Isolated Word Recognition               | Isolated Words   |          10-300 | Limited Use               |                             | Cooperative |             |
+| Restricted Connected Speech Recognition | Connected Speech |          30-500 | Limited Use               | Restricted command language | cooperative |             |
+|                                         |                  |                 |                           |                             |             |             |
+
+
+
+References
+
