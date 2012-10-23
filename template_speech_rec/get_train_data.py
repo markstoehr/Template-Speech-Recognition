@@ -1,7 +1,7 @@
 import numpy as np
 from scipy import ndimage
 
-import sys, os, cPickle,re,itertools
+import sys, os, cPickle,re,itertools,collections,operator
 
 import bernoulli_mixture as bernoulli_mixture
 import edge_signal_proc as esp
@@ -231,6 +231,7 @@ def get_feature_map(s,
                                  threshold=.7,
                                  edge_orientations = edge_orientations,
                                  edge_feature_row_breaks = edge_feature_row_breaks)
+    E = E.astype(np.uint8)
     if log_part_blocks is None:
         E = reorg_part_for_fast_filtering(E)
         if not return_S:
@@ -262,6 +263,22 @@ def get_feature_map(s,
             return_tuple += (E,)
 
     return return_tuple
+
+def _add_phns_to_phn_dict(phns,phn_dict,k):
+    for i in xrange(k-1,len(phns)):
+        phn_dict[tuple(
+            phns[i-k+j+1]
+            for j in xrange(k))] += 1
+
+def get_ordered_kgram_phone_list(train_data_path,file_indices,k):
+    phn_dict = collections.defaultdict(int)
+    for data_file_idx in file_indices:
+        _add_phns_to_phn_dict(
+            np.load(train_data_path+data_file_idx+'phns.npy'),
+            phn_dict,k)
+
+    return sorted(phn_dict.iteritems(),key=operator.itemgetter(1),reverse=True)
+
 
 
 
@@ -311,7 +328,7 @@ def _get_syllables_examples_background_files(train_data_path,
                                                                log_part_blocks,
                                                                F.shape[0]))
         for syll in syllables)
-    
+
 
     avg_bgd.add_frames(F,time_axis=0)
     for syll, (example_starts, example_ends) in example_starts_ends_dict.items():
@@ -447,7 +464,7 @@ def get_detect_lengths(data_path,
                            num_window_samples=320,
                            kernel_length=7):
     data_files_indices = get_data_files_indices(data_path)
-    return np.array([ 
+    return np.array([
             esp.get_spectrogram_features(np.load(data_path+data_file_idx+'s.npy'),
                                          sample_rate,
                                          num_window_samples,
@@ -464,8 +481,9 @@ def _save_detection_results(s,phns,flts,
                             linear_filter,c,
                             syllable,
                             example_start_end_times,
-                            log_part_blocks,
-                            log_invpart_blocks,
+                            log_part_blocks=None,
+                            log_invpart_blocks=None,
+                            add_c = False,
                          abst_threshold=np.array([.025,.025,.015,.015,
                                                      .02,.02,.02,.02]),
                          spread_length=3,
@@ -480,13 +498,13 @@ def _save_detection_results(s,phns,flts,
     Detection array will have detection scores saved to it
     and we will make entries of detection_array that are trailing
     be some minimum value: min_val, which is initially None
-    and if it is None then it is set to 
+    and if it is None then it is set to
          - 2* np.abs(detection_array[next_id,:next_length]).max()
          and then it is set to that threshold the rest of the time
 
     we also save the lengths to detect_lengths
     """
-    F = get_waliji_feature_map(s,
+    F = get_feature_map(s,
                                log_part_blocks,
                                log_invpart_blocks,
                                abst_threshold=abst_threshold,
@@ -497,7 +515,7 @@ def _save_detection_results(s,phns,flts,
                                sample_rate=sample_rate,
                                num_window_samples=num_window_samples,
                                kernel_length=kernel_length)
-    
+
 
     detect_lengths.append(F.shape[0])
 
@@ -511,6 +529,78 @@ def _save_detection_results(s,phns,flts,
     detection_array[len(detect_lengths)-1,
                     :F.shape[0]-linear_filter.shape[0]+1] = compute_likelihood_linear_filter.detect(F.astype(np.uint8),
                                                                                              linear_filter)
+    if add_c:
+        detection_array[len(detect_lengths)-1,
+                    :F.shape[0]-linear_filter.shape[0]+1] += c
+
+    if example_starts is not None:
+        example_start_end_times.append(zip(example_starts,example_ends))
+    else:
+        example_start_end_times.append([])
+
+
+def _save_detection_results_mixture(s,phns,flts,
+                            detection_array,
+                            detect_lengths,
+                            linear_filters_cs,
+                            syllable,
+                            example_start_end_times,
+                            log_part_blocks=None,
+                            log_invpart_blocks=None,
+                         abst_threshold=np.array([.025,.025,.015,.015,
+                                                     .02,.02,.02,.02]),
+                         spread_length=3,
+                         fft_length=512,
+                         num_window_step_samples=80,
+                           freq_cutoff=3000,
+                           sample_rate=16000,
+                           num_window_samples=320,
+                           kernel_length=7
+                            ):
+    """
+    Detection array will have detection scores saved to it
+    and we will make entries of detection_array that are trailing
+    be some minimum value: min_val, which is initially None
+    and if it is None then it is set to
+         - 2* np.abs(detection_array[next_id,:next_length]).max()
+         and then it is set to that threshold the rest of the time
+
+    we also save the lengths to detect_lengths
+    """
+    F = get_feature_map(s,
+                               log_part_blocks,
+                               log_invpart_blocks,
+                               abst_threshold=abst_threshold,
+                               spread_length=spread_length,
+                               fft_length=fft_length,
+                               num_window_step_samples=num_window_step_samples,
+                               freq_cutoff=freq_cutoff,
+                               sample_rate=sample_rate,
+                               num_window_samples=num_window_samples,
+                               kernel_length=kernel_length)
+
+
+    detect_lengths.append(F.shape[0])
+
+
+    example_starts, example_ends = get_examples_from_phns_ftls(syllable,
+                                                               phns,
+                                                               flts,
+                                                               log_part_blocks,
+                                                               F.shape[0])
+
+
+    detection_array[len(detect_lengths)-1,
+                    :F.shape[0]-linear_filters_cs[0][0].shape[0]+1] = compute_likelihood_linear_filter.detect(F.astype(np.uint8),
+                                                                                             linear_filters_cs[0][0]) + linear_filters_cs[0][1]
+    if len(linear_filters_cs) > 1:
+        for cur_filt,cur_c in linear_filters_cs[1:]:
+            detection_array[len(detect_lengths)-1,
+                    :F.shape[0]-cur_filt.shape[0]+1] = np.maximum(compute_likelihood_linear_filter.detect(F.astype(np.uint8),
+                                                                                             cur_filt) + cur_c,
+                                                                                             detection_array[len(detect_lengths)-1,
+                    :F.shape[0]-cur_filt.shape[0]+1])
+
 
     if example_starts is not None:
         example_start_end_times.append(zip(example_starts,example_ends))
@@ -520,12 +610,12 @@ def _save_detection_results(s,phns,flts,
 
 
 
-def get_detection_scores(data_path,                        
+def get_detection_scores(data_path,
                          detection_array,
                          syllable,
                          linear_filter,c,
-                         log_part_blocks,
-                         log_invpart_blocks,
+                         log_part_blocks=None,
+                         log_invpart_blocks=None,
                          abst_threshold=np.array([.025,.025,.015,.015,
                                                      .02,.02,.02,.02]),
                          spread_length=3,
@@ -566,12 +656,59 @@ def get_detection_scores(data_path,
                                 )
     return detection_array,example_start_end_times, detection_lengths
 
-def get_detection_scores_mixture(data_path,                        
+
+def get_detection_scores_mixture(data_path,
                          detection_array,
                          syllable,
                          linear_filters_cs,
-                         log_part_blocks,
-                         log_invpart_blocks,
+                         log_part_blocks=None,
+                         log_invpart_blocks=None,
+                         abst_threshold=np.array([.025,.025,.015,.015,
+                                                     .02,.02,.02,.02]),
+                         spread_length=3,
+                         fft_length=512,
+                         num_window_step_samples=80,
+                           freq_cutoff=3000,
+                           sample_rate=16000,
+                           num_window_samples=320,
+                           kernel_length=7,
+                         verbose = False,
+                         num_examples =-1):
+    data_files_indices = get_data_files_indices(data_path)
+
+    example_start_end_times = []
+    if num_examples == -1:
+        num_examples = len(data_files_indices)
+
+    detection_lengths = []
+    for i,data_file_idx in enumerate(data_files_indices[:num_examples]):
+        if verbose:
+            if ((i % verbose) == 0 ):
+                print "Getting examples from example %d" % i
+
+        s = np.load(data_path+data_file_idx+'s.npy')
+        phns = np.load(data_path+data_file_idx+'phns.npy')
+        # we divide by 5 since we coarsen in the time domain
+        flts = np.load(data_path+data_file_idx+'feature_label_transitions.npy')
+
+
+        _save_detection_results_mixture(s,phns,flts,
+                                detection_array,
+                                detection_lengths,
+                                linear_filters_cs,
+                                syllable,
+                                example_start_end_times,
+                                log_part_blocks,
+                                log_invpart_blocks
+                                )
+    return detection_array,example_start_end_times, detection_lengths
+
+def get_detection_scores_mixture_hack(data_path,
+                         detection_array,
+                         syllable,
+                         linear_filters_cs,
+                         log_part_blocks=None,
+                         log_invpart_blocks=None,
                          abst_threshold=np.array([.025,.025,.015,.015,
                                                      .02,.02,.02,.02]),
                          spread_length=3,
@@ -593,17 +730,17 @@ def get_detection_scores_mixture(data_path,
         new_detection_array = np.zeros(detection_array.shape,
                                        dtype=detection_array.dtype)
         #import pdb; pdb.set_trace()
-        new_detection_array,example_start_end_times, detection_lengths = get_detection_scores(data_path,                        
+        new_detection_array,example_start_end_times, detection_lengths = get_detection_scores(data_path,
                                                                                                        new_detection_array,
                                                                                                        syllable,
                                                                                                        linear_filter,c,
                                                                                                        log_part_blocks,
                                                                                                        log_invpart_blocks,verbose=True)
-        
+
         detection_array = np.maximum(new_detection_array+c,detection_array).astype(detection_array.dtype)
-        
+
     return detection_array,example_start_end_times, detection_lengths
-        
+
 
 
 def get_training_examples(syllable,train_data_path):
