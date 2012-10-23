@@ -88,12 +88,45 @@ def perform_detection_time_clustering(potential_detect_times,C0,C1):
                                                     C1)
     return get_cluster_starts_ends(potential_detect_times,cluster_partition)
 
+def true_false_clusters_list(example_cluster_starts_ends,
+                        example_start_end_tuples):
+    num_true = len(example_start_end_tuples)
+    example_list = np.zeros(num_true,dtype=np.uint8)
+    num_detects = len(example_cluster_starts_ends)
+    true_detects = 0
+    false_detects = 0
+    if num_true == 0:
+        # num_true is zero penalize all detections
+        return example_list
+    elif num_detects == 0:
+        return example_list
+    else:
+        true_iter = enumerate(example_start_end_tuples)
+        true_idx, cur_true = true_iter.next()
+        for i,cur_detect in enumerate(example_cluster_starts_ends):
+            # check whether the current detection cluster is
+            # passed the marked time point
+            while cur_detect[0] >= cur_true[1]:
+                if true_idx == num_true -1:
+                    # we are done now since there are no more true
+                    # detections possible
+                    return example_list
+                else:
+                    true_idx, cur_true = true_iter.next()
+            # we now know that cur_detect[0] < cur_true[1]
+            # we have a detection if cur_detect[1] > cur_true[0]
+            example_list[true_idx] = np.uint8(cur_detect[1] > cur_true[0])
+
+
+    return example_list
+
+
 def true_false_clusters(example_cluster_starts_ends,
                         example_start_end_tuples):
     num_true = len(example_start_end_tuples)
     num_detects = len(example_cluster_starts_ends)
     true_detects = 0
-    false_detects = 0 
+    false_detects = 0
     if num_true == 0:
         # num_true is zero penalize all detections
         return num_detects, 0, num_true
@@ -103,7 +136,7 @@ def true_false_clusters(example_cluster_starts_ends,
         true_iter = enumerate(example_start_end_tuples)
         true_idx, cur_true = true_iter.next()
         for i,cur_detect in enumerate(example_cluster_starts_ends):
-            # check whether the current detection cluster is 
+            # check whether the current detection cluster is
             # passed the marked time point
             while cur_detect[0] >= cur_true[1]:
                 if true_idx == num_true -1:
@@ -123,10 +156,10 @@ def get_rates(true_false_clusters_array,num_frames,frame_rate):
     of utterances.  There are three rows so
     each column has three entries, the first is the number of false positives
     the second is the number of true positives, and the third is the number
-    of true examples within the utterance 
+    of true examples within the utterance
     """
     false_positives, true_positives, total_true = tuple(true_false_clusters_array.sum(1))
-    return (false_positives /float(num_frames) * frame_rate, 
+    return (false_positives /float(num_frames) * frame_rate,
             true_positives/float(total_true))
 
 
@@ -142,7 +175,9 @@ def true_false_positive_rate(threshold,
                         detection_array,
                         detection_lengths,
                         example_detection_windows,
-                        C0,C1,frame_rate):
+                        C0,C1,frame_rate,
+                        return_list = False,
+                        return_clusters=False):
     num_frames = detection_lengths.sum()
     cluster_starts_ends = tuple(
         perform_detection_time_clustering(
@@ -152,12 +187,20 @@ def true_false_positive_rate(threshold,
             C0,C1)
         for detect_vals, detect_length in itertools.izip(detection_array,
                                                          detection_lengths))
-    return get_rates(np.array(tuple(
+    if return_clusters:
+        return cluster_starts_ends
+    if not return_list:
+        return get_rates(np.array(tuple(
             true_false_clusters(example_cluster_starts_ends,
                                 example_start_end_tuples)
-            for example_cluster_starts_ends, example_start_end_tuples in itertools.izip(cluster_starts_ends,example_detection_windows))).T,
-                     num_frames,
-                     frame_rate)
+                                for example_cluster_starts_ends, example_start_end_tuples in itertools.izip(cluster_starts_ends,example_detection_windows))).T,
+                                num_frames,
+                                frame_rate)
+    else:
+        return tuple(
+            true_false_clusters(example_cluster_starts_ends,
+                                example_start_end_tuples)
+                                for example_cluster_starts_ends, example_start_end_tuples in itertools.izip(cluster_starts_ends,example_detection_windows))
 
 
 
@@ -167,7 +210,9 @@ def get_roc_curve(potential_thresholds,
                   example_start_end_times,
                   C0,C1,frame_rate,
                   win_front_length = None,
-                  win_back_length = None):
+                  win_back_length = None,
+                  return_detected_examples=False,
+                  return_clusters = False):
     if win_front_length is None:
         win_front_length = int(np.ceil(C0/3.))
     if win_back_length is None:
@@ -182,7 +227,22 @@ def get_roc_curve(potential_thresholds,
                                      example_detection_windows,
                                      C0,C1,frame_rate)
             for threshold in potential_thresholds]).T
-    return rate_mat[0], rate_mat[1]
+    return_tuple = (rate_mat[0],rate_mat[1])
+    if return_detected_examples:
+        return_tuple +=  (true_false_positive_rate(threshold,
+                                                     detection_array,
+                                                     detection_lengths,
+                                                     example_detection_windows,
+                                                     C0,C1,frame_rate,
+                                                     return_list=True),)
+    if return_clusters:
+        return_tuple += (true_false_positive_rate(threshold,
+                                                     detection_array,
+                                                     detection_lengths,
+                                                     example_detection_windows,
+                                                     C0,C1,frame_rate,
+                                                     return_clusters=True),)
+        return rate_mat[0], rate_mat[1]
 
 
 def display_roc_curve(file_path,
@@ -191,7 +251,7 @@ def display_roc_curve(file_path,
     pass
 
 #######################################
-#  Binary search functions 
+#  Binary search functions
 #
 #
 ########################################
@@ -230,7 +290,7 @@ def find_best_true_positive_bound_false_positive(detection_array,
     num_thresholds = threshold_candidates.shape[0]
     false_positive_rates = np.zeros(num_thresholds)
     threshold_boundary_cmps = np.zeros((num_thresholds+1,2))
-    
 
-    
-                                                 
+
+
+
