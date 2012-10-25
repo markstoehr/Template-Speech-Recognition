@@ -26,6 +26,17 @@ def get_max_detection_in_syllable_windows(detection_array,
                                           window_start,
                                           window_end):
     """
+    The max detect vals essentially returns the potential thresholds
+    for detecting examples.  In particular for a given instance in the
+    data we have detection windows associated with that instance where
+    any detection that is within the window makes sense. For a given
+    instance, the maximum value of the response curve within the
+    detection window is the smallest threshold where we will have a
+    positive detection of the instance.
+
+    Hence the max_detect_vals correspond to candidates for the
+    thresholds.
+
     Parameters:
     ===========
     aar_template:
@@ -76,7 +87,7 @@ def get_cluster_starts_ends(potential_detect_times,cluster_partition):
         cur_cluster_end = potential_detect_times[t-1]+1
         cluster_tuples.append((cur_cluster_start,
                                cur_cluster_end))
-    return cluster_tuples
+    return tuple(cluster_tuples)
 
 def perform_detection_time_clustering(potential_detect_times,C0,C1):
     """
@@ -171,6 +182,43 @@ def generate_example_detection_windows(example_start_end_times,
                for s,e in utt_examples)
         for utt_examples in example_start_end_times)
 
+def _get_detect_clusters_single_threshold(threshold,
+                                          detection_array,
+                                          detection_lengths,
+                                          C0,C1):
+    """
+    a clustering is dependent upon a threshold level the treshold
+    levels are the max_detect_vals for each value in max_detect_vals
+    there is going to be a cluster these clusters are determined by
+    the detection array, and the parameters for the shapes of the
+    clusters the output for a given threshold should be a list of
+    segments for each utterance in the rows of detection_array
+
+    Parameters:
+    ===========
+    threshold: float
+        detection threshold
+    """
+    return tuple(
+        perform_detection_time_clustering(
+            get_max_above_threshold(detect_vals,
+                                    detect_length,
+                                    threshold,C0),
+            C0,C1)
+        for detect_vals, detect_length in itertools.izip(detection_array,
+                                                         detection_lengths))
+
+def get_detect_clusters_threshold_array(thresholds,
+                                        detection_array,
+                                        detection_lengths,
+                                        C0,C1):
+    return tuple(
+        _get_detect_clusters_single_threshold(threshold,
+                                          detection_array,
+                                          detection_lengths,
+                                          C0,C1)
+        for threshold in thresholds)
+
 def true_false_positive_rate(threshold,
                         detection_array,
                         detection_lengths,
@@ -203,6 +251,149 @@ def true_false_positive_rate(threshold,
                                 for example_cluster_starts_ends, example_start_end_tuples in itertools.izip(cluster_starts_ends,example_detection_windows))
 
 
+def get_segment_phn_context(l,
+                            phns,
+                            phn_id_maps,
+                            phn_half_win_size):
+    return tuple(
+        phns[s-phn_half_win_size:
+                 e+phn_half_win_size+1]
+        for s,e in l)
+
+def get_phn_id_maps(flts):
+    return np.array(tuple( phn_id
+                           for phn_id,flt in enumerate(flts[1:] - flts[:-1])
+                           for i in xrange(flt)))
+
+def return_detector_output(true_detection_list,
+                           false_detection_list,
+                           false_negative_list,
+                           phns,
+                           flts,
+                           phn_half_win_size,
+                           return_context,
+                           return_lists):
+    """
+    Organizes which output to give
+    """
+    out_lists = (true_detection_list,
+                 false_detection_list,
+                 false_negative_list)
+    return_tuple = tuple(len(l) for l in out_lists)
+    if return_lists:
+        return_tuple += out_lists
+    if return_context:
+        phn_id_maps = get_phn_id_maps(phns,flts)
+        return_tuple += tuple(
+            get_segment_phn_context(l,
+                                    phns,
+                                    phn_id_maps,
+                                    phn_half_win_size))
+        
+    return return_tuple
+    
+    
+
+
+
+
+def get_detection_rates_from_clusters(true_clusters,
+                                      detected_clusters,
+                                      phns=None,
+                                      flts=None,
+                                      phn_half_win_size=2,
+                                      return_context=False,
+                                      return_lists=False):
+    """
+    Output the number of false positives and the number of true positives.
+
+    detected_clusters is a list of tuples (representing a half open
+    interval) where we propose that a detection has occurred.
+    true_clusters is a list of tuples (also representing half open intervals)
+    where we expect the auditory object occurred.
+
+    The false positives is the set of the detected_clusters which do not
+    overlap with any of the true segments.
+
+    The true positives are the set of tuples in true_clusters which
+    overlap with an interval in detected_clusters.
+
+    We note that multiple detections are not penalized under this system.
+
+    We also have an optional system for checking what the phonetic
+    context is for true detections and false detections
+
+    The output depends on whether return_context is true or false.
+    If ``return_context == False `` then we only return the number
+    of true detections and false positives.
+    If ``return_context == True `` then we return, in addition to
+    the statistics, also the list of phone contexts for each true detection,
+    each false positive, and each false negative.
+    """
+    if return_context:
+        assert (phns is not None) and (flts is not None)
+
+    num_true = len(true_clusters)
+    num_detected = len(detected_clusters)
+    true_detection_list = []
+    false_detection_list = []
+    false_negative_list = []
+
+    if num_true == 0:
+        false_detection_list =detected_clusters
+        return return_detector_output(true_detection_list,
+                                      false_detection_list,
+                                      false_negative_list,
+                                      phns,
+                                      flts,
+                                      phn_half_win_size,
+                                      return_context,
+                                      return_lists)
+    elif num_detected == 0:
+        false_negative_list = true_clusters
+        return return_detector_output(true_detection_list,
+                                      false_detection_list,
+                                      false_negative_list,
+                                      phns,
+                                      flts,
+                                      phn_half_win_size,
+                                      return_context,
+                                      return_lists)
+    else: # assume here that we have both true clusters and detected clusters
+        pass
+
+    true_detects = np.zeros(num_true,dtype=bool)
+    false_detects = np.ones(num_detected,dtype=bool)
+    for true_cluster_id, true_cluster in enumerate(true_clusters):
+        for detected_cluster_id, detected_cluster in enumerate(detected_clusters):
+            # check if there is an overlap
+            if true_cluster[1] > detected_cluster[0] and true_cluster[0] < detected_cluster[1]:
+                true_detects[true_cluster_id] = True
+                false_detects[detected_cluster_id] = False
+            else: # no overlap, false negative
+                false_negative_list.append(true_cluster)
+    
+    return return_detector_output([true_clusters[i] for i,v in enumerate(true_detects) if v],
+                                  [detected_clusters[i] for i,v in enumerate(false_detects) if v],
+                                  false_negative_list,
+                                  phns,
+                                  flts,
+                                  phn_half_win_size,
+                                  return_context,
+                                  return_lists)
+
+        
+
+def get_detection_rates_from_clusters_utterance(seq_of_true_segments,
+                                                seq_of_detected_clusters):
+    """
+    Returns the false positive rate and the false negative rate
+    """
+    stats_rates = np.array([
+            get_detection_rates_from_clusters(true_segment,detected_clusters)
+            for true_segment, detected_clusters in itertools.izip(seq_of_true_segments,
+                                      seq_of_detected_clusters)]).T
+    return stats_rates[1],stats_rates[2]
 
 def get_roc_curve(potential_thresholds,
                   detection_array,
@@ -243,6 +434,7 @@ def get_roc_curve(potential_thresholds,
                                                      C0,C1,frame_rate,
                                                      return_clusters=True),)
         return rate_mat[0], rate_mat[1]
+    return return_tuple
 
 
 def display_roc_curve(file_path,
