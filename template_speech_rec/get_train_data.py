@@ -453,7 +453,7 @@ def get_syllables_examples_backgrounds_files(train_data_path,
     return avg_bgd, syllable_examples, backgrounds
 
 
-def get_detect_lengths(data_path,
+def get_detect_lengths(data_files_indices,data_path,
                            abst_threshold=np.array([.025,.025,.015,.015,
                                                      .02,.02,.02,.02]),
                            spread_length=3,
@@ -463,7 +463,6 @@ def get_detect_lengths(data_path,
                            sample_rate=16000,
                            num_window_samples=320,
                            kernel_length=7):
-    data_files_indices = get_data_files_indices(data_path)
     return np.array([
             esp.get_spectrogram_features(np.load(data_path+data_file_idx+'s.npy'),
                                          sample_rate,
