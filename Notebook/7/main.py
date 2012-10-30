@@ -140,6 +140,8 @@ for num_mix in num_mix_params:
         thresh_idx = np.arange(fpr.shape[0])[fpr*60 <= i].min()
         FOMS[num_mix].append(tpr[thresh_idx])
         pos_cluster_responses,neg_cluster_responses = rf.get_pos_neg_detections(detection_clusters[thresh_idx],detection_array,C1,window_start,window_end,example_start_end_times)
+        pos_cluster_responses += np.random.randn(*pos_cluster_responses.shape)/1000
+        neg_cluster_responses += np.random.randn(*neg_cluster_responses.shape)/1000
         if pos_cluster_responses.shape[0] > 1:
             np.save("data/aar_pos_cluster_responses_%d_%d.npy"% (num_mix,i),pos_cluster_responses)
             pos_response_grid, pos_response_points = rf.map_cluster_responses_to_grid(pos_cluster_responses)
