@@ -26,3 +26,8 @@ if __name__ == "__main__":
         name = "spread_waliji_patches",
         ext_modules = cythonize('spread_waliji_patches.pyx'), # accepts a glob pattern
         )
+
+    setup(
+        name = "compute_likelihood_linear_filter",
+        ext_modules = cythonize('compute_likelihood_linear_filter.pyx'), # accepts a glob pattern
+        )
