@@ -10,6 +10,7 @@ import code_parts as cp
 import spread_waliji_patches as swp
 import compute_likelihood_linear_filter
 
+
 class AverageBackground:
     def __init__(self):
         self.num_frames = 0
@@ -346,18 +347,21 @@ def _get_syllable_examples_background_files(train_data_path,
                                             avg_bgd,
                                             syllable,
                                             syllable_examples,
-                                            backgrounds,
+                                            backgrounds=None,
                                             log_part_blocks=None,
                                             log_invpart_blocks=None,
+                                            s_chunks=None,
                                             abst_threshold=np.array([.025,.025,.015,.015,
                                       .02,.02,.02,.02]),
                                             spread_length=3,
+                                            spread_type='line',
                                             fft_length=512,
                                             num_window_step_samples=80,
                                             freq_cutoff=3000,
                                             sample_rate=16000,
                                             num_window_samples=320,
-                                            kernel_length=7
+                                            kernel_length=7,
+                                            offset=3
                                             ):
     """
     Perform main signal processin
@@ -367,16 +371,19 @@ def _get_syllable_examples_background_files(train_data_path,
     # we divide by 5 since we coarsen in the time domain
     flts = np.load(train_data_path+data_file_idx+'feature_label_transitions.npy')
     F = get_feature_map(s,
-                               log_part_blocks,
-                               log_invpart_blocks,
-                               abst_threshold=abst_threshold,
-                               spread_length=spread_length,
-                               fft_length=fft_length,
-                               num_window_step_samples=num_window_step_samples,
-                               freq_cutoff=freq_cutoff,
-                               sample_rate=sample_rate,
-                               num_window_samples=num_window_samples,
-                               kernel_length=kernel_length)
+                        log_part_blocks,
+                        log_invpart_blocks,
+                        abst_threshold=abst_threshold,
+                        spread_length=spread_length,
+                        spread_type=spread_type,
+                        fft_length=fft_length,
+                        num_window_step_samples=num_window_step_samples,
+                        freq_cutoff=freq_cutoff,
+                        sample_rate=sample_rate,
+                        num_window_samples=num_window_samples,
+                        kernel_length=kernel_length,
+                        use_mels=use_mels,
+                        offset=offset,)
     if log_part_blocks is None:
         background_length = 20
     else:
@@ -391,9 +398,10 @@ def _get_syllable_examples_background_files(train_data_path,
     if example_starts is not None:
         syllable_examples.extend([F[s:e]
                                  for s,e in itertools.izip(example_starts,example_ends)])
-        backgrounds.extend([
-            F[max(0,s-background_length):s].mean(0)
-            for s in example_starts])
+        if backgrounds is not None:
+            backgrounds.extend([
+                    F[max(0,s-background_length):s].mean(0)
+                    for s in example_starts])
 
 
 def get_syllable_examples_backgrounds_files(train_data_path,
@@ -402,12 +410,22 @@ def get_syllable_examples_backgrounds_files(train_data_path,
                                             log_part_blocks=None,
                                             log_invpart_blocks=None,
                                             num_examples=-1,
-                                            verbose=False):
+                                            verbose=False,
+                                            return_backgrounds=True,
+                                            offset=0,
+                                            return_s=False):
     avg_bgd = AverageBackground()
     syllable_examples = []
     if num_examples == -1:
         num_examples = len(data_files_indices)
-    backgrounds = []
+    if return_backgrounds:
+        backgrounds = []
+    else:
+        backgrounds = None
+    if return_s:
+        s_chunks = []
+    else:
+        s_chunks = None
     for i,data_file_idx in enumerate(data_files_indices[:num_examples]):
         if verbose:
             if ((i % verbose) == 0 ):
@@ -420,7 +438,8 @@ def get_syllable_examples_backgrounds_files(train_data_path,
                                                  syllable_examples,
                                                  backgrounds,
                                                  log_part_blocks,
-                                                 log_invpart_blocks)
+                                                 log_invpart_blocks,
+                                                s_chunks=s_chunks)
     return avg_bgd, syllable_examples, backgrounds
 
 def get_syllables_examples_backgrounds_files(train_data_path,
@@ -746,4 +765,239 @@ def get_training_examples(syllable,train_data_path):
     data_files_indices = get_data_files_indices(train_data_path)
 
 
+
+FeatureMapTimeMap = collections.namedtuple("FeatureMapTimeMap",
+                                           ("name"
+                                            +" feature_map"
+                                            +" time_map"
+                                            +" parameter_map"))
+
+
+Utterance = collections.namedtuple("Utterance",
+                                    ("utterance_directory"
+                                    +" file_idx"
+                                    +" s"
+                                    +" phns"
+                                    +" flts"
+                                    ))
+
+
+def makeUtterance(
+                 utterance_directory,
+                 file_idx):
+    return Utterance(
+        utterance_directory=utterance_directory,
+        file_idx=file_idx,
+        s = np.load(utterance_directory+file_idx+'s.npy'),
+        phns = np.load(utterance_directory+file_idx+'phns.npy'),
+        flts = np.load(utterance_directory+file_idx+'feature_label_transitions.npy'))
+
+
+def makeTimeMap(old_start,old_end,new_start,new_end):
+    return (np.arange(new_start,new_end) * float(old_end-old_start)/float(new_end-new_start) + .5).astype(int)
+
+
+SyllableFeatures = collections.namedtuple("SyllableFeatures",
+                                          "s S S_config E E_config offset")
+
+
+def phns_syllable_matches(phns,syllable):
+    syllable_len = len(syllable)
+    return np.array([ phn_id
+                      for phn_id in xrange(len(phns)-syllable_len+1)
+                      if np.all(phns[phn_id:phn_id+syllable_len]==np.array(syllable))])
+
+def get_example_with_offset(F,offset,start_idx,end_idx):
+    return np.vstack(
+        (np.inf * np.ones((-min(start_idx-offset,0),)+F.shape[1:]),
+         F[start_idx:end_idx],
+         np.inf * np.ones((-min(end_idx-offset,0),) + F.shape[1:])))
+
+def get_syllable_features(utterance_directory,data_idx,syllable,
+                          S_config=None,E_config=None,offset = None,E_verbose=False,avg_bgd=None):
+    """
+    Expects a list of (name, parameters) tuples
+    names are:
+       waveform
+       spectrogram
+       edge_map
+       waliji
+    """
+    utterance = makeUtterance(utterance_directory,data_idx)
+    sflts = (utterance.flts * utterance.s.shape[0]/float(utterance.flts[-1]) + .5).astype(int)
+    # get the spectrogram
+    if S_config is not None:
+        S = get_spectrogram(utterance.s,S_config)
+        S_flts = (sflts * S.shape[0] /float(sflts[-1]) + .5).astype(int)
+        if E_config is not None:
+            E = get_edge_features(S.T,E_config,verbose=E_verbose)
+            if avg_bgd is not None:
+                avg_bgd.add_frames(E,time_axis=0)
+            # both are the same
+            E_flts = S_flts
+        else:
+            E = None
+    else:
+        S = None
+        E = None
+    # we then get the example phones removed from the signals
+    syllable_starts = phns_syllable_matches(utterance.phns,syllable)
+    syllable_length = len(syllable)
+    if (offset is None or offset == 0) and (S is not None and E is not None):
+        return [ SyllableFeatures(
+                s = (utterance.s)[sflts[syllable_start]:sflts[syllable_start+syllable_length]],
+                S = S[S_flts[syllable_start]:S_flts[syllable_start+syllable_length]],
+                S_config = S_config,
+                E = E[E_flts[syllable_start]:E_flts[syllable_start+syllable_length]],
+                E_config = E_config,
+                offset = 0)
+                 for syllable_start in syllable_starts]
+    elif (S is not None and E is not None):
+        return [ SyllableFeatures(
+                s = (utterance.s)[sflts[syllable_start]:sflts[syllable_start+syllable_length]],
+                S = get_example_with_offset(S,offset,S_flts[syllable_start],S_flts[syllable_start+syllable_length]),
+                S_config = S_config,
+                E = get_example_with_offset(E,offset,E_flts[syllable_start],E_flts[syllable_start+syllable_length]),
+                E_config = E_config,
+                offset = offset)
+                 for syllable_start in syllable_starts]
+    else:
+        return None
+
+
+
+
+def get_syllable_features_directory(utterances_path,file_indices,syllable,
+                                    S_config=None,E_config=None,offset=None,
+                                    E_verbose=False,return_avg_bgd=True):
+    avg_bgd = AverageBackground()
+    return_tuple = tuple(
+        get_syllable_features(utterances_path,data_idx,syllable,
+                              S_config=S_config,E_config=E_config,offset = offset,
+                              E_verbose=E_verbose,avg_bgd=avg_bgd)
+        for data_idx in file_indices)
+    if return_avg_bgd:
+        return return_tuple, avg_bgd
+    else:
+        return return_tuple
+
+def recover_example_map(syllable_features):
+    return np.array(reduce(lambda x,y : x + y,
+                           [[i] * len(e)
+                            for i,e in enumerate(syllable_features)]))
+
+def recover_edgemaps(syllable_features,example_mat):
+    max_length = max(
+        max((0,) + tuple(s.E.shape[0] for s in e))
+        for e in syllable_features)
+    for e in syllable_features:
+        if len(e) > 0: break
+    E_shape = e[0].E.shape[1:]
+    Es = np.zeros((len(example_mat),max_length)+E_shape)
+    lengths = np.zeros(len(example_mat))
+    jdx=0
+    for idx,i in enumerate(example_mat):
+        if idx > 0:
+            if i == example_mat[idx-1]:
+                jdx += 1
+            else:
+                jdx = 0
+            
+            lengths[idx] = len(syllable_features[i][jdx].E)
+            Es[idx][:lengths[idx]] = syllable_features[i][jdx].E
+        else:
+            lengths[idx] = len(syllable_features[i][jdx].E)
+            Es[idx][:lengths[idx]] = syllable_features[i][jdx].E
+    return lengths, Es
+
+def recover_specs(syllable_features,example_mat):
+    max_length = max(
+        max((0,) + tuple(s.S.shape[0] for s in e))
+        for e in syllable_features)
+    for e in syllable_features:
+        if len(e) > 0: break
+    S_shape = e[0].S.shape[1:]
+    Ss = np.zeros((len(example_mat),max_length)+S_shape)
+    lengths = np.zeros(len(example_mat))
+    jdx=0
+    for idx,i in enumerate(example_mat):
+        if idx > 0:
+            if i == example_mat[idx-1]:
+                jdx += 1
+            else:
+                jdx = 0
+            
+            lengths[idx] = len(syllable_features[i][jdx].S)
+            Ss[idx][:lengths[idx]] = syllable_features[i][jdx].S
+        else:
+            lengths[idx] = len(syllable_features[i][jdx].S)
+            Ss[idx][:lengths[idx]] = syllable_features[i][jdx].S
+    return lengths, Ss
+
+
+def recover_waveforms(syllable_features,example_mat):
+    max_length = max(
+        max((0,) + tuple(s.s.shape[0] for s in e))
+        for e in syllable_features)
+    waveforms = np.zeros((len(example_mat),max_length))
+    lengths = np.zeros(len(example_mat))
+    jdx=0
+    for idx,i in enumerate(example_mat):
+        if idx > 0:
+            if i == example_mat[idx-1]:
+                jdx += 1
+            else:
+                jdx = 0
+            
+            lengths[idx] = len(syllable_features[i][jdx].s)
+            waveforms[idx][:lengths[idx]] = syllable_features[i][jdx].s
+        else:
+            lengths[idx] = len(syllable_features[i][jdx].s)
+            waveforms[idx][:lengths[idx]] = syllable_features[i][jdx].s
+    return lengths, waveforms
+
+
+SpectrogramParameters = collections.namedtuple("SpectrogramParameters",
+                                               ("sample_rate"
+                                                +" num_window_samples"
+                                                +" num_window_step_samples"
+                                                +" fft_length"
+                                                +" kernel_length"
+                                                +" freq_cutoff"
+                                                +" use_mel"))
+
+def get_spectrogram(waveform,spectrogram_parameters):
+    if spectrogram_parameters.use_mel:
+        return get_mel_spec(waveform,
+                            spectrogram_parameters.sample_rate,
+                        spectrogram_parameters.num_window_samples,
+                        spectrogram_parameters.num_window_step_samples,
+                        spectrogram_parameters.fft_length).T
+    else:
+        return esp.get_spectrogram_features(waveform,
+                                     spectrogram_parameters.sample_rate,
+                                     spectrogram_parameters.num_window_samples,
+                                     spectrogram_parameters.num_window_step_samples,
+                                     spectrogram_parameters.fft_length,
+                                     spectrogram_parameters.freq_cutoff,
+                                     spectrogram_parameters.kernel_length,
+                                 ).T
+
+EdgemapParameters = collections.namedtuple("EdgemapParameters",
+                                           ("block_length"
+                                            +" spread_length"
+                                            +" threshold"))
+
+
+def get_edge_features(S,parameters,verbose=False):
+    E, edge_feature_row_breaks,\
+        edge_orientations = esp._edge_map_no_threshold(S)
+    esp._edge_map_threshold_segments(E,
+                                     parameters.block_length,
+                                     parameters.spread_length,
+                                     threshold=parameters.threshold,
+                                     edge_orientations = edge_orientations,
+                                     edge_feature_row_breaks = edge_feature_row_breaks,
+                                     verbose=verbose)
+    return reorg_part_for_fast_filtering(E)
 
