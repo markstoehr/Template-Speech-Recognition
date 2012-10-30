@@ -1,6 +1,7 @@
 import numpy as np
 import itertools
 import cluster_times
+from scipy.stats import gaussian_kde
 
 def get_auto_syllable_window(template):
     return int( -np.ceil(template.shape[0]/3.)), int(np.ceil(template.shape[0]/3.))
@@ -442,47 +443,46 @@ def display_roc_curve(file_path,
                       true_positive_rate):
     pass
 
-#######################################
-#  Binary search functions
-#
-#
-########################################
-"""
-Purpose of this section is to be able to find the threshold which gives
-the largest true positive rate while bounding the false positive
-rate from above.  This gives us an initial function:
+def get_threshold_neighborhood(cluster,detection_row,C1):
+    start_idx = int((cluster[0]+cluster[1])/2. - C1/2.+.5)
+    end_idx = start_idx + C1
+    return np.hstack((
+            np.zeros(-min(start_idx,0)),
+            detection_row[max(start_idx,0):min(end_idx,detection_row.shape[0])],
+            np.zeros(max(end_idx-detection_row.shape[0],0))))
 
-find_best_true_positive_bound_false_positive
-"""
-
-def find_best_true_positive_bound_false_positive(detection_array,
-                                                 threshold_candidates,
-                                                 detection_lengths,
-                                                 false_positive_rate):
-    """
-    Parameters:
-    ===========
-    detection_array: np.ndarray[ndim=2,]
-        We will verify and set it to dtype np.float32 in this function.
-        Contains all the detections for the utterances that are processed
-    threshold_candidates: np.ndarray[ndim=1,dtype=np.float32]
-        These are all the thresholds that could be used, essentially
-        for each true example in the set of test utterances, there is
-        a threshold that guarantees that that particular example
-        will be detected.  These are the thresholds corresponding
-        to those values.  We assume these are sorted from least to greatest
-    detection_lengths: np.ndarray[ndim=1,dtype=int]
-        detection_lengths[i] is the number of frames in utterance i
-
-    Output:
-    =======
-    false_positive_rates:
-    threshold_boundary_cmps
-    """
-    num_thresholds = threshold_candidates.shape[0]
-    false_positive_rates = np.zeros(num_thresholds)
-    threshold_boundary_cmps = np.zeros((num_thresholds+1,2))
+    
+def get_pos_neg_detections(detection_clusters_at_threshold,detection_array,C1,window_start,window_end,example_start_end_times):
+    num_clusters = sum( len(cset) for cset in detection_clusters_at_threshold)
+    num_pos_clusters = 0
+    num_neg_clusters = 0
+    pos_clusters = np.zeros((num_clusters,C1))
+    neg_clusters = np.zeros((num_clusters,C1))
+    for detect_clusters, detection_row, start_end_times in itertools.izip(detection_clusters_at_threshold,detection_array,example_start_end_times):
+        for c in detect_clusters:
+            is_neg = True
+            for s,e in start_end_times:
+                if s-window_start <= c[1] and s+window_end >= c[0]:
+                    is_neg = False
+                    pos_clusters[num_pos_clusters] = get_threshold_neighborhood(c,detection_row,C1)
+                    num_pos_clusters += 1
+            if is_neg:
+                neg_clusters[num_neg_clusters] = get_threshold_neighborhood(c,detection_row,C1)
+                num_neg_clusters += 1
+    return pos_clusters[:num_pos_clusters], neg_clusters[:num_neg_clusters]
 
 
+def map_cluster_responses_to_grid(cluster_responses):
+    cluster_length = cluster_responses.shape[1]
+    response_grid = np.zeros((cluster_length,cluster_length))
+    response_points = np.arange(cluster_length) * (cluster_responses.max() - cluster_responses.min())/cluster_length + cluster_responses.min()
+    for col_idx,response_col in enumerate(cluster_responses.T):
+        col_pdf = gaussian_kde(response_col)
+        response_grid[col_idx] = col_pdf(response_points)
+    return response_grid.T,response_points
 
-
+def display_response_grid(fname,response_grid,response_points,point_spacing=10):
+    plt.close()
+    plt.imshow(response_grid[::-1])
+    plt.yticks(np.arange(response_points.shape[0])[::10],response_points[::-point_spacing].astype(int))
+    plt.savefig(fname)
