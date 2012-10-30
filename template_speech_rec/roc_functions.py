@@ -2,6 +2,7 @@ import numpy as np
 import itertools
 import cluster_times
 from scipy.stats import gaussian_kde
+import matplotlib.pyplot as plt
 
 def get_auto_syllable_window(template):
     return int( -np.ceil(template.shape[0]/3.)), int(np.ceil(template.shape[0]/3.))
@@ -478,7 +479,7 @@ def map_cluster_responses_to_grid(cluster_responses):
     response_points = np.arange(cluster_length) * (cluster_responses.max() - cluster_responses.min())/cluster_length + cluster_responses.min()
     for col_idx,response_col in enumerate(cluster_responses.T):
         col_pdf = gaussian_kde(response_col)
-        response_grid[col_idx] = col_pdf(response_points)
+        response_grid[col_idx] = col_pdf(response_points + np.random.randn(len(response_points))*np.std(response_points)/1000)
     return response_grid.T,response_points
 
 def display_response_grid(fname,response_grid,response_points,point_spacing=10):
@@ -486,3 +487,4 @@ def display_response_grid(fname,response_grid,response_points,point_spacing=10):
     plt.imshow(response_grid[::-1])
     plt.yticks(np.arange(response_points.shape[0])[::10],response_points[::-point_spacing].astype(int))
     plt.savefig(fname)
+    
