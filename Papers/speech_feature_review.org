@@ -37,7 +37,16 @@ observations form the basis for the LPC signal model.
 
 When the vocal tract is relatively open and when air pressure passing
 through is quite large, the pressure waves will resonate at certain
-frequencies as a function of the vocal tract shape.  These resonances
+frequencies as a function of the vocal tract shape.  The vocal tract
+shape varies as a function of movements from the tongue, lips, and
+vellum. By pushing air through the larynx, and rhythmically
+contracting and relaxing the glottis the vocal folds vibrate and
+produce resonances with parts of the vocal tract. The source, then,
+corresponds to the glottal pulse and the filter corresponds to the
+vocal tract shape.  The resonant frequencies produced by certain
+vocal tract shapes are called formants. This implies that it can be modeled using an
+all-pole linear prediction model.
+
 Formants appear to play an import role in the recognition of nearly
 all speech sounds. Vowels are often classified in terms of their
 formants
