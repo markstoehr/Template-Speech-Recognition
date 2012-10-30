@@ -927,7 +927,8 @@ def _edge_map_threshold_segments(E,block_length,
                                 [-1.,  1.]]), edge_feature_row_breaks = None,
                                  abst_threshold=np.array([ 0.025,  0.025,  0.015,
                                                            0.015,  0.02 ,  0.02 ,
-                                                           0.02 ,  0.02 ])):
+                                                           0.02 ,  0.02 ]),
+                                 verbose=False):
     """
     Parameters:
     ===========
@@ -948,11 +949,19 @@ def _edge_map_threshold_segments(E,block_length,
     last_block_length = length % block_length
     if last_block_length > 0:
         last_E = E[:,-block_length:].copy()
-        threshold_edgemap(last_E,
-                          threshold,
-                          edge_feature_row_breaks,
-                          report_level=False,
-                          abst_threshold=abst_threshold)
+        if verbose:
+            _, view_threshold= threshold_edgemap(last_E,
+                              threshold,
+                              edge_feature_row_breaks,
+                              report_level=True,
+                              abst_threshold=abst_threshold)
+            print view_threshold
+        else:
+            threshold_edgemap(last_E,
+                              threshold,
+                              edge_feature_row_breaks,
+                              report_level=False,
+                              abst_threshold=abst_threshold)
         spread_edgemap(last_E,
                        edge_feature_row_breaks,
                        edge_orientations,
@@ -961,11 +970,20 @@ def _edge_map_threshold_segments(E,block_length,
 
     for cur_block in xrange(num_full_blocks):
         E_block = E[:,cur_block*block_length:(1+cur_block)*block_length]
-        threshold_edgemap(E_block,
-                          threshold,
-                          edge_feature_row_breaks,
-                          report_level=False,
-                          abst_threshold=abst_threshold)
+        if verbose:
+            _, view_threshold= threshold_edgemap(E_block,
+                              threshold,
+                              edge_feature_row_breaks,
+                              report_level=True,
+                              abst_threshold=abst_threshold)
+            print view_threshold
+        else:
+            threshold_edgemap(E_block,
+                              threshold,
+                              edge_feature_row_breaks,
+                              report_level=False,
+                              abst_threshold=abst_threshold)
+
         spread_edgemap(E_block,
                        edge_feature_row_breaks,
                        edge_orientations,
