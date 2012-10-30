@@ -606,8 +606,6 @@ def _save_detection_results_mixture(s,phns,flts,
                                                                flts,
                                                                log_part_blocks,
                                                                F.shape[0])
-
-
     detection_array[len(detect_lengths)-1,
                     :F.shape[0]-linear_filters_cs[0][0].shape[0]+1] = compute_likelihood_linear_filter.detect(F.astype(np.uint8),
                                                                                              linear_filters_cs[0][0]) + linear_filters_cs[0][1]
@@ -619,6 +617,51 @@ def _save_detection_results_mixture(s,phns,flts,
                                                                                              detection_array[len(detect_lengths)-1,
                     :F.shape[0]-cur_filt.shape[0]+1])
 
+    if np.any(np.isnan(detection_array)) == True:
+        import pdb; pdb.set_trace()
+
+    if example_starts is not None:
+        example_start_end_times.append(zip(example_starts,example_ends))
+    else:
+        example_start_end_times.append([])
+
+
+def _compute_detection_E(E,phns,E_flts,
+                         detection_array,
+                         detect_lengths,
+                         linear_filters_cs,
+                         syllable,
+                         example_start_end_times):
+    """
+    Detection array will have detection scores saved to it
+    and we will make entries of detection_array that are trailing
+    be some minimum value: min_val, which is initially None
+    and if it is None then it is set to
+         - 2* np.abs(detection_array[next_id,:next_length]).max()
+         and then it is set to that threshold the rest of the time
+
+    we also save the lengths to detect_lengths
+    """
+    detect_lengths.append(E.shape[0])
+
+    example_starts, example_ends = get_examples_from_phns_ftls(syllable,
+                                                               phns,
+                                                               E_flts,
+                                                               None,
+                                                               E.shape[0])
+    detection_array[len(detect_lengths)-1,
+                    :E.shape[0]-linear_filters_cs[0][0].shape[0]+1] = compute_likelihood_linear_filter.detect(E.astype(np.uint8),
+                                                                                             linear_filters_cs[0][0]) + linear_filters_cs[0][1]
+    if len(linear_filters_cs) > 1:
+        for cur_filt,cur_c in linear_filters_cs[1:]:
+            detection_array[len(detect_lengths)-1,
+                    :E.shape[0]-cur_filt.shape[0]+1] = np.maximum(compute_likelihood_linear_filter.detect(E.astype(np.uint8),
+                                                                                             cur_filt) + cur_c,
+                                                                                             detection_array[len(detect_lengths)-1,
+                    :E.shape[0]-cur_filt.shape[0]+1])
+
+    if np.any(np.isnan(detection_array)) == True:
+        import pdb; pdb.set_trace()
 
     if example_starts is not None:
         example_start_end_times.append(zip(example_starts,example_ends))
@@ -708,6 +751,8 @@ def get_detection_scores_mixture(data_path,
         phns = np.load(data_path+data_file_idx+'phns.npy')
         # we divide by 5 since we coarsen in the time domain
         flts = np.load(data_path+data_file_idx+'feature_label_transitions.npy')
+        if np.any(np.isnan(detection_array)) == True:
+            import pdb; pdb.set_trace()
 
 
         _save_detection_results_mixture(s,phns,flts,
@@ -721,43 +766,40 @@ def get_detection_scores_mixture(data_path,
                                 )
     return detection_array,example_start_end_times, detection_lengths
 
-def get_detection_scores_mixture_hack(data_path,
+def get_detection_scores_mixture_named_params(data_path,file_indices,
                          detection_array,
                          syllable,
-                         linear_filters_cs,
-                         log_part_blocks=None,
-                         log_invpart_blocks=None,
-                         abst_threshold=np.array([.025,.025,.015,.015,
-                                                     .02,.02,.02,.02]),
-                         spread_length=3,
-                         fft_length=512,
-                         num_window_step_samples=80,
-                           freq_cutoff=3000,
-                           sample_rate=16000,
-                           num_window_samples=320,
-                           kernel_length=7,
+                         linear_filters_cs,S_config=None,
+                                              E_config=None,
                          verbose = False,
                          num_examples =-1):
-    detection_array[:] = -np.inf
-    print syllable
-    print linear_filters_cs
-    for i in xrange(len(linear_filters_cs)):
-        linear_filter = linear_filters_cs[i][0]
-        c = linear_filters_cs[i][1]
 
-        new_detection_array = np.zeros(detection_array.shape,
-                                       dtype=detection_array.dtype)
-        #import pdb; pdb.set_trace()
-        new_detection_array,example_start_end_times, detection_lengths = get_detection_scores(data_path,
-                                                                                                       new_detection_array,
-                                                                                                       syllable,
-                                                                                                       linear_filter,c,
-                                                                                                       log_part_blocks,
-                                                                                                       log_invpart_blocks,verbose=True)
+    example_start_end_times = []
+    if num_examples == -1:
+        num_examples = len(file_indices)
 
-        detection_array = np.maximum(new_detection_array+c,detection_array).astype(detection_array.dtype)
+    detection_lengths = []
+    for i,data_file_idx in enumerate(file_indices[:num_examples]):
+        if verbose:
+            if ((i % verbose) == 0 ):
+                print "Getting examples from example %d" % i
 
+        utterance = makeUtterance(data_path,data_file_idx)
+        sflts = (utterance.flts * utterance.s.shape[0]/float(utterance.flts[-1]) + .5).astype(int)
+        S = get_spectrogram(utterance.s,S_config)
+        S_flts = (sflts * S.shape[0] /float(sflts[-1]) + .5).astype(int)
+        E = get_edge_features(S.T,E_config,verbose=False)
+        E_flts = S_flts
+
+        _compute_detection_E(E,utterance.phns,E_flts,
+                                detection_array,
+                                detection_lengths,
+                                linear_filters_cs,
+                                syllable,
+                                example_start_end_times
+                                )
     return detection_array,example_start_end_times, detection_lengths
+
 
 
 
@@ -968,7 +1010,7 @@ SpectrogramParameters = collections.namedtuple("SpectrogramParameters",
 
 def get_spectrogram(waveform,spectrogram_parameters):
     if spectrogram_parameters.use_mel:
-        return get_mel_spec(waveform,
+        return esp.get_mel_spec(waveform,
                             spectrogram_parameters.sample_rate,
                         spectrogram_parameters.num_window_samples,
                         spectrogram_parameters.num_window_step_samples,
