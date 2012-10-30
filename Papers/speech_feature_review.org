@@ -35,6 +35,13 @@ filter being applied to the source.  This filter has a given set of
 resonances which corresponds to the poles of the filter. These
 observations form the basis for the LPC signal model.
 
+When the vocal tract is relatively open and when air pressure passing
+through is quite large, the pressure waves will resonate at certain
+frequencies as a function of the vocal tract shape.  These resonances
+Formants appear to play an import role in the recognition of nearly
+all speech sounds. Vowels are often classified in terms of their
+formants
+
 * Bank of Filters
 
 Another feature extraction technique is to use a filter bank for
