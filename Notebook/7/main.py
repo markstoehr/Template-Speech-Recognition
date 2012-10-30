@@ -84,7 +84,8 @@ test_example_lengths = gtrd.get_detect_lengths(test_file_indices,test_path)
 np.save("data/test_example_lengths.npy",test_example_lengths)
 np.save("data/test_file_indices.npy",test_file_indices)
 
-
+import collections
+FOMS = collections.defaultdict(list)
 for num_mix in num_mix_params:
     templates = (np.load('aar1_templates_%d.npz' % num_mix))['arr_0']
     detection_array = np.zeros((test_example_lengths.shape[0],
@@ -102,10 +103,10 @@ for num_mix in num_mix_params:
     np.save('data/detection_array_aar_%d.npy' % num_mix,detection_array)
     if num_mix == 2:
         out = open('data/example_start_end_times_aar.pkl','wb')
-        cPickle.dump(parts_example_start_end_times,out)
+        cPickle.dump(example_start_end_times,out)
         out.close()
         out = open('data/detection_lengths_aar.pkl','wb')
-        cPickle.dump(parts_detection_lengths,out)
+        cPickle.dump(detection_lengths,out)
         out.close()
     window_start = -10
     window_end = 10
@@ -137,15 +138,36 @@ for num_mix in num_mix_params:
     out.close()
     for i in xrange(1,11):
         thresh_idx = np.arange(fpr.shape[0])[fpr*60 <= i].min()
-        pos_cluster_responses,neg_cluster_responses = get_pos_neg_detections(detection_clusters[thresh_idx],detection_array,C1,window_start,window_end,example_start_end_times)
-        if pos_cluster_responses.shape[0] > 0:
+        FOMS[num_mix].append(tpr[thresh_idx])
+        pos_cluster_responses,neg_cluster_responses = rf.get_pos_neg_detections(detection_clusters[thresh_idx],detection_array,C1,window_start,window_end,example_start_end_times)
+        if pos_cluster_responses.shape[0] > 1:
             np.save("data/aar_pos_cluster_responses_%d_%d.npy"% (num_mix,i),pos_cluster_responses)
             pos_response_grid, pos_response_points = rf.map_cluster_responses_to_grid(pos_cluster_responses)
             rf.display_response_grid("aar_pos_response_grid_%d_%d.png" % (num_mix,i),pos_response_grid,pos_response_points)
-        if neg_cluster_responses.shape[0] > 0:
+        if neg_cluster_responses.shape[0] > 1:
             np.save("data/aar_neg_cluster_responses_%d_%d.npy"%(num_mix,i),neg_cluster_responses)
             neg_response_grid, neg_response_points = rf.map_cluster_responses_to_grid(neg_cluster_responses)
             rf.display_response_grid("aar_neg_response_grid_%d_%d.png" % (num_mix,i),neg_response_grid,neg_response_points)
+
+
+num_clusters = sum( len(cset) for cset in detection_clusters_at_threshold)
+num_pos_clusters = 0
+num_neg_clusters = 0
+pos_clusters = np.zeros((num_clusters,C1))
+neg_clusters = np.zeros((num_clusters,C1))
+for detect_clusters, detection_row, start_end_times in itertools.izip(detection_clusters_at_threshold,detection_array,example_start_end_times):
+    for c in detect_clusters:
+        is_neg = True
+        for s,e in start_end_times:
+                if s-window_start <= c[1] and s+window_end >= c[0]:
+                    is_neg = False
+                    pos_clusters[num_pos_clusters] = get_threshold_neighborhood(c,detection_row,C1)
+                    num_pos_clusters += 1
+            if is_neg:
+                neg_clusters[num_neg_clusters] = get_threshold_neighborhood(c,detection_row,C1)
+                num_neg_clusters += 1
+
+
 
 
 import itertools    
