@@ -16,11 +16,11 @@ train_data_path = root_path+'Data/Train/'
 file_indices = gtrd.get_data_files_indices(train_data_path)
 syllable = np.array(['aa','r'])
 avg_bgd, syllable_examples, backgrounds = gtrd.get_syllable_examples_backgrounds_files(train_data_path,
-                                            file_indices,
+                                                                                       file_indices,
                                                                                        syllable,
-
-                                            num_examples=-1,
-                                            verbose=True)
+                                                                                       
+                                                                                       num_examples=-1,
+                                                                                       verbose=True)
 
 
 clipped_bgd = np.clip(avg_bgd.E,.1,.4)
