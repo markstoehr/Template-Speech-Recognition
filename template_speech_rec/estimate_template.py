@@ -55,6 +55,14 @@ def recover_different_length_templates(affinities,examples,lengths):
                                                                                        np.prod(example_shapes))).reshape((avg_lengths.shape[0],)+example_shapes),avg_lengths))
 
 
+def recover_clustered_data(affinities,padded_examples,templates,assignment_threshold = .95):
+    row_sums = affinities.sum(1)
+    template_assignments = (affinities/row_sums[:,np.newaxis] > assignment_threshold).astype(int).T
+    cluster_sizes = template_assignments.sum(1)
+    return tuple(
+        padded_examples[template_assignments[i]==1][:,:templates[i].shape[0]]
+        for i in xrange(len(templates)))
+
 
 
 
@@ -103,6 +111,35 @@ def construct_linear_filter(T,
     C_exp_inv = T_inv/Bgd_inv
     c = np.log(C_exp_inv).sum()
     expW = (T/Bgd) / C_exp_inv
+    return np.log(expW).astype(np.float32), c
+
+def construct_linear_filter_structured_alternative(T1,T2,
+                            bgd=None,min_prob=.01):
+    """
+    Bgd is the tiled matrix of bgd vectors slaooed onto each other
+    """
+    if bgd is None:
+        bgd = .5 * np.ones(T1.shape[1:])
+    T1 = np.clip(T1,min_prob,1-min_prob)
+    T2 = np.clip(T2,min_prob,1-min_prob)
+    if T1.shape[0] < T2.shape[0]:
+        T1p = np.vstack((T1,
+                         np.tile(bgd,
+                  (T2.shape[0] - T1.shape[0],) + tuple(1 for i in xrange(len(T.shape-1))))))
+        T2p = T2
+    elif T2.shape[0] < T1.shape[0]:
+        T2p = np.vstack((T2,
+                         np.tile(bgd,
+                  (T1.shape[0] - T2.shape[0],) + tuple(1 for i in xrange(len(T.shape-1))))))
+        T1p = T1
+    else:
+        T1p = T1
+        T2p = T2
+    T1_inv = 1. - T1p
+    T2_inv = 1. - T2p
+    C_exp_inv = T1_inv/T2_inv
+    c = np.log(C_exp_inv).sum()
+    expW = (T1p/T2p) / C_exp_inv
     return np.log(expW).astype(np.float32), c
 
 
