@@ -98,3 +98,93 @@ speech recognition.  We begin
 
 References
 
+* Short Time Fourier Transform
+
+** Two Fundamental Properties L\:{u}tfiye Durak, Orhan Arikan
+Basic definition of shift invariance is that if shifts in time and
+frequency should should change only the position of time-frequency structure in
+a signal and the magnitudes should not be different. Namely if $D_x(t,f)$
+is a time frequency representation of $x(t)$ and we have a shifted
+version $x_s(t)=x(t-t_s)e^{j2\pi f_s t}$ then we should have
+$|D_{x_s}(t,f)| = |D_x(t-t_s,f-f_s)|$ we wish to consider the claim that
+magnitude-wise shift-invariance in time requires that $D_x(t,f)$ have
+the form
+$$ D_x(t,f) = e^{j\hat{\phi}(t,f)} \int \kappa(t-t',f)x(t')dt' $$
+
+The next main idea is that it has rotation invariance, that is that the
+fractional fourier transform does not change the time frequency domain
+characteristics.  We need to understand what these rotation properties
+are and whether these are at all relevant for speech recognition.
+
+*** Proof Of the shift Invariance
+This is theorem 1 in Two Fundamental Properties
+If a linear system $\mathcal{T}$ satisfies magnitude-wise shift invariance then there exists $h(t)$ and
+$\phi(t)$ such that for arbitrary input $x(t)$ we have
+
+$$\mathcal{T}\{x(t)\} = e^{j\hat{phi}(t)}[h(t)*x(t)]$$
+
+We observe that $|\delta(t-t_s)| = |\mathcal{T}\{\delta(t-t_s)\}(t)|$ is fundamentally
+what shift invariance means that 
+
+$$\begin{array}{rcl}
+ {} |\delta(t-t_s)  | &=&   | \mathcal{T}\{\delta(t-t_s)\}(t) |\\
+ {} |\int\delta(t-t_s-t')x(t')  | &=&   | \mathcal{T}\{\delta(t-t_s)\}(t) |
+\end{array}$$
+
+
+Using the Riez representation theorem we know that 
+$\mathcal{T}\{x(t)\} = \langle x(t),y(t)\rangle$ for some $y(t)$
+
+** Shift-Variance Analysis of Generalized Sampling Processes
+
+Again we consider the space $L^2$ of square-integrable complex-valued
+continuous-time signals.  For a pair of signals $x,\psi\in L^2$ we
+can compute an inner product
+
+$$ \langle x,\psi\rangle = \int \psi^*(t)x(t)\;\text{d}t$$
+
+In order to get discrete-time signals from continuous signals
+we define a sequence of signals 
+$\psi_n(t) = \psi(t-nT)$ were $n\in\mathbb{Z}$, which is essentially
+just translates of the base function on an integral lattice.  
+
+Discrete time sampling of a continuous signal may be modeled using this:
+namely we can definite a discrete-time signal $y=\{y_n\}_{n\in\mathbb{Z}}$
+where $y_n=\langle x,\psi_n\rangle$. In the case where $\psi$ has compact
+support this is a windowing operation, in the case where $\psi=\delta$
+where $\delta$ is the Dirac $\delta$ this is simply discrete sampling.
+
+We can change the notation for convenience to write $h(t)=\psi^*(-t)$
+so $\hat{h}(\omega)=\hat{\psi}^*(\omega)$
+
+* Koloydenko, Amit, Niyogi Features
+
+** Spreading
+
+One line of justification for spreading comes from the neural spike train
+literature. In some sense we are mimiccing the response of these 
+
+*** Houghton Spike metric
+
+Neural spike train data comes as arrival times 
+$\mathbf{t}=(t_1,t_2,\ldots,t_n)$ and these may be
+viewed as a sum of delta spikes
+these are then turned into a function
+$$\mathcal{F}_h\{\mathbf{t}\}(t) = \sum_{i=0}^n h(t-t_i)$$
+where the functions $h$ are kernels.
+
+Spike trains can then be compared using a distance
+$$d(\mathbf{t}_1,\mathbf{t}_2;h) = 
+    \int_{\mathbb{R}}(\mathcal{F}_h\{\mathbf{t}_1\}(t)
+                     -\mathcal{F}_h\{\mathbf{t}_2\}(t))^2\;\text{d}t$$
+
+
+Another technique is to compute the cost of transforming one
+spike train into another.  The transformation may be computed
+by moving a spike or by deleting and adding spikes.  In the
+Victor-Purpura metric a parameter $q$ is the assigned cost for
+moving a spike. So for small $q$ the metric is given by the difference
+in the number of spikes (since the cost of moving is small).
+When $q$ is large the distance is dominated by how many spikes align
+with each other (since you won't move spikes). Setting $q$ trades off
+between these two extremes.
