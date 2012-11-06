@@ -3,6 +3,8 @@ import itertools
 import cluster_times
 from scipy.stats import gaussian_kde
 import matplotlib.pyplot as plt
+import collections
+import get_train_data as gtrd
 
 def get_auto_syllable_window(template):
     return int( -np.ceil(template.shape[0]/3.)), int(np.ceil(template.shape[0]/3.))
@@ -26,7 +28,8 @@ def get_max_detection_in_syllable_windows(detection_array,
                                           example_start_end_times,
                                           detection_lengths,
                                           window_start,
-                                          window_end):
+                                          window_end,
+                                          verbose=False):
     """
     The max detect vals essentially returns the potential thresholds
     for detecting examples.  In particular for a given instance in the
@@ -53,9 +56,17 @@ def get_max_detection_in_syllable_windows(detection_array,
     max_detect_vals = []
     for example_idx,start_end_times in enumerate(example_start_end_times):
         for start_time, end_time in start_end_times:
-            print start_time
-            max_detect_vals.append(detection_array[example_idx,max(start_time+window_start,0):
-                                                       min(start_time+window_end,detection_array.shape[1])].max())
+            detect_vals = detection_array[example_idx,max(start_time+window_start,0):
+                                      min(start_time+window_end,detection_array.shape[1])]
+            maybe_val_array = detect_vals[1:-1][(detect_vals[1:-1] >= detect_vals[:-2])
+                                    * (detect_vals[1:-1] >= detect_vals[2:])]
+            if len(maybe_val_array) > 0:
+                val = maybe_val_array.max()
+            else:
+                val = -np.inf
+            if verbose:
+                print "Utt: %d, loc: %d, val:%g" % (example_idx,start_time,val)
+            max_detect_vals.append(val)
     return np.sort(max_detect_vals)
 
 
@@ -151,7 +162,7 @@ def true_false_clusters(example_cluster_starts_ends,
         for i,cur_detect in enumerate(example_cluster_starts_ends):
             # check whether the current detection cluster is
             # passed the marked time point
-            while cur_detect[0] >= cur_true[1]:
+            while cur_detect[0] >= cur_true[0]:
                 if true_idx == num_true -1:
                     # we are done now since there are no more true
                     # detections possible
@@ -219,7 +230,9 @@ def get_detect_clusters_threshold_array(thresholds,
                                           detection_array,
                                           detection_lengths,
                                           C0,C1)
-        for threshold in thresholds)
+        if threshold > - np.inf
+        else ()
+        for threshold in thresholds )
 
 def true_false_positive_rate(threshold,
                         detection_array,
@@ -453,7 +466,27 @@ def get_threshold_neighborhood(cluster,detection_row,C1):
             np.zeros(max(end_idx-detection_row.shape[0],0))))
 
     
-def get_pos_neg_detections(detection_clusters_at_threshold,detection_array,C1,window_start,window_end,example_start_end_times):
+def get_pos_neg_detections(detection_clusters_at_threshold,
+                           detection_array,
+                           C1,
+                           window_start,
+                           window_end,
+                           example_start_end_times):
+    """
+    Parameters:
+    ===========
+    detection_clusters_at_threshold:
+    detection_array:
+    C1:
+    window_start:
+    window_end:
+    example_start_end_times:
+
+    Output:
+    =======
+    pos_clusters
+    neg_clusters
+    """
     num_clusters = sum( len(cset) for cset in detection_clusters_at_threshold)
     num_pos_clusters = 0
     num_neg_clusters = 0
@@ -463,7 +496,7 @@ def get_pos_neg_detections(detection_clusters_at_threshold,detection_array,C1,wi
         for c in detect_clusters:
             is_neg = True
             for s,e in start_end_times:
-                if s-window_start <= c[1] and s+window_end >= c[0]:
+                if s+window_start <= c[1] and s+window_end >= c[0]:
                     is_neg = False
                     pos_clusters[num_pos_clusters] = get_threshold_neighborhood(c,detection_row,C1)
                     num_pos_clusters += 1
@@ -471,6 +504,329 @@ def get_pos_neg_detections(detection_clusters_at_threshold,detection_array,C1,wi
                 neg_clusters[num_neg_clusters] = get_threshold_neighborhood(c,detection_row,C1)
                 num_neg_clusters += 1
     return pos_clusters[:num_pos_clusters], neg_clusters[:num_neg_clusters]
+
+
+PositiveDetection = collections.namedtuple("PositiveDetection",
+                                           ("cluster_start_end"
+                                            +" cluster_max_peak_loc"
+                                            +" cluster_max_peak_val"
+                                            # these are the lengths of the
+                                            # templates for where the
+                                            # detection occurs
+                                            +" cluster_detect_lengths"
+                                            # these are the identities
+                                            # of what the spiking detected
+                                            # templates are
+                                            +" cluster_detect_ids"
+                                            # these are the observed 
+                                            # detection values
+                                            +" cluster_vals"
+                                            +" true_label_times"
+                                            +" phn_context"
+                                            +" flt_context"
+                                            +" utterances_path"
+                                            +" file_index"))
+
+FalsePositiveDetection = collections.namedtuple("FalsePositiveDetection",
+                                           ("cluster_start_end"
+                                            +" cluster_max_peak_loc"
+                                            +" cluster_max_peak_val"
+                                            # these are the lengths of the
+                                            # templates for where the
+                                            # detection occurs
+                                            +" cluster_detect_lengths"
+                                            # these are the identities
+                                            # of what the spiking detected
+                                            # templates are
+                                            +" cluster_detect_ids"
+                                            # these are the observed 
+                                            # detection values
+                                            +" cluster_vals"
+                                            +" phn_context"
+                                            +" flt_context"
+                                            +" utterances_path"
+                                            +" file_index"))
+
+
+    
+    
+
+FalseNegativeDetection = collections.namedtuple("FalseNegativeDetection",
+                                                ("true_window_cluster"
+                                                 +" max_peak_loc"
+                                                 +" max_peak_val"
+                                                 +" window_vals"
+                                                 +" true_label_times"
+                                                 +" phn_context"
+                                                 +" flt_context"
+                                                 +" utterances_path"
+                                                 +" file_index"))
+
+def get_max_peak(cluster_window):
+    """
+    Parameters:
+    ===========
+    cluster_window:  np.ndarray
+        We assume that the first and last values of the cluster window
+        are not actually in the cluster, they are there just to assist
+        with the peak finding
+
+    Output:
+    ======
+    max_peak_loc: int
+        Location of the maximum peak or -1 if none is found
+    """
+    potentials = np.arange(len(cluster_window)-2)[
+        (cluster_window[1:-1] >= cluster_window[:-2])
+        * (cluster_window[1:-1] >= cluster_window[2:])]
+    potential_vals = cluster_window[1:-1][potentials]
+    if len(potential_vals) == 0:
+        return -1
+    else:
+        max_potential_id = np.argmax(potential_vals)
+        return 1 + potentials[max_potential_id]
+
+
+
+
+
+def get_pos_false_pos_false_neg_detect_points(detection_clusters_at_threshold,
+                                              detection_array,
+                                              detection_template_ids,
+                                              template_lengths,
+                                              window_start,
+                                              window_end,example_start_end_times,
+                                              utterances_path,
+                                              file_indices,
+                                              verbose=True):
+    """
+    Parameters:
+    ===========
+    detection_clusters_at_threshold:
+    detection_array:
+    C1:
+    window_start:
+    window_end:
+    example_start_end_times:
+
+    Output:
+    =======
+    pos_times - come with the point of maximal detection and the true point
+    false_pos_times - just the point of maximal detection (obviously no true detection)
+    false_neg_clusters - comes with the point of maximal detection and the true point
+    """
+    num_utts = detection_array.shape[0]
+    pos_times = tuple([] for i in xrange(num_utts))
+    false_pos_times = tuple([] for i in xrange(num_utts))
+    false_neg_times = tuple([] for i in xrange(num_utts))
+    for utt_id, utt_info in enumerate(itertools.izip(detection_clusters_at_threshold,detection_array,example_start_end_times)):
+        phns = np.load(utterances_path+file_indices[utt_id]+'phns.npy')
+        flts = np.load(utterances_path+file_indices[utt_id]+'feature_label_transitions.npy')
+        
+        if verbose:
+            print utt_id
+        detect_clusters, detection_row, start_end_times = utt_info
+        # get the true positives and the false positives
+        # mark which start end times have been detected
+        examples_not_detected = np.ones(len(start_end_times),dtype=bool)
+        for c in detect_clusters:
+            is_false_pos = True
+            for example_id,se in enumerate(start_end_times):
+                s,e = se
+                if s+window_start < c[1] and s+window_end >= c[0]:
+                    is_false_pos = False
+                    #
+                    # Confusing transformation here:
+                    #   we need a value at the front and back of our
+                    #   cluster in order to evaluate whether values
+                    #   within the cluster count as local maximal
+                    #   so we work with an extended cluster that includes
+                    #   these head and tail points
+                    #   but, once we find the largest local maximum
+                    #   we then need to remove those points
+                    cluster_vals = detection_row[c[0]-1:c[1]+1]
+                    cluster_max_peak_loc = get_max_peak(cluster_vals)
+                    if cluster_max_peak_loc == -1:
+                        cluster_max_peak_val = -np.inf
+                    else:
+                        cluster_max_peak_val=cluster_vals[cluster_max_peak_loc]
+                    # map the peak location and the
+                    # cluster length back to the original system
+                    # getting rid of the extended cluster
+                    cluster_max_peak_loc -= 1
+                    cluster_vals = cluster_vals[1:-1]
+                    cluster_detect_lengths = np.array([template_lengths[idx] for idx in detection_template_ids[utt_id,c[0]:c[1]]])
+                    cluster_detect_ids = detection_template_ids[utt_id,c[0]:c[1]]
+                    
+                    phn_context,flt_context = gtrd.get_phn_context(c[0],
+                                                              c[1],
+                                                              phns,
+                                                              flts,
+                                                              offset=1,
+                                                              return_flts_context=True)
+                    pos_times[utt_id].append(PositiveDetection(
+                            cluster_start_end=c,
+                            cluster_max_peak_loc = cluster_max_peak_loc,
+                            cluster_max_peak_val=cluster_max_peak_val, 
+                            cluster_detect_lengths=cluster_detect_lengths,
+                            cluster_detect_ids=cluster_detect_ids,
+                            cluster_vals=cluster_vals,
+                            true_label_times=se,
+                            phn_context=phn_context,
+                            flt_context=flt_context,
+                            utterances_path=utterances_path,
+                            file_index=file_indices[utt_id]))
+                    examples_not_detected[example_id] = False
+            if is_false_pos:
+                cluster_vals = detection_row[c[0]-1:c[1]+1]
+                cluster_max_peak_loc = get_max_peak(cluster_vals)
+                if cluster_max_peak_loc == -1:
+                    cluster_max_peak_val = -np.inf
+                else:
+                    cluster_max_peak_val=cluster_vals[cluster_max_peak_loc]
+                #
+                # Confusing transformation here:
+                #   we need a value at the front and back of our
+                #   cluster in order to evaluate whether values
+                #   within the cluster count as local maximal
+                #   so we work with an extended cluster that includes
+                #   these head and tail points
+                #   but, once we find the largest local maximum
+                #   we then need to remove those points
+                    
+                # We map the peak location and the
+                # cluster length back to the original system
+                # getting rid of the extended cluster
+                cluster_max_peak_loc -= 1
+                cluster_vals = cluster_vals[1:-1]
+                cluster_detect_lengths = np.array([template_lengths[idx] for idx in detection_template_ids[utt_id,c[0]:c[1]]])
+                cluster_detect_ids = detection_template_ids[utt_id,c[0]:c[1]]
+
+                phn_context,flt_context = gtrd.get_phn_context(c[0],
+                                                          c[1],
+                                                          phns,
+                                                          flts,
+                                                          offset=1,
+                                                          return_flts_context=True)
+                
+                false_pos_times[utt_id].append(FalsePositiveDetection(
+                            cluster_start_end=c,
+                            cluster_max_peak_loc = cluster_max_peak_loc,
+                            cluster_max_peak_val=cluster_max_peak_val, 
+                            cluster_detect_lengths=cluster_detect_lengths,
+                            cluster_detect_ids=cluster_detect_ids,
+                            cluster_vals=cluster_vals,
+                            phn_context=phn_context,
+                            flt_context=flt_context,
+                            utterances_path=utterances_path,
+                            file_index=file_indices[utt_id]))
+ 
+        for idx in np.arange(len(start_end_times))[examples_not_detected]:
+            s = start_end_times[idx][0]
+            e = start_end_times[idx][1]
+            if verbose:
+                print "False Negative in utterance %d at frame %d" % (utt_id,
+                                                                      s)
+            c = (s+window_start,s+window_end)
+            cluster_vals = detection_row[c[0]-1:c[1]+1]
+            cluster_max_peak_loc = get_max_peak(cluster_vals)
+            if cluster_max_peak_loc == -1:
+                cluster_max_peak_val = -np.inf
+            else:
+                cluster_max_peak_val=cluster_vals[cluster_max_peak_loc]
+            #
+            # Confusing transformation here:
+            #   we need a value at the front and back of our
+            #   cluster in order to evaluate whether values
+            #   within the cluster count as local maximal
+            #   so we work with an extended cluster that includes
+            #   these head and tail points
+            #   but, once we find the largest local maximum
+            #   we then need to remove those points
+                
+            # We map the peak location and the
+            # cluster length back to the original system
+            # getting rid of the extended cluster
+            cluster_max_peak_loc -= 1
+
+            cluster_vals = cluster_vals[1:-1]
+            cluster_detect_lengths = np.array([template_lengths[idx] for idx in detection_template_ids[utt_id,c[0]:c[1]]])
+            cluster_detect_ids = detection_template_ids[utt_id,c[0]:c[1]]
+            phn_context,flt_context = gtrd.get_phn_context(c[0],
+                                                      c[1],
+                                                      phns,
+                                                      flts,
+                                                      offset=1,
+                                                      return_flts_context=True)
+
+            false_neg_times[utt_id].append(FalseNegativeDetection(
+                    true_window_cluster=c,
+                    max_peak_loc=cluster_max_peak_loc,
+                    max_peak_val=cluster_max_peak_val,
+                    window_vals=cluster_vals,
+                    true_label_times=(s,e),
+                    phn_context=phn_context,
+                    flt_context=flt_context,
+                    utterances_path=utterances_path,
+                    file_index=file_indices[utt_id]))
+    return pos_times, false_pos_times, false_neg_times
+
+
+def get_false_positives(false_pos_times,S_config,E_config,
+                       offset=0,
+                       waveform_offset=0):
+    return_false_positives = []
+    for utt_id, utt_false_positives in enumerate(false_pos_times):
+        if len(utt_false_positives)== 0: continue
+        # we know its non-empty
+        # will open the data
+        # for fp in utt_false_positives:
+        #     print (fp.cluster_start_end[0]+fp.cluster_max_peak_loc
+        #              + fp.cluster_detect_lengths[fp.cluster_max_peak_loc] - 
+        #            fp.cluster_start_end[0]+fp.cluster_max_peak_loc)
+
+        return_false_positives.append( gtrd.get_syllable_features_cluster(
+                utt_false_positives[0].utterances_path,
+                utt_false_positives[0].file_index,
+                tuple(
+                    (fp.cluster_start_end[0]+fp.cluster_max_peak_loc,
+                     fp.cluster_start_end[0]+fp.cluster_max_peak_loc
+                     + fp.cluster_detect_lengths[fp.cluster_max_peak_loc])
+                    for fp in utt_false_positives),
+                S_config=S_config,
+                E_config=E_config,
+                offset = offset,
+                E_verbose=False,
+                # we aren't estimating background here at all
+                avg_bgd=None,
+                waveform_offset=waveform_offset))
+    return tuple(return_false_positives)
+
+
+def get_false_pos_clusters(Es_false_pos,
+                              templates,
+                              template_ids):
+    return tuple(
+        Es_false_pos[template_ids==i][:,:templates[i].shape[0]]
+        for i in xrange(len(templates)))
+
+
+
+def recover_template_ids_detect_times(detect_times):
+    return_template_ids = np.array([],dtype=int)
+    for utt_id, utt_detect_times in enumerate(detect_times):
+        if len(utt_detect_times) == 0: continue
+
+        return_template_ids = np.append(
+            return_template_ids, 
+            tuple(
+                fp.cluster_detect_ids[fp.cluster_max_peak_loc]
+                for fp in utt_detect_times))
+
+    return return_template_ids
+            
+       
+
 
 
 def map_cluster_responses_to_grid(cluster_responses):
