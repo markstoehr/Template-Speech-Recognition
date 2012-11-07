@@ -625,7 +625,7 @@ def _save_detection_results_mixture(s,phns,flts,
     else:
         example_start_end_times.append([])
 
-    
+
 
 def _compute_detection_E(E,phns,E_flts,
                          detection_array,
@@ -655,9 +655,9 @@ def _compute_detection_E(E,phns,E_flts,
                     :E.shape[0]-linear_filters_cs[0][0].shape[0]+1]\
                     = (compute_likelihood_linear_filter.detect(
                             E.astype(np.uint8),
-                            linear_filters_cs[0][0]) 
+                            linear_filters_cs[0][0])
                        + linear_filters_cs[0][1])
-                    
+
     # detection_template_ids is either None or Zero so we are set
 
     filter_id = 0
@@ -669,7 +669,7 @@ def _compute_detection_E(E,phns,E_flts,
             if detection_template_ids is not None:
                 detection_template_ids[len(detect_lengths)-1,
                                        :E.shape[0]-cur_filt.shape[0]+1]\
-                                       [v > 
+                                       [v >
                                         detection_array[
                                                len(detect_lengths)-1,
                                                :E.shape[0]
@@ -830,12 +830,12 @@ def get_detection_scores_mixture_named_params(data_path,file_indices,
                                 )
     if return_detection_template_ids:
         return (detection_array,
-                example_start_end_times, 
+                example_start_end_times,
                 detection_lengths,
                 detection_template_ids)
     else:
         return (detection_array,
-                example_start_end_times, 
+                example_start_end_times,
                 detection_lengths)
 
 
@@ -907,7 +907,7 @@ def get_phn_context(start,end,phns,flts,offset=1,return_flts_context=False):
             (np.zeros((-min(start_idx-offset,0),),dtype=phns_app.dtype),
              phns_app[start_idx:end_idx],
              np.zeros(-min(end_idx-offset,0),dtype=phns_app.dtype)))
-    
+
 
 
 def phns_syllable_matches(phns,syllable):
@@ -935,7 +935,8 @@ def get_example_with_offset(F,offset,start_idx,end_idx,default_val=0):
 
 def get_syllable_features(utterance_directory,data_idx,syllable,
                           S_config=None,E_config=None,offset = None,E_verbose=False,avg_bgd=None,
-                          waveform_offset=0):
+                          waveform_offset=0,
+                          phn_mapping = None):
     """
     Expects a list of (name, parameters) tuples
     names are:
@@ -948,7 +949,7 @@ def get_syllable_features(utterance_directory,data_idx,syllable,
     ===========
     utterances_path: str
        the TIMIT examples are assumed to be stored in this directory.
-    waveform_offset:    
+    waveform_offset:
         The offset is assumed to be a positive integer where we offset
         the waveform collection by waveform_offset * S_config.num_window_samples
 
@@ -971,9 +972,12 @@ def get_syllable_features(utterance_directory,data_idx,syllable,
         S = None
         E = None
     # we then get the example phones removed from the signals
-    syllable_starts = phns_syllable_matches(utterance.phns,syllable)
+    use_phns = utterance.phns.copy()
+    if phn_mapping is not None:
+        use_phns[:] = np.array([phn_mapping[p] for p in use_phns])
+    syllable_starts = phns_syllable_matches(use_phns,syllable)
     syllable_length = len(syllable)
-    
+
     if (waveform_offset is None or waveform_offset == 0) and (S is not None and E is not None):
         return [ SyllableFeatures(
                 s = (utterance.s)[sflts[syllable_start]:sflts[syllable_start+syllable_length]],
@@ -1023,7 +1027,7 @@ def get_syllable_features_cluster(utterance_directory,data_idx,cluster_list,
     ===========
     utterances_path: str
        the TIMIT examples are assumed to be stored in this directory.
-    waveform_offset:    
+    waveform_offset:
         The offset is assumed to be a positive integer where we offset
         the waveform collection by waveform_offset * S_config.num_window_samples
 
@@ -1050,7 +1054,7 @@ def get_syllable_features_cluster(utterance_directory,data_idx,cluster_list,
     # we then get the example phones removed from the signals
 
     s_cluster_list = tuple(
-        tuple( int(v * sflts[-1]/float(S.shape[0]) + .5) 
+        tuple( int(v * sflts[-1]/float(S.shape[0]) + .5)
                for v in cluster)
         for cluster in cluster_list
         )
@@ -1099,7 +1103,7 @@ def get_syllable_features_directory(utterances_path,file_indices,syllable,
     utterances_path: str
        the TIMIT examples are assumed to be stored in this directory.
     waveform_offset:
-    
+
         The offset is assumed to be a positive integer where we offset
         the waveform collection by waveform_offset * S_config.num_window_samples
     """
@@ -1136,7 +1140,7 @@ def recover_edgemaps(syllable_features,example_mat):
                 jdx += 1
             else:
                 jdx = 0
-            
+
             lengths[idx] = len(syllable_features[i][jdx].E)
             Es[idx][:lengths[idx]] = syllable_features[i][jdx].E
         else:
@@ -1160,7 +1164,7 @@ def recover_specs(syllable_features,example_mat):
                 jdx += 1
             else:
                 jdx = 0
-            
+
             lengths[idx] = len(syllable_features[i][jdx].S)
             Ss[idx][:lengths[idx]] = syllable_features[i][jdx].S
         else:
@@ -1182,7 +1186,7 @@ def recover_waveforms(syllable_features,example_mat):
                 jdx += 1
             else:
                 jdx = 0
-            
+
             lengths[idx] = len(syllable_features[i][jdx].s)
             waveforms[idx][:lengths[idx]] = syllable_features[i][jdx].s
         else:
