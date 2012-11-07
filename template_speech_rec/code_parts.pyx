@@ -178,7 +178,8 @@ def code_parts_mask(np.ndarray[ndim=3,dtype=UINT_t] X,
                     np.ndarray[ndim=2,dtype=UINT_t] M,
                     np.ndarray[ndim=4,dtype=DTYPE_t] log_parts,
                     np.ndarray[ndim=4,dtype=DTYPE_t] log_invparts,
-                    int threshold):
+                    int mask_threshold,
+                    int absolute_threshold):
     cdef unsigned int num_parts = log_parts.shape[0]
     cdef unsigned int part_x_dim = log_parts.shape[1]
     cdef unsigned int part_y_dim = log_parts.shape[2]
@@ -188,7 +189,7 @@ def code_parts_mask(np.ndarray[ndim=3,dtype=UINT_t] X,
     cdef unsigned int X_z_dim = X.shape[2]
     cdef unsigned int new_x_dim = X_x_dim - part_x_dim + 1
     cdef unsigned int new_y_dim = X_y_dim - part_y_dim + 1
-    cdef unsigned int i_start,j_start,i_end,j_end,count,i,j,z,k
+    cdef unsigned int i_start,j_start,i_end,j_end,count,mask_count,i,j,z,k
     # we have num_parts + 1 because we are also including some regions as being
     # thresholded due to there not being enough edges
     
@@ -205,8 +206,9 @@ def code_parts_mask(np.ndarray[ndim=3,dtype=UINT_t] X,
         i_end = i_start + part_x_dim
         for j_start in range(X_y_dim-part_y_dim+1):
             j_end = j_start + part_y_dim
-            count = count_edges_mask(X,M,i_start,i_end,j_start,j_end,X_z_dim)
-            if count >= threshold:
+            count = count_edges(X,i_start,i_end,j_start,j_end,X_z_dim)
+            mask_count = count_edges_mask(X,M,i_start,i_end,j_start,j_end,X_z_dim)
+            if (count >= absolute_threshold) and (mask_count > mask_threshold):
                 for i in range(part_x_dim):
                     for j in range(part_y_dim):
                         for z in range(X_z_dim):
