@@ -1,3 +1,5 @@
+import sys
+sys.path.append('/var/tmp/stoehr/Template-Speech-Recognition/')
 import numpy as np
 import pylab as pl
 from sklearn import svm
@@ -55,16 +57,23 @@ for fl_idx,fl in enumerate(file_indices[:50]):
         (all_S_patches,
          S_patch_set[use_patch_ids].astype(np.float32)))
 
-    
+
 import template_speech_rec.bernoulli_mixture as bm
 
 np.save('data/all_patches',all_patches)
 np.save('data/all_S_patches',all_S_patches)
 
+all_patches = np.load('data/all_patches.npy')
+all_S_patches = np.load('data/all_S_patches.npy')
+
+
+inner_thresh = 9
+outer_thresh =40
+
 num_parts_list = [20,40,60,80,100,150,200]
-for num_parts in num_parts_list:
+for num_parts in num_parts_list[4:]:
     bem = bm.BernoulliMixture(num_parts,all_patches)
-    bem.run_EM(.00001)
+    bem.run_EM(.000001)
     np.save('parts_templates_%d_%d_%d_%d' % (num_parts,inner_thresh,outer_thresh,all_patches.shape[0]),
                                    bem.templates)
     np.save('parts_affinities_%d_%d_%d_%d' % (num_parts,inner_thresh,outer_thresh,all_patches.shape[0]),
