@@ -1096,7 +1096,8 @@ def get_syllable_features_cluster(utterance_directory,data_idx,cluster_list,
 
 def get_syllable_features_directory(utterances_path,file_indices,syllable,
                                     S_config=None,E_config=None,offset=None,
-                                    E_verbose=False,return_avg_bgd=True,waveform_offset=0):
+                                    E_verbose=False,return_avg_bgd=True,waveform_offset=0,
+                                    phn_mapping=None):
     """
     Parameters:
     ===========
@@ -1112,7 +1113,8 @@ def get_syllable_features_directory(utterances_path,file_indices,syllable,
         get_syllable_features(utterances_path,data_idx,syllable,
                               S_config=S_config,E_config=E_config,offset = offset,
                               E_verbose=E_verbose,avg_bgd=avg_bgd,
-                              waveform_offset=waveform_offset)
+                              waveform_offset=waveform_offset,
+                              phn_mapping=phn_mapping)
         for data_idx in file_indices)
     if return_avg_bgd:
         return return_tuple, avg_bgd
@@ -1124,14 +1126,14 @@ def recover_example_map(syllable_features):
                            [[i] * len(e)
                             for i,e in enumerate(syllable_features)]))
 
-def recover_edgemaps(syllable_features,example_mat):
+def recover_edgemaps(syllable_features,example_mat,bgd=None):
     max_length = max(
         max((0,) + tuple(s.E.shape[0] for s in e))
         for e in syllable_features)
     for e in syllable_features:
         if len(e) > 0: break
     E_shape = e[0].E.shape[1:]
-    Es = np.zeros((len(example_mat),max_length)+E_shape)
+    Es = np.zeros((len(example_mat),max_length)+E_shape,dtype=np.uint8)
     lengths = np.zeros(len(example_mat))
     jdx=0
     for idx,i in enumerate(example_mat):
@@ -1142,10 +1144,23 @@ def recover_edgemaps(syllable_features,example_mat):
                 jdx = 0
 
             lengths[idx] = len(syllable_features[i][jdx].E)
-            Es[idx][:lengths[idx]] = syllable_features[i][jdx].E
+            Es[idx][:lengths[idx]] = syllable_features[i][jdx].E.astype(np.uint8)
+            if bgd is not None and lengths[idx] <max_length:
+                Es[idx][lengths[idx]:] = (np.random.rand(
+                    max_length - lengths[idx],1,1)
+                                          > np.tile(bgd,
+                                                    (max_length-lengths[idx],
+                                                     1,1))).astype(np.uint8)
         else:
             lengths[idx] = len(syllable_features[i][jdx].E)
-            Es[idx][:lengths[idx]] = syllable_features[i][jdx].E
+            Es[idx][:lengths[idx]] = syllable_features[i][jdx].E.astype(np.uint8)
+            if bgd is not None and lengths[idx] <max_length:
+                Es[idx][lengths[idx]:] = (np.random.rand(
+                    max_length - lengths[idx],1,1)
+                                          > np.tile(bgd,
+                                                    (max_length-lengths[idx],
+                                                     1,1))).astype(np.uint8)
+
     return lengths, Es
 
 def recover_specs(syllable_features,example_mat):
