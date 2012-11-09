@@ -222,4 +222,202 @@ def perform_phn_train_detection_SVM(phn, num_mix_params,
             pickle.dump(false_pos_times,out)
             out.close()
 
+def extract_false_positives(num_mix_params,first_pass_fns):
+    for num_mix in num_mix_params:
+        affinities = np.load('data/%d_affinities.npy' % (num_mix))
+        for fnr in first_pass_fnrs:
+            out = open('data/false_pos_times_%d_%d.pkl' % (num_mix,fnr),'rb')
+            false_pos_times=pickle.load(out)
+            out.close()
+            false_positives = rf.get_false_positives(false_pos_times,
+                                                     S_config=sp,
+                                                     E_config=ep,
+                                                     offset=0,
+                                                     waveform_offset=7)
+            example_mat = gtrd.recover_example_map(false_positives)
+            np.save('data/false_positives_example_mat_%d_%d.npy' % (num_mix,fnr),example_mat)
+            lengths,waveforms  = gtrd.recover_waveforms(false_positives,example_mat)
+            np.savez('data/false_positives_waveforms_lengths_%d_%d.npz' % (num_mix,fnr),
+                     lengths=lengths,
+                     waveforms=waveforms)
+            Slengths,Ss  = gtrd.recover_specs(false_positives,example_mat)
+            np.savez('data/false_positives_Ss_lengths_%d_%d.npz' % (num_mix,fnr),
+                     lengths=Slengths,
+                     Ss=Ss)
+            Elengths,Es  = gtrd.recover_edgemaps(false_positives,example_mat)
+            np.savez('data/false_positives_Es_lengths_%d_%d.npz' % (num_mix,fnr),
+                     lengths=Elengths,
+                     Es=Es)
+            templates = et.recover_different_length_templates(affinities,
+                                                      Es,
+                                                      Elengths)
+            spec_templates = et.recover_different_length_templates(affinities,
+                                                                   Ss,
+                                                                   Slengths)
+            cluster_counts = np.zeros(num_mix)
+            for mix_id in xrange(num_mix):
+                os.system("mkdir -p data/%d_%d_%d" % (num_mix,fnr,mix_id))
+            for example_id in xrange(waveforms.shape[0]):
+                if affinities[example_id].max() > .999:
+                    cluster_id = np.argmax(affinities[example_id])
+                    wavfile.write('data/%d_%d_%d/%d.wav' % (num_mix,fnr,cluster_id,cluster_counts[cluster_id]),16000,((2**15-1)*waveforms[example_id]).astype(np.int16))
+                    cluster_counts[cluster_id] += 1
+
+
+# load in the data set
+num_mix_params= [2, 3, 4, 5, 6, 7, 8, 9]
+
+def get_SVM_LR_filters(num_mix_params,
+                       first_pass_fnrs,
+                       assignment_threshold=.95):
+    for num_mix in num_mix_params:
+        for fnr in first_pass_fnrs:
+            # want to know which mixture component we're comparing against
+            out = open('data/false_pos_times_%d_%d.pkl' % (num_mix,fnr),'rb')
+            false_pos_times=pickle.load(out)
+            out.close()
+            template_ids = rf.recover_template_ids_detect_times(false_pos_times)
+            outfile = np.load('data/false_positives_Es_lengths_%d_%d.npz' % (num_mix,fnr))
+            lengths_false_pos = outfile['lengths']
+            Es_false_pos = outfile['Es']
+            outfile = np.load('data/false_positives_Ss_lengths_%d_%d.npz' % (num_mix,fnr))
+            lengths_S_false_pos = outfile['lengths']
+            Ss_false_pos = outfile['Ss']
+            #
+            # Display the spectrograms for each component
+            #
+            # get the original clustering of the parts
+            outfile = np.load('data/Es_lengths.npz')
+            lengths_true_pos = outfile['Elengths']
+            example_mat = outfile['example_mat']
+            Es_true_pos = outfile['Es']
+            outfile = np.load('%d_templates.npz' % num_mix)
+            E_templates = tuple(outfile['arr_%d' %i ] for i in xrange(len(outfile.files)))
+            false_pos_clusters = rf.get_false_pos_clusters(Es_false_pos,
+                                                           E_templates,
+                                                           template_ids)
+            template_affinities = np.load('%d_affinities.npy' % num_mix)
+            clustered_training = et.recover_clustered_data(template_affinities,
+                                                           Es_true_pos,
+                                                           E_templates,
+                                                           assignment_threshold = assignment_threshold)
+            # np.savez('data/training_true_pos_%d.npz' %num_mix, *clustered_training)
+            # np.savez('data/training_false_pos_%d.npz' % num_mix,*false_pos_clusters)
+            # learn a template on half the false positive data
+            # do for each mixture component and see the curve
+            # need to compute the likelihood ratio test
+            for mix_component in xrange(num_mix):
+                num_false_pos_component =false_pos_clusters[mix_component].shape[0]
+                false_pos_template = np.clip(np.mean(false_pos_clusters[mix_component][:num_false_pos_component/2],0),.05,.95)
+                np.save('data/false_pos_template_%d_%d_%d.npy' % (num_mix,
+                                                                  mix_component,
+                                                                  fnr),
+                        false_pos_template)
+                lf,c = et.construct_linear_filter_structured_alternative(
+                    E_templates[mix_component],
+                    false_pos_template,
+                bgd=None,min_prob=.01)
+                np.save('data/fp_LR_lf_%d_%d_%d' %(num_mix,mix_component,fnr),
+                        lf)
+                np.save('data/fp_LR_c_%d_%d_%d' %(num_mix,mix_component,c),
+                        c)
+                true_responses = np.sort(np.sum(clustered_training[mix_component] * lf + c,-1).sum(-1).sum(-1))
+                false_responses = np.sort((false_pos_clusters[mix_component][num_false_pos_component/2:]*lf+ c).sum(-1).sum(-1).sum(-1))
+
+                roc_curve = np.array([
+                    np.sum(false_responses >= true_response)
+                    for true_response in true_responses]) 
+                np.save('data/fp_detector_roc_%d_%d_%d.npy' % (num_mix,
+                                                           mix_component,
+                                                           fnr),roc_curve)
+
+
+
+SVMResult = collections.namedtuple('SVMResult',
+                                   ('num_mix'
+                                    +' mix_component'
+                                    +' C'
+                                    +' W'
+                                    +' b'
+                                    +' roc_curve'
+                                    +' total_error_rate'))
+
+
+def SVM_training
+                                    
+def return_svm_result_tuple(num_mix_params,first_pass_fnrs):
+    svmresult_tuple= ()
+    for num_mix in num_mix_params:
+        for fnr in first_pass_fnrs:
+            outfile = np.load('data/training_true_pos_%d.npz' % num_mix)
+            true_pos_clusters = tuple(outfile['arr_%d'%i] for i in xrange(num_mix))
+            del outfile
+            outfile = np.load('data/training_false_pos_%d.npz' % num_mix)
+            false_pos_clusters = tuple(outfile['arr_%d'%i] for i in xrange(num_mix))
+            del outfile
+        for mix_component in xrange(num_mix):
+        data_shape = true_pos_clusters[mix_component][0].shape
+        num_true = len(true_pos_clusters[mix_component])
+        num_false = len(false_pos_clusters[mix_component])
+        num_true_train = int(num_true * .75)
+        num_false_train = int(num_false * .5)
+        training_data_X = np.hstack((
+                np.ones((num_true_train+num_false_train,1)),
+                np.vstack((
+                        true_pos_clusters[mix_component][:num_true_train].reshape(
+                            num_true_train,
+                            np.prod(data_shape)),
+                        false_pos_clusters[mix_component][:num_false_train].reshape(
+                            num_false_train,
+                            np.prod(data_shape))))))
+        training_data_Y = np.hstack((
+                np.ones(num_true_train),
+                np.zeros(num_false_train)))
+        testing_data_X = np.hstack((
+                np.ones((num_true-num_true_train
+                         + num_false - num_false_train,
+                         1)),
+                np.vstack((
+                        true_pos_clusters[mix_component][num_true_train:].reshape(
+                            num_true - num_true_train,
+                            np.prod(data_shape)),
+                        false_pos_clusters[mix_component][num_false_train:].reshape(
+                            num_false - num_false_train,
+                            np.prod(data_shape))))))
+        testing_data_Y = np.hstack((
+                np.ones(num_true-num_true_train),
+                np.zeros(num_false-num_false_train)))
+        for name, penalty in (('unreg', 1), ('little_reg',.1), ('reg', 0.05),('reg_plus', 0.01),
+                              ('reg_plus_plus',.001)):
+            clf = svm.SVC(kernel='linear', C=penalty)
+            clf.fit(training_data_X, training_data_Y)
+            # get the roc curve
+            w = clf.coef_[0]
+            testing_raw_outs = (testing_data_X * w).sum(1)
+            val_thresholds = np.sort(testing_raw_outs[testing_data_Y==1])
+            roc_curve = np.zeros(len(val_thresholds))
+            num_neg = float(np.sum(testing_data_Y==0))
+            for i,thresh in enumerate(val_thresholds):
+                roc_curve[i] = np.sum(testing_raw_outs[testing_data_Y==0]  <thresh)/num_neg
+            plt.figure()
+            plt.clf()
+            plt.plot(1-np.arange(roc_curve.shape[0])/float(roc_curve.shape[0]),1-roc_curve)
+            plt.xlabel('Percent True Positives Retained')
+            plt.ylabel('Percent False Positives Retained')
+            plt.title('ROC AAR penalty=%g num_mix=%d mix_id=%d' %(penalty,
+                                                                  num_mix,
+                                                                  mix_component))
+            plt.savefig('roc_layer_2_%s_%d_%d' %(name,
+                                                                  num_mix,
+                                                                  mix_component))
+            # get the separating hyperplane
+            test_predict_Y = clf.predict(testing_data_X)
+            svmresult_tuple += (SVMResult(
+                    num_mix=num_mix,
+                    mix_component = mix_component,
+                    C=penalty,
+                    W=w[1:].reshape(data_shape),
+                    b=w[0],
+                    roc_curve=roc_curve,
+                    total_error_rate=np.sum(test_predict_Y == testing_data_Y)/float(len(testing_data_Y))),)
 
