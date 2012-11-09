@@ -905,7 +905,7 @@ def get_phn_context(start,end,phns,flts,offset=1,return_flts_context=False):
     else:
         return np.hstack(
             (np.zeros((-min(start_idx-offset,0),),dtype=phns_app.dtype),
-             phns_app[start_idx:end_idx],
+             phns_app[start_idx-offset:end_idx+offset],
              np.zeros(-min(end_idx-offset,0),dtype=phns_app.dtype)))
 
 
