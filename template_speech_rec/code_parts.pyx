@@ -125,8 +125,8 @@ def get_parts_mask(np.ndarray[ndim=3,dtype=UINT_t] X,
     """
     S is the spectrogram we return those patches as well
     """
-    cdef unsigned int part_x_dim = M.shape[1]
-    cdef unsigned int part_y_dim = M.shape[2]
+    cdef unsigned int part_x_dim = M.shape[0]
+    cdef unsigned int part_y_dim = M.shape[1]
     cdef unsigned int X_x_dim = X.shape[0]
     cdef unsigned int X_y_dim = X.shape[1]
     cdef unsigned int X_z_dim = X.shape[2]
