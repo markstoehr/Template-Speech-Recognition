@@ -79,8 +79,10 @@ np.save("data/test_example_lengths.npy",test_example_lengths)
 np.save("data/test_file_indices.npy",test_file_indices)
 
 for phn_idx in xrange(use_phns.shape[0]):
-    phn = (use_phns[phn_idx],)
-    phn_features,avg_bgd=gtrd.get_syllable_features_directory(utterances_path,file_indices,phn,
+    phn_tuple = (use_phns[phn_idx],)
+    phn = use_phns[phn_idx]
+    print phn
+    phn_features,avg_bgd=gtrd.get_syllable_features_directory(utterances_path,file_indices,phn_tuple,
                                                               S_config=sp,E_config=ep,offset=0,
                                                               E_verbose=False,return_avg_bgd=True,
                                                               waveform_offset=15,
@@ -100,6 +102,7 @@ for phn_idx in xrange(use_phns.shape[0]):
     np.savez('data/%s_Es_lengths.npz' %phn,Es=Es,Elengths=Elengths,example_mat=example_mat)
     # the Es are padded from recover_edgemaps
     for num_mix in num_mix_params:
+        print num_mix
         if num_mix == 1:
             affinities = np.ones(Es.shape[0])
             templates = (np.mean(Es,0),)
@@ -127,6 +130,8 @@ for phn_idx in xrange(use_phns.shape[0]):
                     spec_templates)
         
 FOMS = collections.defaultdict(list)
+for phn_idx in xrange(use_phns.shape[0]):
+    phn = (use_phns[phn_idx],)
 for num_mix in num_mix_params:
     templates = (np.load('aar1_templates_%d.npz' % num_mix))['arr_0']
     detection_array = np.zeros((train_example_lengths.shape[0],
