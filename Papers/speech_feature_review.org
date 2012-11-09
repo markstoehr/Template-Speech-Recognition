@@ -188,3 +188,23 @@ in the number of spikes (since the cost of moving is small).
 When $q$ is large the distance is dominated by how many spikes align
 with each other (since you won't move spikes). Setting $q$ trades off
 between these two extremes.
+* Cepstrum
+  The speech signal is often modeled as a convolution between a 
+  source in the form of a glottal pulse $e(t)$ and a vocal tract
+  shape signal $v(t)$ convolved so that our signal is
+  $$ x(t) = e(t)*v(t)$$ which means that in the frequency
+  domain we have
+  $$ |X(\omega)| = |E(\omega)||V(\omega)|$$
+  so in the log domain we have a linear model for the signal
+  $$ \log |X(\omega)| = \log |E(\omega)|+ \log|V(\omega)|$$
+  and hence linear filtering can recover the parameters more easily.
+  
+  In the source filter model $V$ varies slowly with $\omega$
+  because $v(t)$ has a short impulse response and $E$ varies quickly
+  with $\omega$ since $e(t)$ has a long impulse response. This means that, in principle,
+  if we take a Fourier Transform
+  $$ c(n) = \frac{1}{2\pi}\int_{-\pi}^\pi \log|X(\omega)|e^{j\omega n}\;\operatorname{d}\omega$$
+   for smaller values of $n$ the temporal fine structure given by $E(\omega)$ is excluded
+   and so only vocal tract information is retained, while if $n$ is large then only
+   glottal pulse information is retained and there is little information from the vocal tract shape
+
