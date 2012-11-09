@@ -808,7 +808,8 @@ def get_false_positives(false_pos_times,S_config,E_config,
                 E_verbose=False,
                 # we aren't estimating background here at all
                 avg_bgd=None,
-                waveform_offset=waveform_offset))
+                waveform_offset=waveform_offset,
+                assigned_phns = (fp.cluster_max_peak_phn,)))
     return tuple(return_false_positives)
 
 
