@@ -531,6 +531,7 @@ FalsePositiveDetection = collections.namedtuple("FalsePositiveDetection",
                                            ("cluster_start_end"
                                             +" cluster_max_peak_loc"
                                             +" cluster_max_peak_val"
+                                            +" cluster_max_peak_phn"
                                             # these are the lengths of the
                                             # templates for where the
                                             # detection occurs
@@ -710,16 +711,24 @@ def get_pos_false_pos_false_neg_detect_points(detection_clusters_at_threshold,
                                                           return_flts_context=True)
                 
                 false_pos_times[utt_id].append(FalsePositiveDetection(
-                            cluster_start_end=c,
-                            cluster_max_peak_loc = cluster_max_peak_loc,
-                            cluster_max_peak_val=cluster_max_peak_val, 
-                            cluster_detect_lengths=cluster_detect_lengths,
-                            cluster_detect_ids=cluster_detect_ids,
-                            cluster_vals=cluster_vals,
-                            phn_context=phn_context,
-                            flt_context=flt_context,
-                            utterances_path=utterances_path,
-                            file_index=file_indices[utt_id]))
+                        cluster_start_end=c,
+                        cluster_max_peak_loc = cluster_max_peak_loc,
+                        cluster_max_peak_val=cluster_max_peak_val, 
+                        cluster_max_peak_phn=gtrd.get_phn_context(
+                            cluster_max_peak_loc,
+                            cluster_max_peak_loc+1,
+                            phns,
+                            flts,
+                            offset=0,
+                            return_flts_context=False),
+                        
+                        cluster_detect_lengths=cluster_detect_lengths,
+                        cluster_detect_ids=cluster_detect_ids,
+                        cluster_vals=cluster_vals,
+                        phn_context=phn_context,
+                        flt_context=flt_context,
+                        utterances_path=utterances_path,
+                        file_index=file_indices[utt_id]))
  
         for idx in np.arange(len(start_end_times))[examples_not_detected]:
             s = start_end_times[idx][0]
