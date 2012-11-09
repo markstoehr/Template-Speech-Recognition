@@ -1024,7 +1024,7 @@ def get_syllable_features(utterance_directory,data_idx,syllable,
 def get_syllable_features_cluster(utterance_directory,data_idx,cluster_list,
                           S_config=None,E_config=None,offset =0,E_verbose=False,avg_bgd=None,
                           waveform_offset=0,
-                                  assigned_phns = phn):
+                                  assigned_phns = None):
     """
     Expects a list of (name, parameters) tuples
     names are:
