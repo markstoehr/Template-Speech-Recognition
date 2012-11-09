@@ -149,6 +149,8 @@ def perform_phn_template_estimation(phn,utterances_path,
             np.savez('data/%d_spec_templates.npz' % (num_mix),
                     *spec_templates)
 
+
+
 def perform_phn_train_detection_SVM(phn, num_mix_params,
                                     train_example_lengths,bgd,
                                     train_path):
