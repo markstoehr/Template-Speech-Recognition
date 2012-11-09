@@ -878,7 +878,9 @@ def makeTimeMap(old_start,old_end,new_start,new_end):
 
 
 SyllableFeatures = collections.namedtuple("SyllableFeatures",
-                                          "s S S_config E E_config offset phn_context")
+                                          "s S S_config E E_config offset phn_context assigned_phns"
+                                          +" utt_path"
+                                          +" file_idx")
 
 def get_phn_context(start,end,phns,flts,offset=1,return_flts_context=False):
     phns_app = np.append(phns,'')
@@ -936,7 +938,8 @@ def get_example_with_offset(F,offset,start_idx,end_idx,default_val=0):
 def get_syllable_features(utterance_directory,data_idx,syllable,
                           S_config=None,E_config=None,offset = None,E_verbose=False,avg_bgd=None,
                           waveform_offset=0,
-                          phn_mapping = None):
+                          phn_mapping = None,
+                          assigned_phns = None):
     """
     Expects a list of (name, parameters) tuples
     names are:
@@ -989,7 +992,10 @@ def get_syllable_features(utterance_directory,data_idx,syllable,
                 phn_context = get_phn_context(syllable_start,
                                               syllable_start+syllable_length,
                                               utterance.phns,
-                                              utterance.flts))
+                                              utterance.flts),
+                assigned_phns = syllable,
+                utt_path=utterance_directory,
+                file_idx=data_idx)
                  for syllable_start in syllable_starts]
     elif (waveform_offset > 0) and (S is not None and E is not None):
         return [ SyllableFeatures(
@@ -1006,7 +1012,10 @@ def get_syllable_features(utterance_directory,data_idx,syllable,
                 phn_context = get_phn_context(syllable_start,
                                               syllable_start+syllable_length,
                                               utterance.phns,
-                                              utterance.flts))
+                                              utterance.flts),
+                assigned_phns=syllable,
+                utt_path=utterance_directory,
+                file_idx=data_idx)
                  for syllable_start in syllable_starts]
     else:
         return None
@@ -1014,7 +1023,8 @@ def get_syllable_features(utterance_directory,data_idx,syllable,
 
 def get_syllable_features_cluster(utterance_directory,data_idx,cluster_list,
                           S_config=None,E_config=None,offset =0,E_verbose=False,avg_bgd=None,
-                          waveform_offset=0):
+                          waveform_offset=0,
+                                  assigned_phns = phn):
     """
     Expects a list of (name, parameters) tuples
     names are:
@@ -1069,7 +1079,10 @@ def get_syllable_features_cluster(utterance_directory,data_idx,cluster_list,
                 phn_context =get_phn_context(cluster[0],
                                               cluster[1],
                                               utterance.phns,
-                                              utterance.flts))
+                                              utterance.flts),
+                assigned_phns = assigned_phns,
+                utt_path=utterance_directory,
+                file_idx=data_idx)
                  for s_cluster,cluster in itertools.izip(s_cluster_list,cluster_list))
     elif (waveform_offset > 0) and (S is not None and E is not None):
         return tuple( SyllableFeatures(
@@ -1086,7 +1099,10 @@ def get_syllable_features_cluster(utterance_directory,data_idx,cluster_list,
                 phn_context = get_phn_context(cluster[0],
                                               cluster[1],
                                               utterance.phns,
-                                              utterance.flts))
+                                              utterance.flts),
+                assigned_phns = assigned_phns,
+                utt_path=utterance_directory,
+                file_idx=data_idx)
                  for s_cluster,cluster in itertools.izip(s_cluster_list,cluster_list))
     else:
         return None
@@ -1208,6 +1224,32 @@ def recover_waveforms(syllable_features,example_mat):
             lengths[idx] = len(syllable_features[i][jdx].s)
             waveforms[idx][:lengths[idx]] = syllable_features[i][jdx].s
     return lengths, waveforms
+
+
+def recover_assigned_phns(syllable_features,example_mat):
+    assigned_phns = np.empty(len(example_mat),dtype=object)
+    phn_contexts = np.empty(len(example_mat),dtype=object)
+    utt_paths = np.empty(len(example_mat),dtype=object)
+    file_indices = np.empty(len(example_mat),dtype=object)
+    jdx=0
+    for idx,i in enumerate(example_mat):
+        if idx > 0:
+            if i == example_mat[idx-1]:
+                jdx += 1
+            else:
+                jdx = 0
+
+            assigned_phns[idx] = syllable_features[i][jdx].assigned_phns
+            phn_contexts[idx] = syllable_features[i][jdx].phn_context
+            utt_paths[idx] = syllable_features[i][jdx].utt_path
+            file_indices[idx] = syllable_features[i][jdx].file_idx
+        else:
+            assigned_phns[idx] = syllable_features[i][jdx].assigned_phns
+            phn_contexts[idx] = syllable_features[i][jdx].phn_context
+            utt_paths[idx] = syllable_features[i][jdx].utt_path
+            file_indices[idx] = syllable_features[i][jdx].file_idx
+    return assigned_phns,phn_contexts, utt_paths, file_indices
+
 
 
 SpectrogramParameters = collections.namedtuple("SpectrogramParameters",
