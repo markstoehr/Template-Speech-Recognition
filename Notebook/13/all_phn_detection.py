@@ -123,6 +123,10 @@ def perform_phn_template_estimation(phn,utterances_path,
                     templates)
             np.save('data/%d_spec_templates.npy' % (num_mix),
                     spec_templates)
+            np.save('data/%d_templates_%s.npy' % (num_mix,phn),
+                    templates)
+            np.save('data/%d_spec_templates_%s.npy' % (num_mix,phn),
+                    spec_templates)
         else:
             bem = bm.BernoulliMixture(num_mix,Es)
             bem.run_EM(.000001)
@@ -138,6 +142,11 @@ def perform_phn_template_estimation(phn,utterances_path,
                     *templates)
             np.savez('data/%d_spec_templates.npz' % (num_mix),
                     *spec_templates)
+            np.savez('data/%d_templates_%s.npz' % (num_mix,phn),
+                    *templates)
+            np.savez('data/%d_spec_templates_%s.npz' % (num_mix,phn),
+                    *spec_templates)
+            
 
 def perform_phn_train_detection_SVM(phn, num_mix_params,
                                     train_example_lengths,bgd,
@@ -235,6 +244,11 @@ def extract_false_positives(num_mix_params,first_pass_fns):
                                                      offset=0,
                                                      waveform_offset=7)
             example_mat = gtrd.recover_example_map(false_positives)
+            false_pos_assigned_phns,false_pos_phn_contexts = gtrd.recover_assigned_phns(false_positives,example_mat)
+            np.savez('data/false_pos_phns_assigned_contexts_%d_%d.npy' % (num_mix,fnr),
+                    example_mat=example_mat,
+                    assigned_phns=false_pos_assigned_phns,
+                    phn_contexts=false_pos_phn_contexts)
             np.save('data/false_positives_example_mat_%d_%d.npy' % (num_mix,fnr),example_mat)
             lengths,waveforms  = gtrd.recover_waveforms(false_positives,example_mat)
             np.savez('data/false_positives_waveforms_lengths_%d_%d.npz' % (num_mix,fnr),
