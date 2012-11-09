@@ -85,11 +85,21 @@ train_example_lengths = gtrd.get_detect_lengths(train_file_indices,train_path)
 np.save("data/train_example_lengths.npy",train_example_lengths)
 np.save("data/train_file_indices.npy",train_file_indices)
 
+
+phn='aa'
+
+perform_phn_template_estimation(phn,utterances_path,
+                                    file_indices,sp,ep,
+                                    num_mix_params,
+                                    phn_mapping=leehon_mapping,
+                                    waveform_offset=15)
+
+
 def perform_phn_template_estimation(phn,utterances_path,
                                     file_indices,sp,ep,
                                     num_mix_params,
                                     phn_mapping=None,
-                                    waveform_offset=15)
+                                    waveform_offset=15):
     phn_tuple = (phn,)
     print phn
     phn_features,avg_bgd=gtrd.get_syllable_features_directory(utterances_path,file_indices,phn_tuple,
@@ -146,7 +156,6 @@ def perform_phn_train_detection_SVM(phn, num_mix_params,
     for num_mix in num_mix_params:
         outfile = np.load('%d_templates.npz' % num_mix)
         templates = tuple( outfile['arr_%d'%i] for i in xrange(len(outfile.files)))
-        del outfile
         detection_array = np.zeros((train_example_lengths.shape[0],
                             train_example_lengths.max() + 2),dtype=np.float32)
         linear_filters_cs = et.construct_linear_filters(templates,
@@ -201,8 +210,8 @@ def perform_phn_train_detection_SVM(phn, num_mix_params,
         template_lengths = tuple(t.shape[0] for t in templates)
         for fnr in first_pass_fnrs:
             thresh_id = int(len(detection_clusters)* fnr/100. + 5)
-            (pos_times, 
-             false_pos_times, 
+            (pos_times,
+             false_pos_times,
              false_neg_times) = rf.get_pos_false_pos_false_neg_detect_points(detection_clusters[thresh_id],
                                                                              detection_array,
                                                                              detection_template_ids,
