@@ -20,7 +20,7 @@ ep = gtrd.EdgemapParameters(block_length=40,
                             threshold=.7)
 
 
-utterances_path = '/home/mark/Template-Speech-Recognition/Data/Train/'
+utterances_path = '/var/tmp/stoehr/Template-Speech-Recognition/Data/Train/'
 file_indices = gtrd.get_data_files_indices(utterances_path)
 
 phns = ['aa', 'ae', 'ah', 'ao', 'aw', 'ax', 'ax-h', 'axr', 'ay', 'b', 'bcl', 'ch', 'd', 'dcl', 'dh', 'dx', 'eh', 'el', 'em', 'en', 'eng', 'epi', 'er', 'ey', 'f', 'g', 'gcl', 'hh', 'hv', 'ih', 'ix', 'iy', 'jh', 'k', 'kcl', 'l', 'm', 'n', 'ng', 'nx', 'ow', 'oy', 'p', 'pau', 'pcl', 'q', 'r', 's', 'sh', 'sp', 't', 'tcl', 'th', 'uh', 'uw', 'ux', 'v', 'w', 'y', 'z', 'zh', 'sil']
@@ -73,14 +73,15 @@ use_phns = np.array(list(set(leehon_mapping.values())))
 phn_idx = 0
 phn = (use_phns[phn_idx],)
 test_path = '/var/tmp/stoehr/Template-Speech-Recognition/Data/Train/'
-test_file_indices = gtrd.get_data_files_indices(train_path)
-test_example_lengths = gtrd.get_detect_lengths(train_file_indices,train_path)
+test_file_indices = gtrd.get_data_files_indices(test_path)
+test_example_lengths = gtrd.get_detect_lengths(test_file_indices,test_path)
 np.save("data/test_example_lengths.npy",test_example_lengths)
 np.save("data/test_file_indices.npy",test_file_indices)
 
+def 
 for phn_idx in xrange(use_phns.shape[0]):
-    phn = (use_phns[phn_idx],)
-    phn_features,avg_bgd=gtrd.get_syllable_features_directory(utterances_path,file_indices,phn,
+    phn = use_phns[phn_idx]
+    phn_features,avg_bgd=gtrd.get_syllable_features_directory(utterances_path,file_indices,(phn,),
                                                               S_config=sp,E_config=ep,offset=0,
                                                               E_verbose=False,return_avg_bgd=True,
                                                               waveform_offset=15,
@@ -105,7 +106,7 @@ for phn_idx in xrange(use_phns.shape[0]):
             templates = (np.mean(Es,0),)
             spec_templates = (np.mean(Ss,0),)
             np.save('data/%s_%d_affinities.npy' % (phn,num_mix),
-                    bem.affinities)
+                    affinities)
             np.save('data/%s_%d_templates.npy' % (phn,num_mix),
                     templates)
             np.save('data/%s_%d_spec_templates.npy' % (phn,num_mix),
@@ -115,17 +116,17 @@ for phn_idx in xrange(use_phns.shape[0]):
             bem.run_EM(.000001)
             templates = et.recover_different_length_templates(bem.affinities,
                                                               Es,
-                                                              lengths)
+                                                              Elengths)
             spec_templates = et.recover_different_length_templates(bem.affinities,
                                                                Ss,
                                                                Slengths)
             np.save('data/%s_%d_affinities.npy' % (phn,num_mix),
                     bem.affinities)
-            np.save('data/%s_%d_templates.npy' % (phn,num_mix),
-                    templates)
-            np.save('data/%s_%d_spec_templates.npy' % (phn,num_mix),
-                    spec_templates)
-        
+            np.savez('data/%s_%d_templates.npz' % (phn,num_mix),
+                    *templates)
+            np.savez('data/%s_%d_spec_templates.npz' % (phn,num_mix),
+                    *spec_templates)
+
 FOMS = collections.defaultdict(list)
 for num_mix in num_mix_params:
     templates = (np.load('aar1_templates_%d.npz' % num_mix))['arr_0']
