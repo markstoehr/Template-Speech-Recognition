@@ -543,7 +543,6 @@ def _save_detection_results(s,phns,flts,
                                                                flts,
                                                                log_part_blocks,
                                                                F.shape[0])
-
     detection_array[len(detect_lengths)-1,
                     :F.shape[0]-linear_filter.shape[0]+1] = compute_likelihood_linear_filter.detect(F.astype(np.uint8),
                                                                                              linear_filter)
