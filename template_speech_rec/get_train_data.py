@@ -1255,7 +1255,7 @@ def recover_assigned_phns(syllable_features,example_mat):
             phn_contexts[idx] = syllable_features[i][jdx].phn_context
             utt_paths[idx] = syllable_features[i][jdx].utt_path
             file_indices[idx] = syllable_features[i][jdx].file_idx
-            start_ends[idx,:] = np.array( syllable_features[i][jdx].start_end
+            start_ends[idx,:] = np.array( syllable_features[i][jdx].start_end)
     return assigned_phns,phn_contexts, utt_paths, file_indices, start_ends
 
 
