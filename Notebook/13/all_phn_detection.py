@@ -4,7 +4,7 @@ import template_speech_rec.estimate_template as et
 import template_speech_rec.bernoulli_mixture as bm
 import template_speech_rec.roc_functions as rf
 import matplotlib.pyplot as plt
-import cPickle,os, pickle,collections
+import cPickle,os, pickle,collections,itertools
 
 sp = gtrd.SpectrogramParameters(
     sample_rate=16000,
@@ -255,11 +255,14 @@ def extract_false_positives(num_mix_params,first_pass_fns):
                                                      offset=0,
                                                      waveform_offset=7)
             example_mat = gtrd.recover_example_map(false_positives)
-            false_pos_assigned_phns,false_pos_phn_contexts = gtrd.recover_assigned_phns(false_positives,example_mat)
+            false_pos_assigned_phns,false_pos_phn_contexts,utt_paths,file_idx,start_ends = gtrd.recover_assigned_phns(false_positives,example_mat)
             np.savez('data/false_pos_phns_assigned_contexts_%d_%d.npy' % (num_mix,fnr),
                     example_mat=example_mat,
                     assigned_phns=false_pos_assigned_phns,
-                    phn_contexts=false_pos_phn_contexts)
+                    phn_contexts=false_pos_phn_contexts,
+                     utt_paths=utt_paths,
+                     file_idx=file_idx,
+                     start_ends=start_ends)
             np.save('data/false_positives_example_mat_%d_%d.npy' % (num_mix,fnr),example_mat)
             lengths,waveforms  = gtrd.recover_waveforms(false_positives,example_mat)
             np.savez('data/false_positives_waveforms_lengths_%d_%d.npz' % (num_mix,fnr),
@@ -292,7 +295,7 @@ def extract_false_positives(num_mix_params,first_pass_fns):
 # load in the data set
 num_mix_params= [2, 3, 4, 5, 6, 7, 8, 9]
 
-def get_SVM_LR_filters(num_mix_params,
+def get_SVM_LR_filters(phn,num_mix_params,
                        first_pass_fnrs,
                        assignment_threshold=.95):
     for num_mix in num_mix_params:
@@ -308,6 +311,12 @@ def get_SVM_LR_filters(num_mix_params,
             outfile = np.load('data/false_positives_Ss_lengths_%d_%d.npz' % (num_mix,fnr))
             lengths_S_false_pos = outfile['lengths']
             Ss_false_pos = outfile['Ss']
+            outfile = np.load('data/false_pos_phns_assigned_contexts_%d_%d.npy' % (num_mix,fnr))
+            false_pos_assigned_phns = outfile['assigned_phns']
+            false_pos_phn_contexts = outfile['phn_contexts']
+            utt_paths = outfile['utt_paths']
+            file_idx = outfile['file_idx']
+            start_ends=outfile['start_ends']
             #
             # Display the spectrograms for each component
             #
@@ -344,11 +353,19 @@ def get_SVM_LR_filters(num_mix_params,
                 bgd=None,min_prob=.01)
                 np.save('data/fp_LR_lf_%d_%d_%d' %(num_mix,mix_component,fnr),
                         lf)
-                np.save('data/fp_LR_c_%d_%d_%d' %(num_mix,mix_component,c),
+                np.save('data/fp_LR_c_%d_%d_%d' %(num_mix,mix_component,fnr),
                         c)
                 true_responses = np.sort(np.sum(clustered_training[mix_component] * lf + c,-1).sum(-1).sum(-1))
                 false_responses = np.sort((false_pos_clusters[mix_component][num_false_pos_component/2:]*lf+ c).sum(-1).sum(-1).sum(-1))
-
+                open('data/fp_records_%d_%d_%d_%s.dat' %(num_mix,mix_component,fnr,phn),'w').write(
+                    '\n'.join(('Assigned Phn\tUtterance Path\tFile Idx\tStart time\tEnd Time\tScore',) 
+                              + tuple('%s\t%s\t%s\t%d\t%d\t%g' %
+                                      (assigned_phn,utt_path,fl_id,se[0],se[1],f_response)
+                                      for assigned_phn,utt_path,fl_id,se,f_response in itertools.izip(false_pos_assigned_phns[template_ids=mix_component],
+                                                                                                      utt_paths[template_ids=mix_component],
+                                                                                                      file_idx[template_ids=mix_component],
+                                                                                                      start_ends[template_ids=mix_component],
+                                                                                                      false_responses))))
                 roc_curve = np.array([
                     np.sum(false_responses >= true_response)
                     for true_response in true_responses]) 
