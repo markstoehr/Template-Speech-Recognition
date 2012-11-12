@@ -208,3 +208,105 @@ between these two extremes.
    and so only vocal tract information is retained, while if $n$ is large then only
    glottal pulse information is retained and there is little information from the vocal tract shape
 
+* Auditory Filters
+  One approach to speech recognition is based filter banks that mimic
+  the human auditory system.  These are essentially smoothed estimates
+  of the spectrum, however, their motivation relies on psychophysical
+  experiments.
+
+** Motivation
+   One of the key motivations for viewing the human auditory system as
+   a filter comes from masking phenomena.  In one experiment the subject
+   is presented with a tone of fixed frequency simultaneously with
+   noise in a fixed bandwidth.  The listener 
+   experiment proceeds over several trials so that in the first
+   trial the tone has to low of an intensity for the subject
+   to hear the tone in the noise.  In each subsequent trial
+   the tone is presented with greater intensity than in previous trials
+   and this intensity is increased until the listener can hear the tone.
+   The lowest intensity such that the listener can hear the tone was
+   called the threshold intensity.  
+
+   The experiment above was the repeated with multiple different
+   bandwidths for the noise.  The experimenters observed that there
+   was a critical bandwidth such that the threshold intensity for
+   noise was the same if the noise bandwidth was the critical bandwidth
+   or greater.  They also observed that if the noise bandwidth was smaller
+   than the critical bandwidth the task became easier and the threshold
+   intensity dropped.  This critical band is hypothesized to be
+   the bandwidth for an auditory filter.
+   
+   Additionally, it was observed that these implied filters have increasing
+   bandwidth.
+
+   The underlying model is that if on has a signal that is a pure tone
+   $s(t)$ then the perception of $s(t)$ depends only on the bandpass
+   filtered $\mathcal{F}_c[s(t)]$ if the pure tone in $s(t)$ is contained
+   within critical band $c$.
+
+   
+* Masking Experiments
+** Tone Masking
+** Forward Spread of Masking
+** Upward Spread of Masking  
+
+* Strope 1998
+  Spectral cues in the region 400 - 8000 Hz are primarily used for recognition, there is a filter
+  bank based on critical band ideas. Additionally logarithmic measures of intensity are used for
+  recognition in both Humans and Machines. This reflects work noted in several authors.
+  
+  There are some areas where humans do something different than
+  machines.  The first is that humans allow for separate processing
+  across different frequency channels. It is noted in Allen 1994 that
+  humans use information from frequency bands that have good signal to
+  noise ratios.  ASR systems use time-invariant processing whereas
+  humans exhibit context-dependence.  Additionally, ASR systems remove
+  pitch information (80-300 Hz) and rely on statistical modeling for
+  articulator information(2- 20 Hz)
+
+  The pitch information is contained in the frequency of the glottal
+  pulse (the glottus periodically slams shut and opens in the range of
+  100-200 Hz).  Harmonics of the fundamental are produced due to the 
+  abrupt closure. (?)
+
+  During the production of vowels oen may model the sound as a
+  periodic glottal source with the vocal tract forming a filter (thus
+  linear prediction is useful).  Other speech sounds such as /s/ are
+  formed through turbulence, thus a linear model of speech production
+  would include both periodic glottal sources and noise-like sources
+  that account for fricatives.
+
+  This work mainly attempts to quantify certain nonlinearities in
+  auditory processing and apply it to automatic speech recognition.
+  
+  There is considerable evidence of dynamic adaptation in the auditory
+  system. This is one of the main ideas of this work.  One of the main
+  forms of adaption is a decreasing response after the onset
+  of a constant stimulus.  Humans show considerable sensitivity to 
+  onsets and dynamic spectral cues
+
+** Forward Masking
+   Observed in Fletcher, the mechanism appears to be an automatic gain
+   control mechanism an exponentially adapting linear offset is added
+   to logarithmic energy, This means that if a masking tone is played for
+   some period then the threshold for hearing a stimulus tone is higher
+   than when there is silence preceding the stimulus.
+   
+   An experiment was performed to determine the parameters of forward masking
+   
+
+** Peak Isolation
+   Makes an argument that local spectral peaks are a focus of the auditory
+   system particularly during vowels.
+
+* Nelken
+
+  Most strfs show a time and frequency component.
+  
+
+* Problem of Speech Recognition
+
+
+* Picone 1993
+  Some discussion is made of sampling and digitizing the speech
+  signal.
