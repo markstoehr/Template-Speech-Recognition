@@ -543,7 +543,6 @@ def _save_detection_results(s,phns,flts,
                                                                flts,
                                                                log_part_blocks,
                                                                F.shape[0])
-
     detection_array[len(detect_lengths)-1,
                     :F.shape[0]-linear_filter.shape[0]+1] = compute_likelihood_linear_filter.detect(F.astype(np.uint8),
                                                                                              linear_filter)
@@ -828,6 +827,7 @@ def get_detection_scores_mixture_named_params(data_path,file_indices,
                                 syllable,
                                 example_start_end_times
                                 )
+    detection_lengths = np.array(detection_lengths)
     if return_detection_template_ids:
         return (detection_array,
                 example_start_end_times,
@@ -1255,7 +1255,7 @@ def recover_assigned_phns(syllable_features,example_mat):
             phn_contexts[idx] = syllable_features[i][jdx].phn_context
             utt_paths[idx] = syllable_features[i][jdx].utt_path
             file_indices[idx] = syllable_features[i][jdx].file_idx
-            start_ends[idx,:] = np.array( syllable_features[i][jdx].start_end
+            start_ends[idx,:] = np.array( syllable_features[i][jdx].start_end)
     return assigned_phns,phn_contexts, utt_paths, file_indices, start_ends
 
 

@@ -156,8 +156,28 @@ def perform_phn_template_estimation(phn,utterances_path,
                     *templates)
             np.savez('data/%d_spec_templates_%s.npz' % (num_mix,phn),
                     *spec_templates)
-            
 
+
+bgd = np.load('data/bgd.npy')
+perform_phn_train_detection_SVM(phn, num_mix_params,
+                                    train_example_lengths,bgd,
+                                    train_path)
+
+
+
+templates = (np.load('data/1_templates.npy'),)
+detection_array = np.zeros((train_example_lengths.shape[0],
+                            train_example_lengths.max() + 2),dtype=np.float32)
+linear_filters_cs = et.construct_linear_filters(templates,
+                                                bgd)
+np.savez('data/linear_filter_%d.npy'% num_mix,*(tuple(lfc[0] for lfc in linear_filters_cs)))
+np.savez('data/c_%d.npy'%num_mix,*(tuple(lfc[1] for lfc in linear_filters_cs)))
+syllable = np.array((phn,))
+detection_array,example_start_end_times, detection_lengths = gtrd.get_detection_scores_mixture(train_path,
+                                                                                               detection_array,
+                                                                                               syllable,
+                                                                                               linear_filters_cs,
+                                                                                                       verbose=True)
 
 
 def perform_phn_train_detection_SVM(phn, num_mix_params,
@@ -165,8 +185,11 @@ def perform_phn_train_detection_SVM(phn, num_mix_params,
                                     train_path):
     FOMS = collections.defaultdict(list)
     for num_mix in num_mix_params:
-        outfile = np.load('%d_templates.npz' % num_mix)
-        templates = tuple( outfile['arr_%d'%i] for i in xrange(len(outfile.files)))
+        if num_mix > 1:
+            outfile = np.load('data/%d_templates.npz' % num_mix)
+            templates = tuple( outfile['arr_%d'%i] for i in xrange(len(outfile.files)))
+        else:
+            templates = (np.load('data/1_templates.npy'),)
         detection_array = np.zeros((train_example_lengths.shape[0],
                             train_example_lengths.max() + 2),dtype=np.float32)
         linear_filters_cs = et.construct_linear_filters(templates,
@@ -174,11 +197,18 @@ def perform_phn_train_detection_SVM(phn, num_mix_params,
         np.savez('data/linear_filter_%d.npy'% num_mix,*(tuple(lfc[0] for lfc in linear_filters_cs)))
         np.savez('data/c_%d.npy'%num_mix,*(tuple(lfc[1] for lfc in linear_filters_cs)))
         syllable = np.array((phn,))
-        detection_array,example_start_end_times, detection_lengths = gtrd.get_detection_scores_mixture(train_path,
+        if num_mix == 1:
+            detection_array,example_start_end_times, detection_lengths = gtrd.get_detection_scores(train_path,
                                                                                                    detection_array,
                                                                                                    syllable,
-                                                                                                   linear_filters_cs,
+                                                                                                   linear_filters_cs[0][0][0],linear_filters_cs[0][1],
                                                                                                        verbose=True)
+        else:
+            detection_array,example_start_end_times, detection_lengths = gtrd.get_detection_scores_mixture(train_path,
+                                                                                                           detection_array,
+                                                                                                           syllable,
+                                                                                                           linear_filters_cs,
+                                                                                                           verbose=True)
         np.save('data/detection_array_%d.npy' % num_mix,detection_array)
         if num_mix == 2:
             out = open('data/example_start_end_times_aar.pkl','wb')
@@ -358,7 +388,7 @@ def get_SVM_LR_filters(phn,num_mix_params,
                 true_responses = np.sort(np.sum(clustered_training[mix_component] * lf + c,-1).sum(-1).sum(-1))
                 false_responses = np.sort((false_pos_clusters[mix_component][num_false_pos_component/2:]*lf+ c).sum(-1).sum(-1).sum(-1))
                 open('data/fp_records_%d_%d_%d_%s.dat' %(num_mix,mix_component,fnr,phn),'w').write(
-                    '\n'.join(('Assigned Phn\tUtterance Path\tFile Idx\tStart time\tEnd Time\tScore',) 
+                    '\n'.join(('Assigned Phn\tUtterance Path\tFile Idx\tStart time\tEnd Time\tScore',)
                               + tuple('%s\t%s\t%s\t%d\t%d\t%g' %
                                       (assigned_phn,utt_path,fl_id,se[0],se[1],f_response)
                                       for assigned_phn,utt_path,fl_id,se,f_response in itertools.izip(false_pos_assigned_phns[template_ids=mix_component],
@@ -368,7 +398,7 @@ def get_SVM_LR_filters(phn,num_mix_params,
                                                                                                       false_responses))))
                 roc_curve = np.array([
                     np.sum(false_responses >= true_response)
-                    for true_response in true_responses]) 
+                    for true_response in true_responses])
                 np.save('data/fp_detector_roc_%d_%d_%d.npy' % (num_mix,
                                                            mix_component,
                                                            fnr),roc_curve)
@@ -386,7 +416,7 @@ SVMResult = collections.namedtuple('SVMResult',
 
 
 def SVM_training
-                                    
+
 def return_svm_result_tuple(num_mix_params,first_pass_fnrs):
     svmresult_tuple= ()
     for num_mix in num_mix_params:
