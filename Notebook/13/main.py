@@ -65,6 +65,25 @@ del outfile
 def convert_to_neg_template(P,W):
     return 1./(1. + (1./P -1)*np.exp(W))
 
+def iterative_neg_template_estimate(svmW,P,svmC,
+                                    num_iter = 1000,
+                                    tol=.00001):
+    scaling = 1.
+    W = scaling * svmW
+    C = scaling * svmC
+    lfW = np.zeros(W.shape)
+    cur_error = abs(np.sum(scaling*W - lfW))/abs(scaling*W.sum())
+    while cur_error > tol:
+        Q = convert_to_neg_template(P,scaling*svmW)
+        lfC = np.sum(np.log((1-P)/(1-Q)))
+        scaling = lfC/C
+        lfW = np.log(P/(1-P) * (1-Q)/Q)
+        cur_error = abs(np.sum(scaling*W - lfW))/abs(scaling*W.sum())
+        print "lfC=%g\tnorm(lfW)=%g\tsvmC=%g\tcur_error=%g\tscaling=%g" % (lfC,np.linalg.norm(lfW),svmC,cur_error,scaling)
+
+def get_best_svm_scaling(lfW,svmW,lfC,svmC):
+    return (np.sum(lfW * svmW) + lfC * svmC)/(np.sum(lfW * lfW) + svmC**2)
+
 def convert_to_pos_template(Q,W):
     return 1./(1. + (1./Q -1)/np.exp(W))
 
