@@ -827,6 +827,7 @@ def get_detection_scores_mixture_named_params(data_path,file_indices,
                                 syllable,
                                 example_start_end_times
                                 )
+    detection_lengths = np.array(detection_lengths)
     if return_detection_template_ids:
         return (detection_array,
                 example_start_end_times,
