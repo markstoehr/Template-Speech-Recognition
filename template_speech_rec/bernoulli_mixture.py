@@ -103,7 +103,8 @@ class BernoulliMixture:
 
 
     # TODO: save_template never used!
-    def run_EM(self, tol, min_probability=0.05, debug_plot=False, hard_assignment=False,rand_seed=None):
+    def run_EM(self, tol, min_probability=0.05, debug_plot=False, hard_assignment=False,rand_seed=None,
+               use_templates=None):
         """
         Run the EM algorithm to specified convergence.
 
@@ -116,11 +117,15 @@ class BernoulliMixture:
             Disallow probabilities to fall below this value, and extend below one minus this value.
         init_seed : integer or None
         """
-        self.reset_templates()
-        if rand_seed is not None:
-            self.seed = rand_seed
-            np.random.seed(self.seed)
-            self.init_affinities_templates('unif_rand')
+        if use_templates is None:
+            self.reset_templates()
+            if rand_seed is not None:
+                self.seed = rand_seed
+                np.random.seed(self.seed)
+                self.init_affinities_templates('unif_rand')
+        else:
+            self.templates = use_templates.copy()
+            self.reset_templates()
         self.hard_assignment = hard_assignment
         self.min_probability = min_probability
         loglikelihood = -np.inf
