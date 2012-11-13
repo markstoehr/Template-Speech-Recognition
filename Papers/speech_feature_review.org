@@ -1,3 +1,6 @@
+#+TITLE: Speech Features
+#+AUTHOR: Mark Stoehr
+
 We begin with stating one of the basic problems encountered in the
 pure speech recognition problem.  This back-of-the-envelope comparison
 is given in Rabiner.  There are $2^5 = 32$ symbols or so in English
@@ -20,7 +23,7 @@ second.  Thus, the task of speech recognition consists in generating a relativel
 low information rate signal from a high information rate signal.
 
 * The Source Filter Model
-
+  
 We begin by considering the recognition of vowels. There are a number
 of reasons to do this since vowels are generally easier to decode in
 noise, additionally, most of the information in vowels is contained in
@@ -310,3 +313,80 @@ between these two extremes.
 * Picone 1993
   Some discussion is made of sampling and digitizing the speech
   signal.
+
+* Hermansky Spectral Coding
+  Bases ideas on something from Dudley that the information content in
+  speech is transmitted around 10Hz and it comes from the changes in
+  the vocal tract shape.  The idea is to split the signal into several
+  spectral energers and have it low-pass filtered at 20Hz, which is
+  the basis for the Vocoder
+
+  Speech then was changed during WWII and the post war era
+  SpectrographTM technology was employed since one could clearly
+  observe vocal tract resonants, and it communicated the shape of the
+  vocal tract by where there is resonance. Sonorants could visually
+  be well discriminated by the observed sounds.
+
+  During the 1970s the analog SpectrographTM was replaced with digital
+  filtering and the fast Fourier transform.  Speech was windowed
+  at about 10Hz (reflecting the rate of change of the vocal tract)
+  the "sluggish nature" (Dudley) of the muscles that control the
+  vocal tract shape.  The resolution of the spectrogram is often
+  modified to match human perception (this has recently been shown
+  to also accord with the instability of high-frequency estimation).
+
+  Spectrograms have not solved the speech problem. Sonorants are
+  affected by coarticulation so that neighboring phones affect the
+  spectral shape, different speakers produce phonetically identical
+  sounds although the formants may be quite different, a short-time
+  spectrum does not explain obstruents whose shape is determined by
+  the subsequent sonorant.  Linear filtering can also corrupt the
+  observation (its not clear why linear filtering would be common
+  enough to make this a serious problem)
+
+  Dynamic features are often added to complement static features.
+  The older approaches to speech recognition relied on templates
+  which were warped, and these days the dynamical spectral content
+  of speech is a nuisance parameter for the model.  Templates
+  contain coarticulation data inherently within them, whereas
+  HMMs require significant and complicated tweaking
+  to manage coarticular, either through complex models or
+  by enlargin the state space (thus meaning that more
+  parameters need to be stored and estimated).
+
+  The proposal is made to be concerned, instead, with the modulation
+  spectrum which was suggest in Houtgast and Steeneken.  The idea here
+  is to consider the one dimensional time series $S(\omega_0,t)$ where
+  $S(\omega,t)$ is the spectrogram and $\omega_0$ is a fixed
+  frequency.  This essentially corresponds to analyzing band-pass
+  filtered speech (where the band is centered around $\omega_0$).
+  The modulation spectrum at frequency $\omega_0$ is
+  $$F(\omega_0,t)= \sum_{\Delta T}( \log S(\omega_0,t) - \frac{1}{T}\sum_{\Delta T}\log S(\omega_0,t))e^{j\omega_0 t}  $$
+  
+  Experiments by Riezs (1928) suggest that humans are most sensitive to modulations
+  in the 2-8Hz range, interestingly most of the energy in the modulation spectrum
+  of speech signals is in the 4Hz range (which is the syllabic time scale for speech).
+
+  In experiments by Arai if one projects speech such that the
+  modulation spectrum components around 4Hz are zeroed-out then
+  intelligibility drops significantly.  Conversely, components < 1Hz
+  and > 16Hz have minimal effect on intelligibility. There is also
+  biological evidence for band-pass modulation frequency filters.
+
+  An experiment was performed where a vowel was filtered in the
+  frequency domain by a filter that had a frequency response the
+  inverse of the envelope of the vowels frequency response so
+  it became spectrally flat.  Recognition was not impaired in this
+  filtered speech, however, the image of the vowel all
+  but disappears from the DFT, RASTA PLP however preserves the vowel.
+
+  The longer analysis windows used for these modulation spectrums
+  results have to be roughly 250 ms long (to capture 4Hz modulations),
+  at the same time the suggestion to use multi-stream ASR
+  in the manner suggested by Fletcher was considered at the time.
+
+  One can completely bypass the short time analysis windows all together
+  by using FDPLP.
+  
+
+
