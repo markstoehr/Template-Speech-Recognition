@@ -44,15 +44,58 @@ def pad_examples_bgd_samples(examples,lengths,bgd_probs):
             out.append(example)
     return np.array(out).astype(np.uint8)
 
-def recover_different_length_templates(affinities,examples,lengths):
+def recover_different_length_templates(affinities,examples,lengths,
+                                       block_size=5000):
+    """
+    Now uses a memory efficient algorithm where block_size
+    is the most of the matrix that is used at any given time
+    
+    The algorithm works as follows: we keep running estimates of the
+    affinity sums for each template affinity in affinity sums we also
+    keep running template averages, these are the basic estimates that
+    then get updated iteratively as we go through chunks of the data
+    at a time.
+
+
+    This algorithm has been verified to work
+    
+    """
     affinities_trans = affinities.T
     affinities_trans /= affinities_trans.sum(1)[:,np.newaxis]
     avg_lengths = (np.dot(affinities_trans,lengths)  + .5).astype(int)
     example_shapes = examples.shape[1:]
-    return tuple(
-        template[:length]
-        for template,length in itertools.izip(np.dot(affinities_trans,examples.reshape(examples.shape[0],
-                                                                                       np.prod(example_shapes))).reshape((avg_lengths.shape[0],)+example_shapes),avg_lengths))
+    num_data = examples.shape[0]
+    if num_data < block_size:
+        return tuple(
+            template[:length]
+            for template,length in itertools.izip(np.dot(affinities_trans,examples.reshape(examples.shape[0],
+                                                                                           np.prod(example_shapes))).reshape((avg_lengths.shape[0],)+example_shapes),avg_lengths))
+    else:
+        for cur_chunk in xrange(num_data/block_size):
+            # print "Working on chunk %d" % cur_chunk
+            if cur_chunk == 0:
+                template_estimates = [
+                    template[:length]
+                    for template,length in itertools.izip(np.dot(affinities_trans[:,:block_size],examples[:block_size].reshape(block_size,
+                                                                                                                               np.prod(example_shapes))).reshape((avg_lengths.shape[0],)+example_shapes),avg_lengths)]
+            else:
+                start_idx = cur_chunk*block_size
+                cur_block_size = min(block_size,
+                                     num_data - start_idx)
+                end_idx = start_idx + cur_block_size
+
+                new_template = np.dot(
+                    affinities_trans[:,start_idx:end_idx],
+                    examples[start_idx:end_idx].reshape(
+                        block_size,
+                        np.prod(example_shapes))
+                    ).reshape((avg_lengths.shape[0],)+example_shapes)
+
+                for i, length in enumerate(avg_lengths):
+                    template_estimates[i] += new_template[i][:length]
+        return template_estimates
+
+            
 
 
 def recover_clustered_data(affinities,padded_examples,templates,assignment_threshold = .95):
