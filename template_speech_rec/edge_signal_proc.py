@@ -711,6 +711,21 @@ def threshold_edgemap(E,quantile_level,
 def threshold_edge_block(E_block,quantile_level,
                          report_level,
                          abst_threshold):
+    """
+    Parameters:
+    ===========
+    E_block: numpy.ndarray[ndim=2]
+        Blocks of the continuous edge amounts, these are all thresholded
+        using sorting
+    quantile_level: float
+        Quantil level used to compute the thresholding value, represent
+        the percentage of edges that are kept
+    report_level: Bool
+        Says whether the call of this function returns the value that
+        thresholding has occurred at
+    abst_threshold: float
+        The lowest value that the quantile_level can threshold at.
+    """
     maxima_idx = E_block > 0
     maxima_vals = E_block[maxima_idx].ravel().copy()
     maxima_vals.sort()

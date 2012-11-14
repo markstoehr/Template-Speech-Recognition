@@ -692,6 +692,78 @@ def _compute_detection_E(E,phns,E_flts,
         example_start_end_times.append([])
 
 
+def get_vals_pad(x,idx,default_val,window_half_length):
+    hi = len(x)
+    lo_idx = idx - window_half_length
+    hi_idx = idx + window_half_length + 1
+    left = np.empty(max(-lo_idx,0),dtype=x.dtype)
+    right = np.empty(max(hi_idx-hi,0),dtype=x.dtype)
+    if len(left) > 0:
+        left[:] = default_val
+    if len(right) > 0:
+        right[:] = default_val
+    out =  np.hstack((
+            left,
+             x[max(0,lo_idx):
+                   min(hi,hi_idx)],
+            right))
+    
+
+PhoneClassificationOut = collections.namedtuple("PhoneClassificationOut",
+                                                "detect_vals"
+                                                +" detect_ids"
+                                                +" file_idx")
+
+def _compute_classification_E(E,phns,E_flts,
+                              phn_classification_dict,
+                              linear_filters_cs,
+                              phone_label,
+                              bgd,
+                              window_half_length,
+                              file_idx):
+    """
+    Purpose of this function is to record the output of classification
+    """
+    detect_scores\
+        = (compute_likelihood_linear_filter.detect(
+            E.astype(np.uint8),
+            linear_filters_cs[0][0])
+           + linear_filters_cs[0][1])
+
+    detect_template_ids = np.zeros(len(detect_scores),
+                                   dtype=np.int16)
+
+    # classification_template_ids is either None or Zero so we are set
+    filter_id = 0
+    if len(linear_filters_cs) > 1:
+        for cur_filt,cur_c in linear_filters_cs[1:]:
+            filter_id += 1
+            v = compute_likelihood_linear_filter.detect(E.astype(np.uint8),
+                                                                                             cur_filt) + cur_c
+            if classification_template_ids is not None:
+                detect_template_ids[v >
+                                    detect_scores] = filter_id
+
+            detect_scores = np.maximum(
+                v,
+                detect_scores)
+
+
+    if np.any(np.isnan(classification_array)) == True:
+        import pdb; pdb.set_trace()
+
+    for phn,flt in itertools.izip(phns,E_flts):
+        phn_classification_dict[phn] += (
+            PhoneClassificationOut(
+                detect_vals=get_vals_pad(detect_scores,flt,-np.inf,
+                                             window_half_length),
+                detect_ids=get_vals_pad(detect_template_ids,flt,
+                                            -1, window_half_length),
+                file_idx =file_idx
+                
+                ),)
+
+
 
 
 def get_detection_scores(data_path,
@@ -838,6 +910,78 @@ def get_detection_scores_mixture_named_params(data_path,file_indices,
                 example_start_end_times,
                 detection_lengths)
 
+
+                      
+
+def get_classification_scores_mixture_named_params(data_path,file_indices,
+                                                   phone_label,
+                                                   linear_filters_cs,
+                                                   bgd,
+                                                   window_half_length,
+                                                   S_config=None,
+                                                   E_config=None,
+                                                   verbose = False,
+                                                   num_examples =-1,
+                                                   return_classification_template_ids=False):
+    """
+    Assessing the classification performance of the dataset on my
+    data.  We implement a two-stage classification, this stage is
+    purely to get an ROC curve and sketch the performance basically of
+    our classifier.
+
+    The next stage is to get fine-grained statistics for praticular
+    points on the ROC curve (otherwise we use up too much memory).
+
+    We rely on a background model bgd in order to pad examples because
+    the template we are using and the data do not necessarily match each 
+    other.
+
+    Window half length is there because we do not totally trust the timit
+    labeling.
+
+    For each example of the phone we want some data about the detection
+    that will allow us to understand the classifier we are using and get
+    some insights. Candidate metadata for the detection would be:
+      - file idx (for provenance purposes
+      - phn labels immediately preceding
+      - phn labels immediately following
+      - within a window what were the detection scores and the max score
+      - within a window, which were the templates that fired the hardest 
+        and which was the max
+    
+    We create a default dict to hold the phone labels
+        
+    we'll get this for each phn.  The idea will be to find the hard
+    false positives and then we'll do a second stage detector based on
+    the svm. But first we'll get some basic statistics on how this is working
+    
+    """
+
+    phn_classification_dict = collections.defaultdict(tuple)
+    
+    
+    for i,data_file_idx in enumerate(file_indices[:num_examples]):
+        if verbose:
+            if ((i % verbose) == 0 ):
+                print "Getting examples from example %d" % i
+
+        utterance = makeUtterance(data_path,data_file_idx)
+        sflts = (utterance.flts * utterance.s.shape[0]/float(utterance.flts[-1]) + .5).astype(int)
+        S = get_spectrogram(utterance.s,S_config)
+        S_flts = (sflts * S.shape[0] /float(sflts[-1]) + .5).astype(int)
+        E = get_edge_features(S.T,E_config,verbose=False)
+        E_flts = S_flts
+
+        _compute_classification_E(E,utterance.phns,E_flts,
+                                  phn_classification_dict,
+                                  linear_filters_cs,
+                                  phone_label,
+                                  bgd,
+                                  window_half_length,
+                                  data_file_idx
+                                  )
+
+    return phn_classification_dict
 
 
 
