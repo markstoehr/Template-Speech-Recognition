@@ -102,9 +102,18 @@ train_file_indices = np.load("data/train_file_indices.npy")
 
 phn='aa'
 
+import sys
+sys.path.append('../13')
 import phn_detection
 
 bgd = np.load('data/bgd.npy')
+
+phn_detection.perform_phn_template_estimation(phn,utterances_path,
+                                    file_indices,sp,ep,
+                                    num_mix_params,
+                                    phn_mapping=leehon_mapping,
+                                    waveform_offset=15)
+
 for phn in list(set(leehon_mapping.values()))[1:]:
     print phn
     phn_detection.perform_phn_template_estimation(phn,utterances_path,
