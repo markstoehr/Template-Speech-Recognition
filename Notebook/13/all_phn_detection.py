@@ -125,6 +125,10 @@ Es=outfile['Es']
 Elengths=outfile['Elengths']
 example_mat=outfile['example_mat']
 
+num_mix = 5
+bem = bm.BernoulliMixture(num_mix,Es)
+bem.run_EM(.000001)
+            
 
 
 phn_detection.get_divisions
