@@ -146,7 +146,8 @@ def true_false_clusters_list(example_cluster_starts_ends,
 
 
 def true_false_clusters(example_cluster_starts_ends,
-                        example_start_end_tuples):
+                        example_start_end_tuples,
+                        verbose =False):
     num_true = len(example_start_end_tuples)
     num_detects = len(example_cluster_starts_ends)
     true_detects = 0
@@ -160,9 +161,13 @@ def true_false_clusters(example_cluster_starts_ends,
         true_iter = enumerate(example_start_end_tuples)
         true_idx, cur_true = true_iter.next()
         for i,cur_detect in enumerate(example_cluster_starts_ends):
+            if verbose:
+                print i, cur_detect
             # check whether the current detection cluster is
             # passed the marked time point
-            while cur_detect[0] >= cur_true[0]:
+            while cur_detect[0] >= cur_true[1]:
+                if verbose:
+                    print "cur_detect[0]=%d,cur_true=%d" % (cur_detect[0], cur_true[0])
                 if true_idx == num_true -1:
                     # we are done now since there are no more true
                     # detections possible
@@ -448,7 +453,6 @@ def get_roc_curve(potential_thresholds,
                                                      example_detection_windows,
                                                      C0,C1,frame_rate,
                                                      return_clusters=True),)
-        return rate_mat[0], rate_mat[1]
     return return_tuple
 
 
@@ -599,7 +603,8 @@ def get_pos_false_pos_false_neg_detect_points(detection_clusters_at_threshold,
                                               window_end,example_start_end_times,
                                               utterances_path,
                                               file_indices,
-                                              verbose=True):
+                                              verbose=True,
+                                              return_example_types=False):
     """
     Parameters:
     ===========
@@ -620,6 +625,11 @@ def get_pos_false_pos_false_neg_detect_points(detection_clusters_at_threshold,
     pos_times = tuple([] for i in xrange(num_utts))
     false_pos_times = tuple([] for i in xrange(num_utts))
     false_neg_times = tuple([] for i in xrange(num_utts))
+    if return_example_types:
+        num_examples = sum(len(k) for k in example_start_end_times)
+        # example types are 'p', 'fp', 'fn'
+        example_types = np.zeros(num_examples,dtype=np.uint8)
+        cur_example_for_typing=0
     for utt_id, utt_info in enumerate(itertools.izip(detection_clusters_at_threshold,detection_array,example_start_end_times)):
         phns = np.load(utterances_path+file_indices[utt_id]+'phns.npy')
         flts = np.load(utterances_path+file_indices[utt_id]+'feature_label_transitions.npy')
@@ -636,6 +646,9 @@ def get_pos_false_pos_false_neg_detect_points(detection_clusters_at_threshold,
                 s,e = se
                 if s+window_start < c[1] and s+window_end >= c[0]:
                     is_false_pos = False
+                    if return_example_types:
+                        example_types[cur_example_for_typing+example_id] =1
+
                     #
                     # Confusing transformation here:
                     #   we need a value at the front and back of our
@@ -679,27 +692,33 @@ def get_pos_false_pos_false_neg_detect_points(detection_clusters_at_threshold,
                             file_index=file_indices[utt_id]))
                     examples_not_detected[example_id] = False
             if is_false_pos:
-                cluster_vals = detection_row[c[0]-1:c[1]+1]
-                cluster_max_peak_loc = get_max_peak(cluster_vals)
-                if cluster_max_peak_loc == -1:
-                    cluster_max_peak_val = -np.inf
+
+                if c[0]-c[1] < 2:
+                    cluster_max_peak_loc=0
+                    cluster_max_peak_val=detection_row[c[0]]
+                    cluster_vals = detection_row[c[0]:c[1]]
                 else:
-                    cluster_max_peak_val=cluster_vals[cluster_max_peak_loc]
-                #
-                # Confusing transformation here:
-                #   we need a value at the front and back of our
-                #   cluster in order to evaluate whether values
-                #   within the cluster count as local maximal
-                #   so we work with an extended cluster that includes
-                #   these head and tail points
+                    cluster_vals = detection_row[c[0]-1:c[1]+1]
+                    cluster_max_peak_loc = get_max_peak(cluster_vals)
+                    if cluster_max_peak_loc == -1:
+                        cluster_max_peak_val = -np.inf
+                    else:
+                        cluster_max_peak_val=cluster_vals[cluster_max_peak_loc]
+                        #
+                        # Confusing transformation here:
+                        #   we need a value at the front and back of our
+                        #   cluster in order to evaluate whether values
+                        #   within the cluster count as local maximal
+                        #   so we work with an extended cluster that includes
+                        #   these head and tail points
                 #   but, once we find the largest local maximum
                 #   we then need to remove those points
-                    
-                # We map the peak location and the
+                        
+                        # We map the peak location and the
                 # cluster length back to the original system
                 # getting rid of the extended cluster
-                cluster_max_peak_loc -= 1
-                cluster_vals = cluster_vals[1:-1]
+                    cluster_max_peak_loc -= 1
+                    cluster_vals = cluster_vals[1:-1]
                 cluster_detect_lengths = np.array([template_lengths[idx] for idx in detection_template_ids[utt_id,c[0]:c[1]]])
                 cluster_detect_ids = detection_template_ids[utt_id,c[0]:c[1]]
 
@@ -731,6 +750,7 @@ def get_pos_false_pos_false_neg_detect_points(detection_clusters_at_threshold,
                         file_index=file_indices[utt_id]))
  
         for idx in np.arange(len(start_end_times))[examples_not_detected]:
+
             s = start_end_times[idx][0]
             e = start_end_times[idx][1]
             if verbose:
@@ -778,30 +798,41 @@ def get_pos_false_pos_false_neg_detect_points(detection_clusters_at_threshold,
                     flt_context=flt_context,
                     utterances_path=utterances_path,
                     file_index=file_indices[utt_id]))
-    return pos_times, false_pos_times, false_neg_times
+
+        if return_example_types:
+            cur_example_for_typing+=len(start_end_times)
+            assert cur_example_for_typing <= num_examples
+    if return_example_types:
+        return pos_times, false_pos_times, false_neg_times, example_types
+    else:
+        return pos_times, false_pos_times, false_neg_times
 
 
 def get_false_positives(false_pos_times,S_config,E_config,
                        offset=0,
-                       waveform_offset=0):
+                        waveform_offset=0,
+                        verbose=False):
     return_false_positives = []
     for utt_id, utt_false_positives in enumerate(false_pos_times):
-        if len(utt_false_positives)== 0: continue
+        if len(utt_false_positives)== 0: 
+            return_false_positives.append([])
+            continue
         # we know its non-empty
         # will open the data
-        # for fp in utt_false_positives:
+        print "utt_id=%d" %utt_id
+        # for fp_id, fp in enumerate(utt_false_positives):
         #     print (fp.cluster_start_end[0]+fp.cluster_max_peak_loc
         #              + fp.cluster_detect_lengths[fp.cluster_max_peak_loc] - 
         #            fp.cluster_start_end[0]+fp.cluster_max_peak_loc)
-
+        #    print "fp_id=%d" %fp_id
         return_false_positives.append( gtrd.get_syllable_features_cluster(
                 utt_false_positives[0].utterances_path,
                 utt_false_positives[0].file_index,
                 tuple(
-                    (fp.cluster_start_end[0]+fp.cluster_max_peak_loc,
-                     fp.cluster_start_end[0]+fp.cluster_max_peak_loc
-                     + fp.cluster_detect_lengths[fp.cluster_max_peak_loc])
-                    for fp in utt_false_positives),
+                    (fp0.cluster_start_end[0]+fp0.cluster_max_peak_loc,
+                     fp0.cluster_start_end[0]+fp0.cluster_max_peak_loc
+                     + fp0.cluster_detect_lengths[fp0.cluster_max_peak_loc])
+                    for fp0 in utt_false_positives),
                 S_config=S_config,
                 E_config=E_config,
                 offset = offset,
@@ -809,8 +840,74 @@ def get_false_positives(false_pos_times,S_config,E_config,
                 # we aren't estimating background here at all
                 avg_bgd=None,
                 waveform_offset=waveform_offset,
-                assigned_phns = (fp.cluster_max_peak_phn,)))
+                assigned_phns = (utt_false_positives[0].cluster_max_peak_phn,)))
     return tuple(return_false_positives)
+
+def get_true_positives(true_pos_times,S_config,E_config,
+                       offset=0,
+                        waveform_offset=0,
+                        verbose=False):
+    return_true_positives = []
+    for utt_id, utt_true_positives in enumerate(true_pos_times):
+        if len(utt_true_positives)== 0: 
+            return_true_positives.append([])
+            continue
+        # we know its non-empty
+        # will open the data
+        print "utt_id=%d" %utt_id
+        # for fp_id, fp in enumerate(utt_true_positives):
+        #     print (fp.cluster_start_end[0]+fp.cluster_max_peak_loc
+        #              + fp.cluster_detect_lengths[fp.cluster_max_peak_loc] - 
+        #            fp.cluster_start_end[0]+fp.cluster_max_peak_loc)
+        #    print "fp_id=%d" %fp_id
+        return_true_positives.append( gtrd.get_syllable_features_cluster(
+                utt_true_positives[0].utterances_path,
+                utt_true_positives[0].file_index,
+                tuple(
+                    (fp0.cluster_start_end[0]+fp0.cluster_max_peak_loc,
+                     fp0.cluster_start_end[0]+fp0.cluster_max_peak_loc
+                     + fp0.cluster_detect_lengths[fp0.cluster_max_peak_loc])
+                    for fp0 in utt_true_positives),
+                S_config=S_config,
+                E_config=E_config,
+                offset = offset,
+                E_verbose=False,
+                # we aren't estimating background here at all
+                avg_bgd=None,
+                waveform_offset=waveform_offset))
+    return tuple(return_true_positives)
+
+def get_false_negatives(false_negative_times,S_config,E_config,
+                       offset=0,
+                        waveform_offset=0,
+                        verbose=False):
+    return_false_negatives = []
+    for utt_id, utt_false_negatives in enumerate(false_negative_times):
+        if len(utt_false_negatives)== 0: 
+            return_false_negatives.append([])
+            continue
+        # we know its non-empty
+        # will open the data
+        print "utt_id=%d" %utt_id
+        # for fp_id, fp in enumerate(utt_false_negatives):
+        #     print (fp.cluster_start_end[0]+fp.cluster_max_peak_loc
+        #              + fp.cluster_detect_lengths[fp.cluster_max_peak_loc] - 
+        #            fp.cluster_start_end[0]+fp.cluster_max_peak_loc)
+        #    print "fp_id=%d" %fp_id
+        return_false_negatives.append( gtrd.get_syllable_features_cluster(
+                utt_false_negatives[0].utterances_path,
+                utt_false_negatives[0].file_index,
+                tuple(
+                    fp0.true_label_times
+                    for fp0 in utt_false_negatives),
+                S_config=S_config,
+                E_config=E_config,
+                offset = offset,
+                E_verbose=False,
+                # we aren't estimating background here at all
+                avg_bgd=None,
+                waveform_offset=waveform_offset))
+    return tuple(return_false_negatives)
 
 
 def get_false_pos_clusters(Es_false_pos,
