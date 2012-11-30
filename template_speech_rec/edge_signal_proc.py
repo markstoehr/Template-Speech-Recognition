@@ -682,25 +682,67 @@ def get_edgemap_no_threshold(s,sample_rate,
 def threshold_edgemap(E,quantile_level,
                       edge_feature_row_breaks,
                       report_level=False,
-                      abst_threshold=np.array([ 0.025,  0.025,  0.015,  0.015,  0.02 ,  0.02 ,  0.02 ,  0.02 ])):
+                      abst_threshold=np.array([ 0.025,  0.025,  0.015,  0.015,  0.02 ,  0.02 ,  0.02 ,  0.02 ]),
+                      critical_bands=None):
+    """
+    Parameters:
+    ===========
+    E: numpy.ndarray[ndim=2]
+        edge features
+    quantile_level:
+        quantile at which to threshold edges at zero
+    edge_feature_row_beaks:
+        indices that break the matrix into different edge types
+    critical_bands: None or numpy.ndarray[ndim=2]
+        dimension 0 is the number of critical bands, each row is a pair
+        (critical_bands[i,0],critical_bands[i,1]) which says that the 
+        ith critical band applied to exactly those frequencies f
+        such that critical_bands[i,0] <= f < critical_bands[i,1] (approximately)
+        assumption here is that critical_bands are a partition of a set the size of the chunks in edge_feature_row_breaks.
+    """
     # see whether to report the level of the edge thresholds
     if report_level:
-        edge_thresholds = np.empty(8)
+        if critical_bands is not None:
+            edge_thresholds = np.empty((8,len(critical_bands)))
+        else:
+            edge_thresholds = np.empty(8)
     # allocate an empty array for the thresholded edges
     E_new = np.empty(E.shape)
     for edge_feat_idx in xrange(1,edge_feature_row_breaks.shape[0]):
         start_idx = edge_feature_row_breaks[edge_feat_idx-1]
         end_idx = edge_feature_row_breaks[edge_feat_idx]
+        if critical_bands is not None:
+            assert end_idx - start_idx == critical_bands[-1,-1]
         if report_level:
-            E_new[start_idx:end_idx,:],edge_thresholds[edge_feat_idx-1] = \
-                threshold_edge_block(E[start_idx:end_idx,:],quantile_level,report_level,
+            if critical_bands is None:
+                E_new[start_idx:end_idx,:],edge_thresholds[edge_feat_idx-1] = \
+                    threshold_edge_block(E[start_idx:end_idx,:],quantile_level,report_level,
                                      abst_threshold[edge_feat_idx-1])
+            else:
+                for cb_idx,cb in enumerate(critical_bands):
+                    E_new[start_idx+cb[0]:
+                              start_idx+cb[1],:], edge_thresholds[edge_feat_idx-1,
+                                                                  cb_idx]= \
+                        threshold_edge_block(E[start_idx+cb[0]:end_idx+cb[1],:],
+                                             quantile_level,
+                                             report_level,
+                                             abst_threshold[edge_feat_idx-1])
         else:
-            E_new[start_idx:end_idx,:] = \
-                threshold_edge_block(E[start_idx:end_idx,:],
-                                     quantile_level,
-                                     report_level,
-                                     abst_threshold[edge_feat_idx-1])
+            if critical_bands is None:
+                E_new[start_idx:end_idx,:] = \
+                    threshold_edge_block(E[start_idx:end_idx,:],
+                                         quantile_level,
+                                         report_level,
+                                         abst_threshold[edge_feat_idx-1])
+            else:
+                for cb_idx,cb in enumerate(critical_bands):
+                    E_new[start_idx+cb[0]:start_idx+cb[1],:] = \
+                        threshold_edge_block(E[start_idx+cb[0]:end_idx+cb[1],:],
+                                             quantile_level,
+                                             report_level,
+                                             abst_threshold[edge_feat_idx-1])
+
+                
             assert np.max(E_new[start_idx:end_idx,:]) <= 1 and np.min(E_new[start_idx:end_idx]) >= 0 
     if report_level:
         return E_new, edge_thresholds
@@ -710,7 +752,7 @@ def threshold_edgemap(E,quantile_level,
 
 def threshold_edge_block(E_block,quantile_level,
                          report_level,
-                         abst_threshold):
+                         abst_threshold,):
     """
     Parameters:
     ===========
@@ -725,7 +767,13 @@ def threshold_edge_block(E_block,quantile_level,
         thresholding has occurred at
     abst_threshold: float
         The lowest value that the quantile_level can threshold at.
+    critical_bands: None or numpy.ndarray[ndim=2], Optional
+        dimension 0 is the number of critical bands, each row is a pair
+        (critical_bands[i,0],critical_bands[i,1]) which says that the 
+        ith critical band applied to exactly those frequencies f
+        such that critical_bands[i,0] <= f < critical_bands[i,1] (approximately)
     """
+    # import pdb; pdb.set_trace()
     maxima_idx = E_block > 0
     maxima_vals = E_block[maxima_idx].ravel().copy()
     maxima_vals.sort()
@@ -736,7 +784,7 @@ def threshold_edge_block(E_block,quantile_level,
     # zero out everything less than the quantile
     A = E_block[maxima_idx]
     # get the indices for the significant edges
-    sig_idx = E_block[maxima_idx] > max(tau_quant,abst_threshold)
+    sig_idx = E_block[maxima_idx] >= max(tau_quant,abst_threshold)
     if np.any(-sig_idx):
         A[-sig_idx] = 0.
     if np.any(sig_idx):
@@ -939,18 +987,38 @@ def _edge_map_threshold_segments(E,block_length,
                                         [ 1.,  1.],
                                         [-1., -1.],
                                         [ 1., -1.],
-                                [-1.,  1.]]), edge_feature_row_breaks = None,
+                                [-1.,  1.]]), 
+                                 edge_feature_row_breaks = None,
                                  abst_threshold=np.array([ 0.025,  0.025,  0.015,
                                                            0.015,  0.02 ,  0.02 ,
                                                            0.02 ,  0.02 ]),
-                                 verbose=False):
+                                 verbose=False,
+                                 critical_bands=None,
+                                 return_thresholds=False,
+                                 spread_type='unidirectional'):
     """
     Parameters:
     ===========
     E:
-       Raw edge intensities
+        Raw edge intensities
     block_length:
-       The length of the thresholded segments
+        The length of the thresholded segments
+    spread_length:
+        radius for which the edge spreading is going to occur
+    threshold:
+        the quantile threshold for pulling all the coefficients down
+    edge_orientations:
+        the types of edges present
+    edge_feature_row_breaks:
+        the locations in the matrix that separate edge types
+    critical_bands: None or numpy.ndarray[ndim=2]
+        dimension 0 is the number of critical bands, each row is a pair
+        (critical_bands[i,0],critical_bands[i,1]) which says that the 
+        ith critical band applied to exactly those frequencies f
+        such that critical_bands[i,0] <= f < critical_bands[i,1] (approximately)
+    return_thresholds: bool, optional, default False
+        Whether to return the absolute threshold or to suppress it
+    
     """
     height,length = E.shape
     if edge_feature_row_breaks is None:
@@ -962,47 +1030,83 @@ def _edge_map_threshold_segments(E,block_length,
     # then we are going to compute things
     num_full_blocks = length/block_length
     last_block_length = length % block_length
+
+    if return_thresholds:
+        view_thresholds = []
+    
     if last_block_length > 0:
         last_E = E[:,-block_length:].copy()
-        if verbose:
+        if verbose or return_thresholds:
             _, view_threshold= threshold_edgemap(last_E,
-                              threshold,
-                              edge_feature_row_breaks,
-                              report_level=True,
-                              abst_threshold=abst_threshold)
-            print view_threshold
+                                                 threshold,
+                                                 edge_feature_row_breaks,
+                                                 report_level=True,
+                                                 abst_threshold=abst_threshold,
+                                                 critical_bands=critical_bands)
+            if verbose:
+                print view_threshold
+            if return_thresholds:
+                view_thresholds.append(view_threshold)
         else:
             threshold_edgemap(last_E,
                               threshold,
                               edge_feature_row_breaks,
                               report_level=False,
-                              abst_threshold=abst_threshold)
-        spread_edgemap(last_E,
-                       edge_feature_row_breaks,
-                       edge_orientations,
-                       spread_length=spread_length)
+                              abst_threshold=abst_threshold,
+                              critical_bands=critical_bands)
+        if spread_type=='unidirectional':
+            spread_edgemap(last_E,
+                           edge_feature_row_breaks,
+                           edge_orientations,
+                           spread_length=spread_length)
+        elif spread_type=='all':
+            for i in xrange(8):
+                start_idx=edge_feature_row_breaks[i]
+                if i >= len(edge_feature_row_breaks):
+                    end_idx=len(edge_feature_row_breaks)
+                else:
+                    end_idx=edge_feature_row_breaks[i+1]
+                last_E[start_idx:end_idx]=maximum_filter(
+                    last_E[start_idx:end_idx],size=(2*spread_length+1,2*spread_length+1),mode='constant',cval=0)
         E[:,-last_block_length:] = last_E[:,-last_block_length:]
 
     for cur_block in xrange(num_full_blocks):
         E_block = E[:,cur_block*block_length:(1+cur_block)*block_length]
-        if verbose:
+        if verbose or return_thresholds:
             _, view_threshold= threshold_edgemap(E_block,
-                              threshold,
-                              edge_feature_row_breaks,
-                              report_level=True,
-                              abst_threshold=abst_threshold)
-            print view_threshold
+                                                 threshold,
+                                                 edge_feature_row_breaks,
+                                                 report_level=True,
+                                                 abst_threshold=abst_threshold,
+                                                 critical_bands=critical_bands)
+            if verbose:
+                print view_threshold
+            if return_thresholds:
+                view_thresholds.append(view_threshold)
         else:
             threshold_edgemap(E_block,
                               threshold,
                               edge_feature_row_breaks,
                               report_level=False,
-                              abst_threshold=abst_threshold)
+                              abst_threshold=abst_threshold,
+                              critical_bands=critical_bands)
 
-        spread_edgemap(E_block,
-                       edge_feature_row_breaks,
-                       edge_orientations,
-                       spread_length=spread_length)
+        if spread_type=='unidirectional':
+            spread_edgemap(E_block,
+                           edge_feature_row_breaks,
+                           edge_orientations,
+                           spread_length=spread_length)
+        elif spread_type=='all':
+            for i in xrange(8):
+                start_idx=edge_feature_row_breaks[i]
+                if i >= len(edge_feature_row_breaks):
+                    end_idx=len(edge_feature_row_breaks)
+                else:
+                    end_idx=edge_feature_row_breaks[i+1]
+                E_block[start_idx:end_idx]=maximum_filter(
+                    E_block[start_idx:end_idx],size=(2*spread_length+1,2*spread_length+1),mode='constant',cval=0)
+        if return_thresholds:
+            return view_thresholds
 
 
 
