@@ -555,12 +555,12 @@ def get_tagged_detection_clusters(num_mix,thresh_percent,save_tag='',use_thresh=
 
 
 def get_true_pos_examples(num_mix,syllable_string,
-                           sp,ep,waveform_offset=10,thresh_percent=None,save_tag='',
+                           sp,ep,waveform_offset=10,thresh_percent=None,save_tag='',savedir='data/',
                            verbose=False):
     if thresh_percent is None and save_tag=='':
-        out = open('%s%s_pos_times_%d.pkl' % (syllable_string,num_mix),'rb')
+        out = open('%s%s_pos_times_%d.pkl' % (savedir,syllable_string,num_mix),'rb')
     else:
-        out = open('%s%s_pos_times_%d_%d_%s.pkl' % (syllable_string,num_mix,
+        out = open('%s%s_pos_times_%d_%d_%s.pkl' % (savedir,syllable_string,num_mix,
                                                        thresh_percent,
                                                              save_tag),'rb')
     true_pos_times=pickle.load(out)
@@ -568,7 +568,7 @@ def get_true_pos_examples(num_mix,syllable_string,
     true_pos_scores = np.array(tuple(
         fpd.cluster_max_peak_val
         for fpd in reduce(lambda x,y: x+y,true_pos_times)))
-    np.save('%s%s_true_positive_scores_%d_%d_%s.npy' % (syllable_string,
+    np.save('%s%s_true_positive_scores_%d_%d_%s.npy' % (savedir,syllable_string,
                                                              num_mix,
                                                                   thresh_percent,
                                                                   save_tag,
@@ -581,27 +581,27 @@ def get_true_pos_examples(num_mix,syllable_string,
                                              waveform_offset=waveform_offset,
                                              verbose=verbose)
     example_mat = gtrd.recover_example_map(true_positives)
-    np.save('%s%s_true_positives_example_mat_%d_%d_%s.npy' % (syllable_string,
+    np.save('%s%s_true_positives_example_mat_%d_%d_%s.npy' % (savedir,syllable_string,
                                                              num_mix,
                                                                   thresh_percent,
                                                                   save_tag,
                                                                   ),example_mat)
     lengths,waveforms  = gtrd.recover_waveforms(true_positives,example_mat)
-    np.savez('%s%s_true_positives_waveforms_lengths_%d_%d_%s.npz' % (syllable_string,
+    np.savez('%s%s_true_positives_waveforms_lengths_%d_%d_%s.npz' % (savedir,syllable_string,
                                                                    num_mix,
                                                                          thresh_percent,
                                                                          save_tag),
              lengths=lengths,
              waveforms=waveforms)
     Slengths,Ss  = gtrd.recover_specs(true_positives,example_mat)
-    np.savez('%s%s_true_positives_Ss_lengths_%d_%d_%s.npz' % (syllable_string,
+    np.savez('%s%s_true_positives_Ss_lengths_%d_%d_%s.npz' % (savedir,syllable_string,
                                                              num_mix,
                                                                   thresh_percent,
                                                                   save_tag),
              lengths=Slengths,
              Ss=Ss)
     Elengths,Es  = gtrd.recover_edgemaps(true_positives,example_mat)
-    np.savez('%s%s_true_positives_Es_lengths_%d_%d_%s.npz' % (syllable_string,
+    np.savez('%s%s_true_positives_Es_lengths_%d_%d_%s.npz' % (savedir,syllable_string,
                                                              num_mix,
                                                                   thresh_percent,
                                                                   save_tag),
@@ -609,12 +609,12 @@ def get_true_pos_examples(num_mix,syllable_string,
              Es=Es)
 
 def get_false_pos_examples(num_mix,syllable_string,
-                           sp,ep,waveform_offset=10,thresh_percent=None,save_tag='',
+                           sp,ep,waveform_offset=10,thresh_percent=None,save_tag='',savedir='data/',
                            verbose=False):
     if thresh_percent is None and save_tag=='':
-        out = open('%s%s_false_pos_times_%d.pkl' % (syllable_string,num_mix),'rb')
+        out = open('%s%s_false_pos_times_%d.pkl' % (savedir,syllable_string,num_mix),'rb')
     else:
-        out = open('%s%s_false_pos_times_%d_%d_%s.pkl' % (syllable_string,num_mix,
+        out = open('%s%s_false_pos_times_%d_%d_%s.pkl' % (savedir,syllable_string,num_mix,
                                                        thresh_percent,
                                                              save_tag),'rb')
     false_pos_times=pickle.load(out)
@@ -622,7 +622,7 @@ def get_false_pos_examples(num_mix,syllable_string,
     false_pos_scores = np.array(tuple(
         fpd.cluster_max_peak_val
         for fpd in reduce(lambda x,y: x+y,false_pos_times)))
-    np.save('%s%s_false_positive_scores_%d_%d_%s.npy' % (syllable_string,
+    np.save('%s%s_false_positive_scores_%d_%d_%s.npy' % (savedir,syllable_string,
                                                              num_mix,
                                                                   thresh_percent,
                                                                   save_tag,
@@ -635,27 +635,27 @@ def get_false_pos_examples(num_mix,syllable_string,
                                              waveform_offset=waveform_offset,
                                              verbose=verbose)
     example_mat = gtrd.recover_example_map(false_positives)
-    np.save('%s%s_false_positives_example_mat_%d_%d_%s.npy' % (syllable_string,
+    np.save('%s%s_false_positives_example_mat_%d_%d_%s.npy' % (savedir,syllable_string,
                                                              num_mix,
                                                                   thresh_percent,
                                                                   save_tag,
                                                                   ),example_mat)
     lengths,waveforms  = gtrd.recover_waveforms(false_positives,example_mat)
-    np.savez('%s%s_false_positives_waveforms_lengths_%d_%d_%s.npz' % (syllable_string,
+    np.savez('%s%s_false_positives_waveforms_lengths_%d_%d_%s.npz' % (savedir,syllable_string,
                                                                    num_mix,
                                                                          thresh_percent,
                                                                          save_tag),
              lengths=lengths,
              waveforms=waveforms)
     Slengths,Ss  = gtrd.recover_specs(false_positives,example_mat)
-    np.savez('%s%s_false_positives_Ss_lengths_%d_%d_%s.npz' % (syllable_string,
+    np.savez('%s%s_false_positives_Ss_lengths_%d_%d_%s.npz' % (savedir,syllable_string,
                                                              num_mix,
                                                                   thresh_percent,
                                                                   save_tag),
              lengths=Slengths,
              Ss=Ss)
     Elengths,Es  = gtrd.recover_edgemaps(false_positives,example_mat)
-    np.savez('%s%s_false_positives_Es_lengths_%d_%d_%s.npz' % (syllable_string,
+    np.savez('%s%s_false_positives_Es_lengths_%d_%d_%s.npz' % (savedir,syllable_string,
                                                              num_mix,
                                                                   thresh_percent,
                                                                   save_tag),
@@ -663,12 +663,12 @@ def get_false_pos_examples(num_mix,syllable_string,
              Es=Es)
 
 def get_false_neg_examples(num_mix,syllable_string,
-                           sp,ep,waveform_offset=10,thresh_percent=None,save_tag='',
+                           sp,ep,waveform_offset=10,thresh_percent=None,save_tag='',savedir='data/',
                            verbose=False):
     if thresh_percent is None and save_tag=='':
-        out = open('%s%s_false_neg_times_%d.pkl' % (syllable_string,num_mix),'rb')
+        out = open('%s%s_false_neg_times_%d.pkl' % (savedir,syllable_string,num_mix),'rb')
     else:
-        out = open('%s%s_false_neg_times_%d_%d_%s.pkl' % (syllable_string,num_mix,
+        out = open('%s%s_false_neg_times_%d_%d_%s.pkl' % (savedir,syllable_string,num_mix,
                                                        thresh_percent,
                                                              save_tag),'rb')
     false_neg_times=pickle.load(out)
@@ -676,7 +676,7 @@ def get_false_neg_examples(num_mix,syllable_string,
     false_neg_scores = np.array(tuple(
         fpd.max_peak_val
         for fpd in reduce(lambda x,y: x+y,false_neg_times)))
-    np.save('%s%s_false_negative_scores_%d_%d_%s.npy' % (syllable_string,
+    np.save('%s%s_false_negative_scores_%d_%d_%s.npy' % (savedir,syllable_string,
                                                              num_mix,
                                                                   thresh_percent,
                                                                   save_tag,
@@ -689,27 +689,27 @@ def get_false_neg_examples(num_mix,syllable_string,
                                              waveform_offset=waveform_offset,
                                              verbose=verbose)
     example_mat = gtrd.recover_example_map(false_negatives)
-    np.save('%s%s_false_negatives_example_mat_%d_%d_%s.npy' % (syllable_string,
+    np.save('%s%s_false_negatives_example_mat_%d_%d_%s.npy' % (savedir,syllable_string,
                                                              num_mix,
                                                                   thresh_percent,
                                                                   save_tag,
                                                                   ),example_mat)
     lengths,waveforms  = gtrd.recover_waveforms(false_negatives,example_mat)
-    np.savez('%s%s_false_negatives_waveforms_lengths_%d_%d_%s.npz' % (syllable_string,
+    np.savez('%s%s_false_negatives_waveforms_lengths_%d_%d_%s.npz' % (savedir,syllable_string,
                                                                    num_mix,
                                                                          thresh_percent,
                                                                          save_tag),
              lengths=lengths,
              waveforms=waveforms)
     Slengths,Ss  = gtrd.recover_specs(false_negatives,example_mat)
-    np.savez('%s%s_false_negatives_Ss_lengths_%d_%d_%s.npz' % (syllable_string,
+    np.savez('%s%s_false_negatives_Ss_lengths_%d_%d_%s.npz' % (savedir,syllable_string,
                                                              num_mix,
                                                                   thresh_percent,
                                                                   save_tag),
              lengths=Slengths,
              Ss=Ss)
     Elengths,Es  = gtrd.recover_edgemaps(false_negatives,example_mat)
-    np.savez('%s%s_false_negatives_Es_lengths_%d_%d_%s.npz' % (syllable_string,
+    np.savez('%s%s_false_negatives_Es_lengths_%d_%d_%s.npz' % (savedir,syllable_string,
                                                              num_mix,
                                                                   thresh_percent,
                                                                   save_tag),
@@ -718,8 +718,9 @@ def get_false_neg_examples(num_mix,syllable_string,
 
 
 def get_detection_clusters_by_label(num_mix,utterances_path,
-                                    file_indices,thresh_percent,single_threshold=True,save_tag='',verbose=False,
+                                    file_indices,thresh_percent,single_threshold=True,save_tag='',verbose=False, savedir='data/',
                                     return_example_types=False,
+  
                                     detect_clusters=None):
     if verbose:
         print "save_tag=%s" % save_tag
@@ -914,38 +915,38 @@ def get_roc_curve(detector_neg_scores,detector_pos_scores,
 
 
 
-def run_all_linear_filters(num_mix,syllable_string,save_tag,thresh_percent,make_plots=False,verbose=False):
-    outfile =np.load('%s%s_clusters_for_testing_%d_%d_%s.npz' % (syllable_string,num_mix,thresh_percent,save_tag)
+def run_all_linear_filters(num_mix,syllable_string,save_tag,thresh_percent,make_plots=False,savedir='data/',verbose=False):
+    outfile =np.load('%s%s_clusters_for_testing_%d_%d_%s.npz' % (savedir,syllable_string,num_mix,thresh_percent,save_tag)
              )
     clusters_for_classification = tuple(
         outfile['arr_%d' % k] for k in xrange(num_mix))
-    outfile =np.load('%s%s_labels_for_testing_%d_%d_%s.npz' % (syllable_string,num_mix,thresh_percent,save_tag)
+    outfile =np.load('%s%s_labels_for_testing_%d_%d_%s.npz' % (savedir,syllable_string,num_mix,thresh_percent,save_tag)
              )
     labels_for_classification = tuple(
         outfile['arr_%d' % k] for k in xrange(num_mix))
                            
-    outfile = np.load('%s%s_lf_c_second_stage_%d_%d_%s.npz' % (syllable_string,
+    outfile = np.load('%s%s_lf_c_second_stage_%d_%d_%s.npz' % (savedir,syllable_string,
                                                      mix_component,
                                                       num_mix,save_tag))
     lf_second_stage = outfile['lf']
     c_second_stage = outfile['c']
     
-    outfile = np.load('%s%s_lf_c_second_stage_%d_%d_%s.npz' % (syllable_string,
+    outfile = np.load('%s%s_lf_c_second_stage_%d_%d_%s.npz' % (savedir,syllable_string,
                                                      mix_component,
                                                       num_mix,save_tag))
 
-    false_neg_scores = np.load('%s%s_false_negative_scores_%d_%d_%s.npy' % (syllable_string,
+    false_neg_scores = np.load('%s%s_false_negative_scores_%d_%d_%s.npy' % (savedir,syllable_string,
                                                              num_mix,
                                                                   thresh_percent,
                                                                   save_tag,
                                                                   ))
 
-    false_pos_scores = np.load('%s%s_false_positive_scores_%d_%d_%s.npy' % (syllable_string,
+    false_pos_scores = np.load('%s%s_false_positive_scores_%d_%d_%s.npy' % (savedir,syllable_string,
                                                              num_mix,
                                                                   thresh_percent,
                                                                   save_tag,
                                                                   ))
-    true_pos_scores = np.load('%s%s_true_positive_scores_%d_%d_%s.npy' % (syllable_string,
+    true_pos_scores = np.load('%s%s_true_positive_scores_%d_%d_%s.npy' % (savedir,syllable_string,
                                                              num_mix,
                                                                   thresh_percent,
                                                                   save_tag,
@@ -956,19 +957,19 @@ def run_all_linear_filters(num_mix,syllable_string,save_tag,thresh_percent,make_
     
     
 
-def run_fp_detector(num_mix,syllable_string,new_tag,thresh_percent=None,save_tag=None,make_plots=False,
+def run_fp_detector(num_mix,syllable_string,new_tag,thresh_percent=None,save_tag=None,make_plots=False,savedir='data/',
                     verbose=False):
     if thresh_percent is None:
-        out = open('%s%s_false_pos_times_%d.pkl' % (syllable_string,num_mix),'rb')
+        out = open('%s%s_false_pos_times_%d.pkl' % (savedir,syllable_string,num_mix),'rb')
     else:
-        out = open('%s%s_false_pos_times_%d_%d_%s.pkl' % (syllable_string,num_mix,thresh_percent,save_tag),'rb')
+        out = open('%s%s_false_pos_times_%d_%d_%s.pkl' % (savedir,syllable_string,num_mix,thresh_percent,save_tag),'rb')
     false_pos_times=pickle.load(out)
     out.close()
     template_ids = rf.recover_template_ids_detect_times(false_pos_times)
-    outfile = np.load('%s%s_false_positives_Es_lengths_%d_%d_%s.npz' % (syllable_string,num_mix,thresh_percent,save_tag))
+    outfile = np.load('%s%s_false_positives_Es_lengths_%d_%d_%s.npz' % (savedir,syllable_string,num_mix,thresh_percent,save_tag))
     lengths_false_pos = outfile['lengths']
     Es_false_pos = outfile['Es']
-    outfile = np.load('%s%s_false_positives_Ss_lengths_%d_%d_%s.npz' % (syllable_string,num_mix,thresh_percent,save_tag))
+    outfile = np.load('%s%s_false_positives_Ss_lengths_%d_%d_%s.npz' % (savedir,syllable_string,num_mix,thresh_percent,save_tag))
     lengths_S_false_pos = outfile['lengths']
     Ss_false_pos = outfile['Ss']
     #
@@ -987,7 +988,7 @@ def run_fp_detector(num_mix,syllable_string,new_tag,thresh_percent=None,save_tag
     if verbose:
         for false_pos_idx, false_pos_count in enumerate(false_pos_cluster_counts):
             print "Template %d had %d false positives" %(false_pos_idx,false_pos_count)
-    bgd =np.load('%sbgd.npy')
+    bgd =np.load('%sbgd.npy' %savedir)
     Es_false_pos_clusters2 = ()
     Ss_false_pos_clusters2 =()
     for i,fpc in enumerate(Es_false_pos_clusters):
@@ -1003,15 +1004,15 @@ def run_fp_detector(num_mix,syllable_string,new_tag,thresh_percent=None,save_tag
     Es_false_pos_clusters = Es_false_pos_clusters2
     Ss_false_pos_clusters = Ss_false_pos_clusters2
 
-    np.savez('%s%s_Es_false_pos_clusters_%d_%s.npz' % (syllable_string,num_mix,new_tag),
+    np.savez('%s%s_Es_false_pos_clusters_%d_%s.npz' % (savedir,syllable_string,num_mix,new_tag),
              *Es_false_pos_clusters)
-    np.savez('%s%s_Ss_false_pos_clusters_%d_%s.npz' % (syllable_string,num_mix,new_tag),
+    np.savez('%s%s_Ss_false_pos_clusters_%d_%s.npz' % (savedir,syllable_string,num_mix,new_tag),
              *Ss_false_pos_clusters)
-    template_affinities = np.load('%s%d_affinities_regular.npy' % num_mix)
-    outfile = np.load('%sEs_lengths_%s.npz' % save_tag)
+    template_affinities = np.load('%s%d_affinities_regular.npy' % (savedir,num_mix))
+    outfile = np.load('%sEs_lengths_%s.npz' % (savedir,save_tag))
     Es_true_pos = outfile['Es']
     Elengths_true_pos = outfile['Elengths']
-    outfile = np.load('%sSs_lengths_%s.npz' % save_tag)
+    outfile = np.load('%sSs_lengths_%s.npz' % (savedir,save_tag))
     Ss_true_pos = outfile['Ss']
     Slengths_true_pos = outfile['Slengths']
     clustered_training_true_Es = et.recover_clustered_data(template_affinities,
@@ -1022,8 +1023,8 @@ def run_fp_detector(num_mix,syllable_string,new_tag,thresh_percent=None,save_tag
                                                            Ss_true_pos,
                                                            templates,
                                                            assignment_threshold = .95)
-    np.savez('%s%s_training_true_pos_Es_%d_%s.npz' %(syllable_string,num_mix,new_tag), *clustered_training_true_Es)
-    np.savez('%s%s_training_true_pos_Ss_%d_%s.npz' %(syllable_string,num_mix,new_tag), *clustered_training_true_Ss)
+    np.savez('%s%s_training_true_pos_Es_%d_%s.npz' %(savedir,syllable_string,num_mix,new_tag), *clustered_training_true_Es)
+    np.savez('%s%s_training_true_pos_Ss_%d_%s.npz' %(savedir,syllable_string,num_mix,new_tag), *clustered_training_true_Ss)
     # learn a template on half the false positive data
     # do for each mixture component and see the curve
     # need to compute the likelihood ratio test
@@ -1043,20 +1044,20 @@ def run_fp_detector(num_mix,syllable_string,new_tag,thresh_percent=None,save_tag
             plt.close('all')
             plt.imshow(np.mean(Ss_false_pos_clusters[mix_component],0).T[::-1],
                        origin="lower left")
-            plt.savefig('%s_Ss_false_pos_template_%d_%d_%s.png' % (syllable_string,num_mix,mix_component,new_tag))
+            plt.savefig('%s%s_Ss_false_pos_template_%d_%d_%s.png' % (savedir,syllable_string,num_mix,mix_component,new_tag))
             plt.close('all')
         get_baseline_second_stage_detection(clustered_training_true_Es[mix_component],Es_false_pos_clusters[mix_component],
                                             templates[mix_component], num_mix,mix_component,
-                                            syllable_string,new_tag,
+                                            syllable_string,new_tag,savedir,
                                             make_plots=make_plots)
         get_svm_second_stage_detection(clustered_training_true_Es[mix_component],Es_false_pos_clusters[mix_component],
                                             templates[mix_component], num_mix,mix_component,
-                                            syllable_string,new_tag,
+                                            syllable_string,new_tag,savedir,
                                             make_plots=make_plots)
 
 def get_baseline_second_stage_detection(true_pos_cluster,false_pos_cluster,
                                         template, num_mix,mix_component,
-                                        syllable_string,save_tag,
+                                        syllable_string,save_tag,savedir='data/',
                                         make_plots=False):
     num_false_pos_component =false_pos_cluster.shape[0]
     false_pos_template = np.clip(np.mean(false_pos_cluster[:num_false_pos_component/2],0),.01,.99)
@@ -1065,7 +1066,7 @@ def get_baseline_second_stage_detection(true_pos_cluster,false_pos_cluster,
         false_pos_template,
         
         bgd=None,min_prob=.01)
-    np.savez('%s%s_lf_c_second_stage_%d_%d_%s.npz' % (syllable_string,
+    np.savez('%s%s_lf_c_second_stage_%d_%d_%s.npz' % (savedir,syllable_string,
                                                      mix_component,
                                                       num_mix,save_tag),
              lf=lf,
@@ -1086,14 +1087,14 @@ def get_baseline_second_stage_detection(true_pos_cluster,false_pos_cluster,
         plt.title('ROC %s Likelihood num_mix=%d mix_id=%d' %(syllable_string,
                                                                   num_mix,
                                                                   mix_component))
-        plt.savefig('%s_fp_roc_discriminationLike_%d_%d_%s.png' % (syllable_string,
+        plt.savefig('%s%s_fp_roc_discriminationLike_%d_%d_%s.png' % (savedir,syllable_string,
                                                      mix_component,
                                                             num_mix,save_tag))
         plt.close('all')
 
 def get_svm_second_stage_detection(true_pos_cluster,false_pos_cluster,
                                         template, num_mix,mix_component,
-                                        syllable_string,save_tag,
+                                        syllable_string,save_tag,savedir='data/',
                                    penalty_list=(('unreg', 1), 
                                                  ('little_reg',.1), 
                                                  ('reg', 0.05),
@@ -1132,7 +1133,7 @@ def get_svm_second_stage_detection(true_pos_cluster,false_pos_cluster,
         # get the roc curve
         w = clf.coef_[0]
         b = clf.intercept_[0]
-        np.savez('%s%s_w_b_second_stage_%d_%d_%s_%s.npz' % (syllable_string,
+        np.savez('%s%s_w_b_second_stage_%d_%d_%s_%s.npz' % (savedir,syllable_string,
                                                           mix_component,
                                                           num_mix,
                                                                name,save_tag),
@@ -1144,7 +1145,7 @@ def get_svm_second_stage_detection(true_pos_cluster,false_pos_cluster,
         num_neg = float(np.sum(testing_data_Y==0))
         for i,thresh in enumerate(val_thresholds):
             roc_curve[i] = np.sum(testing_raw_outs[testing_data_Y==0]  <thresh)/num_neg
-        np.save('%s%s_fpr_detector_rocSVM_%d_%d_%s_%s.npy' % (syllable_string,
+        np.save('%s%s_fpr_detector_rocSVM_%d_%d_%s_%s.npy' % (savedir,syllable_string,
                                                               mix_component,
                                                               num_mix,
                                                               name,save_tag),roc_curve)
@@ -1156,8 +1157,10 @@ def get_svm_second_stage_detection(true_pos_cluster,false_pos_cluster,
             plt.title('ROC %s SVM penalty=%g num_mix=%d mix_id=%d' %(syllable_string,penalty,
                                                                   num_mix,
                                                                   mix_component))
-            plt.savefig('roc_%s_layer_2SVM_%s_%d_%d_%s.png' %(syllable_string,name,
-                                                                  num_mix,
+            plt.savefig('%sroc_%s_layer_2SVM_%s_%d_%d_%s.png' %(savedir,
+                                                                syllable_string,
+                                                                name,
+                                                                num_mix,
                                                                   mix_component,save_tag))
 
             plt.close('all')
@@ -1165,20 +1168,20 @@ def get_svm_second_stage_detection(true_pos_cluster,false_pos_cluster,
 
 def get_test_clusters_for_2nd_stage(num_mix,data_path,
                                file_indices,
-                               save_tag='',
+                               save_tag='',savedir='data/',
                                     verbose=False):
-    out = open('%sdetection_clusters_single_thresh_%d_%s.pkl' % (num_mix,save_tag)                                                                    ,'rb')
+    out = open('%sdetection_clusters_single_thresh_%d_%s.pkl' % (savedir,num_mix,save_tag)                                                                    ,'rb')
     detection_clusters=cPickle.load(out)
     out.close()
 
     
     # need to find max point of clusters (perhaps this should
     # happen during the cluster identification phase)
-    detection_array = np.load('%sdetection_array_%d_%s.npy' % (num_mix,
+    detection_array = np.load('%sdetection_array_%d_%s.npy' % (savedir,num_mix,
                                                 save_tag))
-    detection_template_ids=np.load('%sdetection_template_ids_%d_%s.npy' % (num_mix,
+    detection_template_ids=np.load('%sdetection_template_ids_%d_%s.npy' % (savedir,num_mix,
                                                 save_tag))
-    out = open('%sexample_start_end_times_%s.pkl' % save_tag,'rb')
+    out = open('%sexample_start_end_times_%s.pkl' % (savedir,save_tag),'rb')
     example_start_end_times=pickle.load(out)
     out.close()
 
@@ -1216,7 +1219,8 @@ def get_test_clusters_for_2nd_stage(num_mix,data_path,
             plt.title('ROC %s SVM penalty=%g num_mix=%d mix_id=%d' %(syllable_string,penalty,
                                                                   num_mix,
                                                                   mix_component))
-            plt.savefig('roc_%s_layer_2SVM_%s_%d_%d' %(syllable_string,name,
+            plt.savefig('%sroc_%s_layer_2SVM_%s_%d_%d' %(savedir,
+                                                         syllable_string,name,
                                                                   num_mix,
                                                                   mix_component))
 
@@ -1426,10 +1430,17 @@ def main(args):
     print "Finished estimate_templates"
     if args.save_detection_setup == "test":
         print args.num_mix
-        save_detection_setup(args.num_mix,test_example_lengths,
-                             test_path,test_file_indices,args.detect_object,sp,
-                             ep,leehon_mapping,save_tag=args.save_tag,template_tag='train_2',savedir=args.savedir,verbose=args.v)
+        if len(args.num_mix_parallel) > 0:
+            print "doing parallel"
+            jobs = []
+            for num_mix in args.num_mix_parallel:
+                p =multiprocessing.Process(target=save_detection_setup(num_mix,test_example_lengths,
+                                     test_path,test_file_indices,args.detect_object,sp,
+                                     ep,leehon_mapping,save_tag=args.save_tag,template_tag='train_2',savedir=args.savedir,verbose=args.v))
+                jobs.append(p)
+                p.start
 
+                
     elif args.save_detection_setup == "train":
         print args.num_mix
         if len(args.num_mix_parallel) > 0:
@@ -1470,7 +1481,7 @@ def main(args):
                 p =multiprocessing.Process(target=get_clustered_examples_for_2nd_stage(
                         num_mix,args.save_tag,args.savedir,
                         args.thresh_percent,
-                        syllable_string,train_path,train_file_indices,
+                        train_path,train_file_indices,syllable_string,
                         old_max_detect_tag=args.old_max_detect_tag))
                 jobs.append(p)
                 p.start
@@ -1479,6 +1490,94 @@ def main(args):
                                          args.thresh_percent,
                                          syllable_string,
                                              old_max_detect_tag=args.old_max_detect_tag)
+    if args.train_second_stage_detectors:
+        print "training second stage detectors"
+        if len(args.num_mix_parallel) > 0:
+            print "doing parallel"
+            jobs = []
+            for num_mix in args.num_mix_parallel:
+                p =multiprocessing.Process(target=train_second_stage_detectors(num_mix,syllable_string,sp,ep,
+                                 thresh_percent=args.thresh_percent,save_tag=args.save_tag,savedir=args.savedir,old_tag=args.old_max_detect_tag,
+                                 make_plots=args.make_plots,
+                                 waveform_offset=args.waveform_offset))
+                jobs.append(p)
+                p.start
+        else:
+            train_second_stage_detectors(num_mix,syllable_string,sp,ep,
+                                 thresh_percent=args.thresh_percent,save_tag=args.save_tag,savedir=args.savedir,
+                                 make_plots=args.make_plots,
+                                 waveform_offset=args.waveform_offset)
+
+def perform_test_phase_detection(num_mix,test_example_lengths,test_path,
+                                 test_file_indices,
+                                 syllable,sp,ep,leehon_mapping,
+                                 save_tag,
+                                 savedir,
+                                 old_max_detect_tag,
+                                 thresh_percent,
+                                 verbose=False):
+    save_detection_setup(num_mix,test_example_lengths,
+                         test_path,test_file_indices,syllable,sp,
+                         ep,leehon_mapping,save_tag="test")
+    # going to use detection at the same threshold
+    get_fpr_tpr_tagged(num_mix,syllable_string,
+                return_detected_examples=False,
+                return_clusters=False,
+                save_tag='test',get_plots=True)
+    test_detect_clusters= get_tagged_detection_clusters(num_mix,thresh_percent,save_tag='test',old_max_detect_tag='train')
+    (pos_times,
+     false_pos_times,
+     false_neg_times,
+     example_types,
+     ) = get_detection_clusters_by_label(num_mix,test_path,
+                                    test_file_indices,thresh_percent,single_threshold=True,save_tag='test',verbose=False,return_example_types=True,
+                                         detect_clusters=test_detect_clusters)
+    out = open('%s%s_false_pos_times_%d_%d_%s.pkl' % (savedir,syllable_string,num_mix,
+                                                      thresh_percent,'test'),'wb')
+    pickle.dump(false_pos_times,out)
+    out.close()
+    out = open('%s%s_pos_times_%d_%d_%s.pkl' % (savedir,syllable_string,num_mix,
+                                                thresh_percent,'test'),'wb')
+    pickle.dump(pos_times,out)
+    out.close()
+    out = open('%s%s_false_neg_times_%d_%d_%s.pkl' % (savedir,syllable_string,num_mix,
+                                                      thresh_percent,'test'),'wb')
+    pickle.dump(false_neg_times,out)
+    out.close()
+
+
+    get_false_pos_examples(num_mix,syllable_string,
+                           sp,ep,waveform_offset=10,
+                           thresh_percent=thresh_percent,save_tag='test',
+                           savedir=savedir,
+                           verbose=True)
+    get_true_pos_examples(num_mix,syllable_string,
+                           sp,ep,waveform_offset=10,
+                           thresh_percent=thresh_percent,save_tag='test',
+                          savedir=savedir,
+                           verbose=True)
+    get_false_neg_examples(num_mix,syllable_string,
+                           sp,ep,waveform_offset=10,
+                           thresh_percent=thresh_percent,save_tag='test',
+                           savedir=savedir,
+                           verbose=True)
+
+    perform_second_stage_detection_testing(num_mix,syllable_string,'test',thresh_percent,
+                                           make_plots=False,verbose=False)
+
+
+def train_second_stage_detectors(num_mix,syllable_string,sp,ep,
+                                 thresh_percent,save_tag,savedir,old_tag,
+                                 make_plots=False,
+                                 waveform_offset=10):
+    get_false_pos_examples(num_mix,syllable_string,
+                           sp,ep,waveform_offset=waveform_offset,
+                           thresh_percent=thresh_percent,save_tag=save_tag,
+                           savedir=savedir,
+                           verbose=False)
+    run_fp_detector(num_mix,syllable_string,save_tag,make_plots=make_plots,
+                    thresh_percent=thresh_percent,save_tag=old_tag,savedir=savedir,verbose=True)
+
 
 def get_clustered_examples_for_2nd_stage(num_mix,save_tag,savedir,
                                          thresh_percent,train_path,train_file_indices,
@@ -1496,7 +1595,7 @@ def get_clustered_examples_for_2nd_stage(num_mix,save_tag,savedir,
      false_neg_times,
      example_types,
      ) = get_detection_clusters_by_label(num_mix,train_path,
-                                    train_file_indices,thresh_percent,single_threshold=True,save_tag=save_tag,verbose=False,return_example_types=True)
+                                    train_file_indices,thresh_percent,single_threshold=True,save_tag=save_tag,verbose=False,savedir=savedir,return_example_types=True)
     out = open('data/%s_false_pos_times_%d_%d_%s.pkl' % (syllable_string,num_mix,
                                                       thresh_percent,save_tag),'wb')
     pickle.dump(false_pos_times,out)
@@ -1656,12 +1755,18 @@ syllables and tracking their performance
                         type=int,metavar='N',
                         help="possibly empty sequence of integers that say run this program for different mixture numbers concurrently")
     parser.add_argument('--get_detection_clusters_for_2nd_stage',
-                        default=-1, type=int,metavar='N',
+                        action="store_true",
                         help="Default is -1, if greater than zero will run functions for getting detection clusters for that percent")
     parser.add_argument('--old_max_detect_tag',default=None,type=str,
                         help="a string, this is None otherwise.  This string is the tag for when get_fpr_tpr_tagged was called and hence the tag attached to max_detect_vals when it was saved previously.")
     parser.add_argument('--thresh_percent',default=-1,type=int,metavar='N',
                         help="the threshold percentile to be used for determining the detection threshold")
+    parser.add_argument('--log_file',default='main_multiprocessing.log',
+                        type=str,metavar='Path',help="which logfile to use to look at the logging outputs")
+    parser.add_argument('--waveform_offset',default=15,type=int,
+                        metavar='N',help="Number of frames to pad the waveform vectors by in order to get samples of the sounds")
+    parser.add_argument('--train_second_stage_detectors',action="store_true",
+                        help="Include this flag if you want to call train_second_stage_detectors")
     syllable=('aa','r')
     threshval = 100
     make_plots =True
