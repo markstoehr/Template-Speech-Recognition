@@ -5,6 +5,7 @@ from scipy.stats import gaussian_kde
 import matplotlib.pyplot as plt
 import collections
 import get_train_data as gtrd
+import logging
 
 def get_auto_syllable_window(template):
     return int( -np.ceil(template.shape[0]/3.)), int(np.ceil(template.shape[0]/3.))
