@@ -313,6 +313,83 @@ between these two extremes.
 * Picone 1993
   Some discussion is made of sampling and digitizing the speech
   signal.
+  
+** Introduction
+*** Section 1
+**** Picone
+    Speech recognition is divided into the /signal modeling/ problem and
+    the /network searching/ problem.  
+
+    Signal modeling consists in:
+    - spectral shaping
+    - spectral analysis
+    - parametric transformation
+    - statistical modeling
+
+    This occupies only 10% of the computation in a modern speech
+    recognizer.  Signal models need to be *perceptually meaningful*,
+    *invariant*, and reveal *temporal correlations*.
+
+**** Response
+    Much of the reason why we only use 10% of the computation for
+    signal modeling is because we do such a bad job at it.  There is
+    so much to be improved on this front.  Humans need probably a great
+    deal less search.  The hope is that by doing a better job at
+    signal modeling we will create less of a burden on the recognizers
+    to figure out what is going on in a given speech signal.
+
+    Signal modeling that is *perceptually meaningful* is not an
+    intrinsic goal by itself, although that would be nice, and it is
+    scientifically desirable, this is not what we are aiming for
+    generally.  We mosty want good performance, and this means being
+    able to be invariant to changes in the signal which do not change
+    the linguistic content we care about, while be variant to the the
+    content that we do care about.  Conceptually, the invariance and
+    temporal correlations criteria give us a way of framing the
+    problem. We can create general models for what the invariance
+    will mean and what the temporal correlations will mean.
+
+*** Terminology
+
+**** Picone
+     Bias in the paper is for speech recognition systems that preserve
+     the spectral data, additionally most of the advancement in signal
+     models is "empirical optimization", there is very little theory.
+     The only way to compare these models is to see their performance
+     on different systems.  Most speech recognition systems however
+     cannot use multiple different signal models so its very hard to
+     do an exhaustive comparison
+
+**** Response
+     With Mallat's new work, and some of the discussion about acoustic
+     circuits that represent vowels and the like we can actually develop
+     invariant theories for the signal models.  Additionally, most of
+     these signal models could probably be represented as a deep
+     neural network.  Also, the simple binary models that are being used
+     count as examples of speech recognition systems that we can use
+     potentially to do exhaustive comparisons between different systems.
+
+** Spectral Shaping
+
+*** Picone
+    The signal is digitally sampled which introduces 50-60Hz hum and
+    attenuates high and low frequencies.  But SNRs around 30 dB are
+    possible with modern technology, which is sufficient for good
+    recognition.  After the conversion the next main step
+    is the application of a preemphasis filter, and its very difficult
+    to say exactly why this preemphasis filter approach works.
+    The preemphasis filter is generally
+
+    $$ s(t) = s(t) - a_{pre}s(t-1)$$ where $a_{pre}\in [-.1,-.4]$
+    usually.  There are a number of ways to motivate this filter.  The
+    first of these is due to the physiology of voice production
+    (voiced sounds don't get love), the second is due to hearing (the
+    preemphasis emphasises perceptually-salient aspects of the signal)
+    
+    Adaptive preemphasis and more sophisticated algorithms have been
+    suggested but these do not get really good performance.
+
+*** Reponse
 
 * Hermansky Spectral Coding
   Bases ideas on something from Dudley that the information content in

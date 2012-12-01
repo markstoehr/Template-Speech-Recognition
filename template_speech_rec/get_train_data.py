@@ -85,7 +85,8 @@ def get_examples_from_phns_ftls(syllable,
                                 phns,
                                 flts,
                                 log_part_blocks,
-                                coarse_length):
+                                coarse_length,
+                                verbose=False):
     """
     Parameters:
     ===========
@@ -102,17 +103,24 @@ def get_examples_from_phns_ftls(syllable,
         data from this is knowing what the subsampling parameters
         are going to work
     """
-    if log_part_blocks is None:
-        coarse_factor = 1
-    else:
-        coarse_factor = log_part_blocks.shape[1]
     phn_matches = phns_syllable_matches(phns,syllable)
+    if verbose:
+        print phn_matches
+        print syllable
+        print phns
     if phn_matches.shape[0] ==0:
         return None, None
     syllable_starts = flts[ phn_matches]
     syllable_ends = flts[phn_matches + len(syllable)]
-    syllable_starts = map_array_to_coarse_coordinates(syllable_starts,coarse_factor)
-    syllable_ends = np.clip(map_array_to_coarse_coordinates(syllable_ends,
+
+    if verbose:
+        print syllable_starts
+        print syllable_ends
+
+    if log_part_blocks is not None:
+        coarse_factor = log_part_blocks.shape[1]
+        syllable_starts = map_array_to_coarse_coordinates(syllable_starts,coarse_factor)
+        syllable_ends = np.clip(map_array_to_coarse_coordinates(syllable_ends,
                                                             coarse_factor),
                             syllable_starts+1,
                             coarse_length)
@@ -632,7 +640,9 @@ def _compute_detection_E(E,phns,E_flts,
                          detect_lengths,
                          linear_filters_cs,
                          syllable,
-                         example_start_end_times):
+                         example_start_end_times,
+                         phn_mapping=None,
+                         verbose=False):
     """
     Detection array will have detection scores saved to it
     and we will make entries of detection_array that are trailing
@@ -645,11 +655,15 @@ def _compute_detection_E(E,phns,E_flts,
     """
     detect_lengths.append(E.shape[0])
 
+    
+    
     example_starts, example_ends = get_examples_from_phns_ftls(syllable,
                                                                phns,
                                                                E_flts,
                                                                None,
-                                                               E.shape[0])
+                                                               E.shape[0],
+                                                               verbose=verbose)
+
     detection_array[len(detect_lengths)-1,
                     :E.shape[0]-linear_filters_cs[0][0].shape[0]+1]\
                     = (compute_likelihood_linear_filter.detect(
@@ -868,7 +882,13 @@ def get_detection_scores_mixture_named_params(data_path,file_indices,
                                               E_config=None,
                          verbose = False,
                          num_examples =-1,
-                                              return_detection_template_ids=False):
+                                              return_detection_template_ids=False,
+                                              log_parts=None,
+                                              log_invparts=None,
+                                              count_threshold=None,
+                                              spread_factor=1,
+                                              subsamp_factor=1,
+                                              phn_mapping=None):
 
     example_start_end_times = []
     if num_examples == -1:
@@ -887,9 +907,18 @@ def get_detection_scores_mixture_named_params(data_path,file_indices,
         utterance = makeUtterance(data_path,data_file_idx)
         sflts = (utterance.flts * utterance.s.shape[0]/float(utterance.flts[-1]) + .5).astype(int)
         S = get_spectrogram(utterance.s,S_config)
-        S_flts = (sflts * S.shape[0] /float(sflts[-1]) + .5).astype(int)
+        S_flts = utterance.flts
         E = get_edge_features(S.T,E_config,verbose=False)
         E_flts = S_flts
+        if log_parts is not None:
+                out = code_parts.code_parts(E.astype(np.uint8),
+                                            log_parts,log_invparts,count_threshold)
+                max_responses = np.argmax(out,-1)
+                bin_out_map = code_parts.spread_patches(max_responses,spread_factor,spread_factor,out.shape[-1]-1)
+                E = bin_out_map[::subsamp_factor,::subsamp_factor]
+                E_flts[-1] -= spread_factor-1
+                E_flts /= subsamp_factor
+
 
         _compute_detection_E(E,utterance.phns,E_flts,
                                 detection_array,
@@ -897,7 +926,9 @@ def get_detection_scores_mixture_named_params(data_path,file_indices,
                                 detection_lengths,
                                 linear_filters_cs,
                                 syllable,
-                                example_start_end_times
+                                example_start_end_times,
+                             phn_mapping=phn_mapping,
+                             verbose=verbose
                                 )
     detection_lengths = np.array(detection_lengths)
     if return_detection_template_ids:
@@ -1230,7 +1261,7 @@ def get_syllable_features_cluster(utterance_directory,data_idx,cluster_list,
                 assigned_phns = assigned_phns,
                 utt_path=utterance_directory,
                 file_idx=data_idx,
-                start_end=(syllable_start,syllable_start+syllable_length))
+                start_end=cluster)
                  for s_cluster,cluster in itertools.izip(s_cluster_list,cluster_list))
     elif (waveform_offset > 0) and (S is not None and E is not None):
         return tuple( SyllableFeatures(
@@ -1251,7 +1282,7 @@ def get_syllable_features_cluster(utterance_directory,data_idx,cluster_list,
                 assigned_phns = assigned_phns,
                 utt_path=utterance_directory,
                 file_idx=data_idx,
-                start_end=(syllable_start,syllable_start+syllable_length))
+                start_end=cluster)
                  for s_cluster,cluster in itertools.izip(s_cluster_list,cluster_list))
     else:
         return None
@@ -1309,20 +1340,20 @@ def recover_edgemaps(syllable_features,example_mat,bgd=None):
                 jdx = 0
 
             lengths[idx] = len(syllable_features[i][jdx].E)
-            Es[idx][:lengths[idx]] = syllable_features[i][jdx].E.astype(np.uint8)
+            Es[idx][:lengths[idx]] = syllable_features[i][jdx].E.astype(np.uint8)[:lengths[idx]]
             if bgd is not None and lengths[idx] <max_length:
                 Es[idx][lengths[idx]:] = (np.random.rand(
-                    max_length - lengths[idx],1,1)
-                                          > np.tile(bgd,
+                    *((max_length - lengths[idx],)+E_shape))
+                                          <= np.tile(bgd,
                                                     (max_length-lengths[idx],
                                                      1,1))).astype(np.uint8)
         else:
             lengths[idx] = len(syllable_features[i][jdx].E)
-            Es[idx][:lengths[idx]] = syllable_features[i][jdx].E.astype(np.uint8)
+            Es[idx][:lengths[idx]] = syllable_features[i][jdx].E.astype(np.uint8)[:lengths[idx]]
             if bgd is not None and lengths[idx] <max_length:
                 Es[idx][lengths[idx]:] = (np.random.rand(
-                    max_length - lengths[idx],1,1)
-                                          > np.tile(bgd,
+                    *((max_length - lengths[idx],)+E_shape))
+                                          <= np.tile(bgd,
                                                     (max_length-lengths[idx],
                                                      1,1))).astype(np.uint8)
 
@@ -1350,6 +1381,9 @@ def recover_specs(syllable_features,example_mat):
         else:
             lengths[idx] = len(syllable_features[i][jdx].S)
             Ss[idx][:lengths[idx]] = syllable_features[i][jdx].S
+    min_val =Ss.min()
+    for i in xrange(Ss.shape[0]):
+        Ss[i][lengths[i]:]=min_val
     return lengths, Ss
 
 

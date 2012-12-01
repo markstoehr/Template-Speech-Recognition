@@ -31,18 +31,18 @@ def extend_examples_to_max(clipped_bgd,syllable_examples,lengths=None,
 
 def pad_examples_bgd_samples(examples,lengths,bgd_probs):
     max_length = examples.shape[1]
-    out = []
-    for example, length in itertools.izip(examples,lengths):
+    out = np.zeros(examples.shape,dtype=np.uint8)
+    for idx,v in enumerate(itertools.izip(examples,lengths)):
+        example, length  = v
         diff = max_length - length
         if diff >0 :
-            out.append(
-                np.vstack((example[:length],
+            out[idx] = np.vstack((example[:length],
                        (np.random.rand(diff,
                                       examples.shape[2],
-                                       examples.shape[3]) > np.tile(bgd_probs,(diff,1,1))).astype(np.uint8))))
+                                       examples.shape[3]) > np.tile(bgd_probs,(diff,1,1))).astype(np.uint8)))
         else:
-            out.append(example)
-    return np.array(out).astype(np.uint8)
+            out[idx][:] = example
+    return out
 
 def recover_different_length_templates(affinities,examples,lengths,
                                        block_size=5000):
