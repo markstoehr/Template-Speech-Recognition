@@ -199,6 +199,7 @@ class BernoulliMixture:
                 self.affinities[self.num_mix*np.arange(self.num_data/self.num_mix)+mix_id,mix_id] = 1.
                 self.work_templates[mix_id] = np.mean(self.data_mat[self.affinities[:,mix_id]==1],axis=0)
                 self.threshold_templates()
+
         elif init_type == 'specific':
             random.seed()
             idx = range(self.num_data)
