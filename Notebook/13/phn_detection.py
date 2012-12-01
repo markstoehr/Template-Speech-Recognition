@@ -10,7 +10,8 @@ def perform_phn_template_estimation(phn,utterances_path,
                                     file_indices,sp,ep,
                                     num_mix_params,
                                     phn_mapping=None,
-                                    waveform_offset=15):
+                                    waveform_offset=15,
+                                    chunk_length=1000):
     phn_tuple = (phn,)
     print phn
     phn_features,avg_bgd=gtrd.get_syllable_features_directory(utterances_path,file_indices,phn_tuple,
@@ -57,14 +58,32 @@ def perform_phn_template_estimation(phn,utterances_path,
             f.write('%d %d %g\n' % (num_mix,
                                   len(affinities),np.sum(affinities[:,0])))
         else:
-            bem = bm.BernoulliMixture(num_mix,Es)
-            bem.run_EM(.000001)
+            if len(Es) > chunk_length:
+                bem = bm.BernoulliMixture(num_mix,Es[:chunk_length])
+                bem.run_EM(.000001)
+                for i in xrange(1,len(Es)/chunk_length):
+                    start_idx = i*chunk_length
+                    block_length = min(chunk_length,len(Es)-start_idx)
+                    if block_length < chunk_length:
+                        end_idx = len(Es)
+                        start_idx = len(Es)-chunk_length
+                        block_length = chunk_length
+                    else:
+                        end_idx = start_idx + block_length
+                    bem.data_mat = Es[start_idx:end_idx].reshape(
+                        block_length,bem.data_length)
+                    bem.run_EM(.000001)
+
+
+            else:
+                bem = bm.BernoulliMixture(num_mix,Es)
+                bem.run_EM(.000001)
             templates = et.recover_different_length_templates(bem.affinities,
-                                                              Es,
-                                                              Elengths)
+                                                              Es[start_idx:end_idx],
+                                                              Elengths[start_idx:end_idx])
             spec_templates = et.recover_different_length_templates(bem.affinities,
-                                                               Ss,
-                                                               Slengths)
+                                                               Ss[start_idx:end_idx],
+                                                               Slengths[start_idx:end_idx])
             np.save('data/%d_affinities.npy' % (num_mix),
                     bem.affinities)
             np.savez('data/%d_templates.npz' % (num_mix),
@@ -182,4 +201,4 @@ def get_train_set_division(candidate_thresholds,num_mix,
             out = open('data/false_neg_times_%d_%d.pkl' % (num_mix,fnr),'wb')
             pickle.dump(false_pos_times,out)
             out.close()
-            
+
