@@ -642,7 +642,8 @@ def get_mel_spec(s,sample_rate,
                         fft_length,
                         preemph=.95,
                         freq_cutoff=None,
-                 nbands = 40):
+                 nbands = 40,
+                 mel_smoothing_kernel=-1):
     """
     The mel spectrogram, this is the basis for MFCCs
     """
@@ -652,8 +653,22 @@ def get_mel_spec(s,sample_rate,
                                fft_length,
                                preemph=.95,
                                return_freqs=True)
-    return audspec(S,sample_rate,nbands=nbands,
-                maxfreq=freq_cutoff)
+    if mel_smoothing_kernel < 1:
+        return audspec(S,sample_rate,nbands=nbands,
+                       maxfreq=freq_cutoff)
+    else:
+        M =audspec(S,sample_rate,nbands=nbands,
+                       maxfreq=freq_cutoff)
+        x = np.arange(0, mel_smoothing_kernel, 1, np.float64)
+        x0 = mel_smoothing_kernel // 2.
+        sigma = 1
+        g=1/(sigma * np.sqrt(2*np.pi)) *np.exp(-((x-x0)**2  / 2* sigma**2))
+        smoothing_kernel = g/g.sum()
+        # feature smoothing should leave only meaningful features
+        M_smoothed = convolve(M,smoothing_kernel.reshape(mel_smoothing_kernel,1),mode ='valid')
+        # preserve time length of spectrogram, smooth over time
+        return convolve(M_smoothed,smoothing_kernel.reshape(1,mel_smoothing_kernel),mode='same')
+
 
 def get_edgemap_no_threshold(s,sample_rate,
                              num_window_samples,
@@ -774,6 +789,53 @@ def threshold_edge_block(E_block,quantile_level,
         such that critical_bands[i,0] <= f < critical_bands[i,1] (approximately)
     """
     # import pdb; pdb.set_trace()
+    maxima_idx = E_block > 0
+    maxima_vals = E_block[maxima_idx].ravel().copy()
+    maxima_vals.sort()
+    if maxima_vals.shape[0] <= 0:
+        E_block[:] = 0
+        return E_block
+    tau_quant = maxima_vals[int(quantile_level*maxima_vals.shape[0])].copy()
+    # zero out everything less than the quantile
+    A = E_block[maxima_idx]
+    # get the indices for the significant edges
+    sig_idx = E_block[maxima_idx] >= max(tau_quant,abst_threshold)
+    if np.any(-sig_idx):
+        A[-sig_idx] = 0.
+    if np.any(sig_idx):
+        A[sig_idx] =1
+    E_block[maxima_idx] = A
+    E_block[np.logical_not(maxima_idx)]=0
+    if report_level:
+        return E_block,tau_quant
+    else:
+        return E_block
+
+def threshold_edge_block_heavy_hitter(E_block,hitter_level,
+                         report_level,
+                         abst_threshold,):
+    """
+    Parameters:
+    ===========
+    E_block: numpy.ndarray[ndim=2]
+        Blocks of the continuous edge amounts, these are all thresholded
+        using sorting
+    quantile_level: float
+        Quantil level used to compute the thresholding value, represent
+        the percentage of edges that are kept
+    report_level: Bool
+        Says whether the call of this function returns the value that
+        thresholding has occurred at
+    abst_threshold: float
+        The lowest value that the quantile_level can threshold at.
+    critical_bands: None or numpy.ndarray[ndim=2], Optional
+        dimension 0 is the number of critical bands, each row is a pair
+        (critical_bands[i,0],critical_bands[i,1]) which says that the 
+        ith critical band applied to exactly those frequencies f
+        such that critical_bands[i,0] <= f < critical_bands[i,1] (approximately)
+    """
+    # import pdb; pdb.set_trace()
+    
     maxima_idx = E_block > 0
     maxima_vals = E_block[maxima_idx].ravel().copy()
     maxima_vals.sort()
