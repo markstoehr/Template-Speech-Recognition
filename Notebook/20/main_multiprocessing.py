@@ -1076,7 +1076,7 @@ def get_baseline_second_stage_detection(true_pos_cluster,false_pos_cluster,
     roc_curve = np.array([
                 np.sum(false_responses >= true_response)/float(len(false_responses))
                 for true_response in true_responses]) 
-    np.save('%s%s_fpr_detector_rocLike_%d_%d_%s.npy' % (syllable_string,
+    np.save('%s%s_fpr_detector_rocLike_%d_%d_%s.npy' % (savedir,syllable_string,
                                                      mix_component,
                                                      num_mix,save_tag),roc_curve)
     if make_plots:
