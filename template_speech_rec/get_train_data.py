@@ -1447,13 +1447,14 @@ SpectrogramParameters = collections.namedtuple("SpectrogramParameters",
                                                 +" freq_cutoff"
                                                 +" use_mel"))
 
-def get_spectrogram(waveform,spectrogram_parameters):
+def get_spectrogram(waveform,spectrogram_parameters,mel_smoothing_kernel=-1):
     if spectrogram_parameters.use_mel:
         return esp.get_mel_spec(waveform,
                             spectrogram_parameters.sample_rate,
                         spectrogram_parameters.num_window_samples,
                         spectrogram_parameters.num_window_step_samples,
-                        spectrogram_parameters.fft_length).T
+                        spectrogram_parameters.fft_length,
+                                mel_smoothing_kernel=mel_smoothing_kernel).T
     else:
         return esp.get_spectrogram_features(waveform,
                                      spectrogram_parameters.sample_rate,
