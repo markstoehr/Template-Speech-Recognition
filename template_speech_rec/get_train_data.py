@@ -888,7 +888,8 @@ def get_detection_scores_mixture_named_params(data_path,file_indices,
                                               count_threshold=None,
                                               spread_factor=1,
                                               subsamp_factor=1,
-                                              phn_mapping=None):
+                                              phn_mapping=None,
+                                              P_config=None):
 
     example_start_end_times = []
     if num_examples == -1:
@@ -910,15 +911,11 @@ def get_detection_scores_mixture_named_params(data_path,file_indices,
         S_flts = utterance.flts
         E = get_edge_features(S.T,E_config,verbose=False)
         E_flts = S_flts
-        if log_parts is not None:
-                out = code_parts.code_parts(E.astype(np.uint8),
-                                            log_parts,log_invparts,count_threshold)
-                max_responses = np.argmax(out,-1)
-                bin_out_map = code_parts.spread_patches(max_responses,spread_factor,spread_factor,out.shape[-1]-1)
-                E = bin_out_map[::subsamp_factor,::subsamp_factor]
-                E_flts[-1] -= spread_factor-1
-                E_flts /= subsamp_factor
-
+        if P_config is not None:
+            # E is now the part features
+            E = get_part_features(E,P_config,verbose=False)
+            E_flts = S_flts.copy()
+            E_flts[-1] = len(E)
 
         _compute_detection_E(E,utterance.phns,E_flts,
                                 detection_array,
@@ -1115,7 +1112,8 @@ def get_syllable_features(utterance_directory,data_idx,syllable,
                           S_config=None,E_config=None,offset = None,E_verbose=False,avg_bgd=None,
                           waveform_offset=0,
                           phn_mapping = None,
-                          assigned_phns = None):
+                          assigned_phns = None,
+                          P_config=None):
     """
     Expects a list of (name, parameters) tuples
     names are:
@@ -1141,15 +1139,28 @@ def get_syllable_features(utterance_directory,data_idx,syllable,
         S_flts = (sflts * S.shape[0] /float(sflts[-1]) + .5).astype(int)
         if E_config is not None:
             E = get_edge_features(S.T,E_config,verbose=E_verbose)
-            if avg_bgd is not None:
-                avg_bgd.add_frames(E,time_axis=0)
             # both are the same
             E_flts = S_flts
+            
+            if P_config is not None:
+                P = get_part_features(E,P_config)
+                P_flts=E_flts.copy()
+                P_flts[-1] = len(P)
+                if avg_bgd is not None:
+                    avg_bgd.add_frames(P,time_axis=0)
+            elif avg_bgd is not None:
+                avg_bgd.add_frames(E,time_axis=0)
+                P=None
+            else:
+                P=None
+
         else:
             E = None
+            P = None
     else:
         S = None
         E = None
+        P=None
     # we then get the example phones removed from the signals
     use_phns = utterance.phns.copy()
     if phn_mapping is not None:
@@ -1157,7 +1168,46 @@ def get_syllable_features(utterance_directory,data_idx,syllable,
     syllable_starts = phns_syllable_matches(use_phns,syllable)
     syllable_length = len(syllable)
 
-    if (waveform_offset is None or waveform_offset == 0) and (S is not None and E is not None):
+    if (waveform_offset is None or waveform_offset == 0) and (S is not None and P is not None):
+        return [ SyllableFeatures(
+                s = (utterance.s)[sflts[syllable_start]:sflts[syllable_start+syllable_length]],
+                S = S[S_flts[syllable_start]:S_flts[syllable_start+syllable_length]],
+                S_config = S_config,
+                E = P[P_flts[syllable_start]:P_flts[syllable_start+syllable_length]],
+                E_config = {'E':E_config, 'P':P_config},
+                offset = 0,
+                phn_context = get_phn_context(syllable_start,
+                                              syllable_start+syllable_length,
+                                              utterance.phns,
+                                              utterance.flts),
+                assigned_phns = syllable,
+                utt_path=utterance_directory,
+                file_idx=data_idx,
+                start_end=(syllable_start,syllable_start+syllable_length))
+                 for syllable_start in syllable_starts]
+    elif (waveform_offset > 0) and (S is not None and P is not None):
+        return [ SyllableFeatures(
+                s = get_example_with_offset(utterance.s,
+                                            waveform_offset,
+                                            sflts[syllable_start],
+                                            sflts[syllable_start+syllable_length],
+                                            default_val=0),
+                S = get_example_with_offset(S,offset,S_flts[syllable_start],S_flts[syllable_start+syllable_length]),
+                S_config = S_config,
+                E = get_example_with_offset(P,offset,P_flts[syllable_start],P_flts[syllable_start+syllable_length]),
+                E_config = {'E':E_config, 'P':P_config},
+                offset = offset,
+                phn_context = get_phn_context(syllable_start,
+                                              syllable_start+syllable_length,
+                                              utterance.phns,
+                                              utterance.flts),
+                assigned_phns=syllable,
+                utt_path=utterance_directory,
+                file_idx=data_idx,
+                start_end=(syllable_start,syllable_start+syllable_length))
+                 for syllable_start in syllable_starts]
+
+    elif (waveform_offset is None or waveform_offset == 0) and (S is not None and E is not None):
         return [ SyllableFeatures(
                 s = (utterance.s)[sflts[syllable_start]:sflts[syllable_start+syllable_length]],
                 S = S[S_flts[syllable_start]:S_flts[syllable_start+syllable_length]],
@@ -1200,7 +1250,7 @@ def get_syllable_features(utterance_directory,data_idx,syllable,
 
 
 def get_syllable_features_cluster(utterance_directory,data_idx,cluster_list,
-                          S_config=None,E_config=None,offset =0,E_verbose=False,avg_bgd=None,
+                          S_config=None,E_config=None,P_config=None,offset =0,E_verbose=False,avg_bgd=None,
                           waveform_offset=0,
                                   assigned_phns = None):
     """
@@ -1234,11 +1284,28 @@ def get_syllable_features_cluster(utterance_directory,data_idx,cluster_list,
                 avg_bgd.add_frames(E,time_axis=0)
             # both are the same
             E_flts = S_flts
+            
+            if P_config is not None:
+                P = get_part_features(E,P_config)
+                P_flts=E_flts.copy()
+                P_flts[-1] = len(P)
+                if avg_bgd is not None:
+                    avg_bgd.add_frames(P,time_axis=0)
+            elif avg_bgd is not None:
+                avg_bgd.add_frames(E,time_axis=0)
+                P=None
+            else:
+                P=None
+
         else:
             E = None
+            P=None
+
     else:
         S = None
         E = None
+        P=None
+
     # we then get the example phones removed from the signals
 
     s_cluster_list = tuple(
@@ -1246,7 +1313,45 @@ def get_syllable_features_cluster(utterance_directory,data_idx,cluster_list,
                for v in cluster)
         for cluster in cluster_list
         )
-    if (waveform_offset is None or waveform_offset == 0) and (S is not None and E is not None):
+    if (waveform_offset is None or waveform_offset == 0) and (S is not None and P is not None):
+        return tuple( SyllableFeatures(
+                s = (utterance.s)[s_cluster[0]:s_cluster[1]],
+                S = S[cluster[0]:cluster[1]],
+                S_config = S_config,
+                E = P[cluster[0]:cluster[1]],
+                E_config = {'E':E_config,'P':P_config},
+                offset = 0,
+                phn_context =get_phn_context(cluster[0],
+                                              cluster[1],
+                                              utterance.phns,
+                                              utterance.flts),
+                assigned_phns = assigned_phns,
+                utt_path=utterance_directory,
+                file_idx=data_idx,
+                start_end=cluster)
+                 for s_cluster,cluster in itertools.izip(s_cluster_list,cluster_list))
+    elif (waveform_offset > 0) and (S is not None and P is not None):
+        return tuple( SyllableFeatures(
+                s = get_example_with_offset(utterance.s,
+                                            waveform_offset,
+                                            s_cluster[0],
+                                            s_cluster[1],
+                                            default_val=0),
+                S = get_example_with_offset(S,offset,cluster[0],cluster[1]),
+                S_config = S_config,
+                E = get_example_with_offset(P,offset,cluster[0],cluster[1]),
+                E_config = {'E':E_config,'P':P_config},
+                offset = offset,
+                phn_context = get_phn_context(cluster[0],
+                                              cluster[1],
+                                              utterance.phns,
+                                              utterance.flts),
+                assigned_phns = assigned_phns,
+                utt_path=utterance_directory,
+                file_idx=data_idx,
+                start_end=cluster)
+                 for s_cluster,cluster in itertools.izip(s_cluster_list,cluster_list))
+    elif (waveform_offset is None or waveform_offset == 0) and (S is not None and E is not None):
         return tuple( SyllableFeatures(
                 s = (utterance.s)[s_cluster[0]:s_cluster[1]],
                 S = S[cluster[0]:cluster[1]],
@@ -1293,7 +1398,7 @@ def get_syllable_features_cluster(utterance_directory,data_idx,cluster_list,
 def get_syllable_features_directory(utterances_path,file_indices,syllable,
                                     S_config=None,E_config=None,offset=None,
                                     E_verbose=False,return_avg_bgd=True,waveform_offset=0,
-                                    phn_mapping=None):
+                                    phn_mapping=None,P_config=None):
     """
     Parameters:
     ===========
@@ -1303,6 +1408,8 @@ def get_syllable_features_directory(utterances_path,file_indices,syllable,
 
         The offset is assumed to be a positive integer where we offset
         the waveform collection by waveform_offset * S_config.num_window_samples
+    P_Config: None or PartsParameters
+        Either None (in which case we don't do parts processing) or PartsParameters
     """
     avg_bgd = AverageBackground()
     return_tuple = tuple(
@@ -1310,7 +1417,8 @@ def get_syllable_features_directory(utterances_path,file_indices,syllable,
                               S_config=S_config,E_config=E_config,offset = offset,
                               E_verbose=E_verbose,avg_bgd=avg_bgd,
                               waveform_offset=waveform_offset,
-                              phn_mapping=phn_mapping)
+                              phn_mapping=phn_mapping,
+                              P_config=P_config)
         for data_idx in file_indices)
     if return_avg_bgd:
         return return_tuple, avg_bgd
@@ -1470,6 +1578,16 @@ EdgemapParameters = collections.namedtuple("EdgemapParameters",
                                             +" spread_length"
                                             +" threshold"))
 
+PartsParameters = collections.namedtuple("PartsParameters",
+                                           ("use_parts"
+                                            +" parts_path"
+                                            +" bernsteinEdgeThreshold"
+                                            +" logParts"
+                                            +" logInvParts"
+                                            +" spreadRadiusX"
+                                            +" spreadRadiusY"
+                                            +" numParts"))
+
 
 def get_edge_features(S,parameters,verbose=False):
     E, edge_feature_row_breaks,\
@@ -1482,4 +1600,13 @@ def get_edge_features(S,parameters,verbose=False):
                                      edge_feature_row_breaks = edge_feature_row_breaks,
                                      verbose=verbose)
     return reorg_part_for_fast_filtering(E)
+
+def get_part_features(E,parameters,verbose=False):
+    out = cp.code_parts(E.astype(np.uint8),
+                        parameters.logParts,parameters.logInvParts,parameters.bernsteinEdgeThreshold)
+    max_responses = np.argmax(out,-1)
+    return cp.spread_patches(max_responses,
+                                    parameters.spreadRadiusX,
+                                    parameters.spreadRadiusY,
+                                    parameters.numParts)
 
