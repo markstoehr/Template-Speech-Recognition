@@ -809,7 +809,7 @@ def get_pos_false_pos_false_neg_detect_points(detection_clusters_at_threshold,
         return pos_times, false_pos_times, false_neg_times
 
 
-def get_false_positives(false_pos_times,S_config,E_config,
+def get_false_positives(false_pos_times,S_config,E_config,P_config=None,
                        offset=0,
                         waveform_offset=0,
                         verbose=False):
@@ -836,6 +836,7 @@ def get_false_positives(false_pos_times,S_config,E_config,
                     for fp0 in utt_false_positives),
                 S_config=S_config,
                 E_config=E_config,
+                P_config=P_config,
                 offset = offset,
                 E_verbose=False,
                 # we aren't estimating background here at all
@@ -844,7 +845,7 @@ def get_false_positives(false_pos_times,S_config,E_config,
                 assigned_phns = (utt_false_positives[0].cluster_max_peak_phn,)))
     return tuple(return_false_positives)
 
-def get_true_positives(true_pos_times,S_config,E_config,
+def get_true_positives(true_pos_times,S_config,E_config,P_config=None,
                        offset=0,
                         waveform_offset=0,
                         verbose=False):
@@ -861,6 +862,7 @@ def get_true_positives(true_pos_times,S_config,E_config,
         #              + fp.cluster_detect_lengths[fp.cluster_max_peak_loc] - 
         #            fp.cluster_start_end[0]+fp.cluster_max_peak_loc)
         #    print "fp_id=%d" %fp_id
+
         return_true_positives.append( gtrd.get_syllable_features_cluster(
                 utt_true_positives[0].utterances_path,
                 utt_true_positives[0].file_index,
@@ -871,6 +873,7 @@ def get_true_positives(true_pos_times,S_config,E_config,
                     for fp0 in utt_true_positives),
                 S_config=S_config,
                 E_config=E_config,
+                P_config=P_config,
                 offset = offset,
                 E_verbose=False,
                 # we aren't estimating background here at all
@@ -878,7 +881,7 @@ def get_true_positives(true_pos_times,S_config,E_config,
                 waveform_offset=waveform_offset))
     return tuple(return_true_positives)
 
-def get_false_negatives(false_negative_times,S_config,E_config,
+def get_false_negatives(false_negative_times,S_config,E_config,P_config=None,
                        offset=0,
                         waveform_offset=0,
                         verbose=False):
@@ -903,6 +906,7 @@ def get_false_negatives(false_negative_times,S_config,E_config,
                     for fp0 in utt_false_negatives),
                 S_config=S_config,
                 E_config=E_config,
+                P_config=P_config,
                 offset = offset,
                 E_verbose=False,
                 # we aren't estimating background here at all
