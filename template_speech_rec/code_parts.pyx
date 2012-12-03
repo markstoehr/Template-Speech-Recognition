@@ -105,7 +105,7 @@ def code_parts(np.ndarray[ndim=3,dtype=UINT_t] X,
     # thresholded due to there not being enough edges
     
 
-    cdef np.ndarray[dtype=DTYPE_t, ndim=3] out_map = -np.inf * np.ones((new_x_dim,
+    cdef np.ndarray[dtype=DTYPE_t, ndim=3] out_map = np.zeros((new_x_dim,
                                                                         new_y_dim,
                                                                         num_parts+1),dtype=DTYPE)
     # The first cell along the num_parts+1 axis contains a value that is either 0
@@ -119,7 +119,6 @@ def code_parts(np.ndarray[ndim=3,dtype=UINT_t] X,
             j_end = j_start + part_y_dim
             count = _count_edges(X,i_start,i_end,j_start,j_end,X_z_dim)
             if count >= threshold:
-                out_map[i_start,j_start] = 1.0
                 out_map[i_start,j_start,0] = -np.inf
                 for i in range(part_x_dim):
                     for j in range(part_y_dim):
