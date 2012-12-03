@@ -789,16 +789,16 @@ def get_detection_clusters_by_label(num_mix,utterances_path,
                                               verbose=verbose,
                                                         return_example_types=return_example_types) +(detection_cluster_idx,)
 
-def perform_second_stage_detection_testing(num_mix,syllable_string,save_tag,thresh_percent,
+def perform_second_stage_detection_testing(num_mix,syllable_string,save_tag,thresh_percent,savedir,
                                            make_plots=False,verbose=False):
-    out = open('%s%s_false_pos_times_%d_%d_%s.pkl' % (syllable_string,num_mix,thresh_percent,save_tag),'rb')
+    out = open('%s%s_false_pos_times_%d_%d_%s.pkl' % (savedir,syllable_string,num_mix,thresh_percent,save_tag),'rb')
     false_pos_times=pickle.load(out)
     out.close()
     template_ids = rf.recover_template_ids_detect_times(false_pos_times)
-    outfile = np.load('%s%s_false_positives_Es_lengths_%d_%d_%s.npz' % (syllable_string,num_mix,thresh_percent,save_tag))
+    outfile = np.load('%s%s_false_positives_Es_lengths_%d_%d_%s.npz' % (savedir,syllable_string,num_mix,thresh_percent,save_tag))
     lengths_false_pos = outfile['lengths']
     Es_false_pos = outfile['Es']
-    outfile = np.load('%s%s_false_positives_Ss_lengths_%d_%d_%s.npz' % (syllable_string,num_mix,thresh_percent,save_tag))
+    outfile = np.load('%s%s_false_positives_Ss_lengths_%d_%d_%s.npz' % (savedir,syllable_string,num_mix,thresh_percent,save_tag))
     lengths_S_false_pos = outfile['lengths']
     Ss_false_pos = outfile['Ss']
     #
@@ -817,15 +817,15 @@ def perform_second_stage_detection_testing(num_mix,syllable_string,save_tag,thre
     if verbose:
         for false_pos_idx, false_pos_count in enumerate(false_pos_cluster_counts):
             print "Template %d had %d false positives" %(false_pos_idx,false_pos_count)
-    out = open('%s%s_pos_times_%d_%d_%s.pkl' % (syllable_string,num_mix,thresh_percent,save_tag),'rb')
+    out = open('%s%s_pos_times_%d_%d_%s.pkl' % (savedir,syllable_string,num_mix,thresh_percent,save_tag),'rb')
     true_pos_times=pickle.load(out)
     out.close()
     template_ids = rf.recover_template_ids_detect_times(true_pos_times)
 
-    outfile = np.load('%s%s_true_positives_Es_lengths_%d_%d_%s.npz' % (syllable_string,num_mix,thresh_percent,save_tag))
+    outfile = np.load('%s%s_true_positives_Es_lengths_%d_%d_%s.npz' % (savedir,syllable_string,num_mix,thresh_percent,save_tag))
     lengths_true_pos = outfile['lengths']
     Es_true_pos = outfile['Es']
-    outfile = np.load('%s%s_true_positives_Ss_lengths_%d_%d_%s.npz' % (syllable_string,num_mix,thresh_percent,save_tag))
+    outfile = np.load('%s%s_true_positives_Ss_lengths_%d_%d_%s.npz' % (savedir,syllable_string,num_mix,thresh_percent,save_tag))
     lengths_S_true_pos = outfile['lengths']
     Ss_true_pos = outfile['Ss']
     #
@@ -849,7 +849,7 @@ def perform_second_stage_detection_testing(num_mix,syllable_string,save_tag,thre
         for Es_true_cluster, Es_false_cluster in itertools.izip(
             Es_true_pos_clusters,
             Es_false_pos_clusters))
-    np.savez('%s%s_clusters_for_testing_%d_%d_%s.npz' % (syllable_string,num_mix,thresh_percent,save_tag),
+    np.savez('%s%s_clusters_for_testing_%d_%d_%s.npz' % (savedir,syllable_string,num_mix,thresh_percent,save_tag),
              *clusters_for_classification)
 
     labels_for_classification = tuple(
@@ -859,8 +859,137 @@ def perform_second_stage_detection_testing(num_mix,syllable_string,save_tag,thre
             Es_true_pos_clusters,
             Es_false_pos_clusters))
 
-    np.savez('%s%s_labels_for_testing_%d_%d_%s.npz' % (syllable_string,num_mix,thresh_percent,save_tag),
+    np.savez('%s%s_labels_for_testing_%d_%d_%s.npz' % (savedir,syllable_string,num_mix,thresh_percent,save_tag),
              *labels_for_classification)
+
+
+def test_predictors_second_stage(num_mix,linear_filters,Es_clusters,
+                                 labels_clusters,num_time_points,num_false_negs,savedir,roc_fname,make_plots=False):
+    """
+    Parameters:
+    ===========
+    num_mix: int
+        Number of mixture components, corresponds to how finely the space is chopped up
+    linear_filters: tuple
+        Should be a tuple of length num_mix where each entry is a linear predictor which can be used on the data examples (length here of each constituent predictor should correspond to the length of the corresponding cluster)
+    Es_clusters: tuple
+        Again should be a tuple of length num_mix, these are the clusters
+        that we are going to perform detection on using the linear_fitlers
+    labels_clusters: tuple
+        Another tuple of length num_mix, these tuples contain the labels
+    """
+    # need a way to set all of these detector thresholds
+    tp_scores_idx = np.hstack(([0],np.cumsum(tuple(np.sum(labels_clusters[i] > .5) for i in xrange(num_mix)))))
+    fp_scores_idx = np.hstack(([0],np.cumsum(tuple(np.sum(labels_clusters[i] < .5) for i in xrange(num_mix)))))
+    tp_scores = np.empty(tp_scores_idx[-1])
+    fp_scores =np.empty(fp_scores_idx[-1])
+    num_true = float(len(tp_scores) +num_false_negs)
+    for i in xrange(num_mix):
+        print len(Es_clusters[i]),i,num_mix,roc_fname
+        scores = (Es_clusters[i] * linear_filters[i]).sum(-1).sum(-1).sum(-1)
+        tp_scores[tp_scores_idx[i]:
+                       tp_scores_idx[i+1]] = scores[labels_clusters[i] >.5]
+        fp_scores[fp_scores_idx[i]:
+                       fp_scores_idx[i+1]] = scores[labels_clusters[i] <.5]
+    
+    tp_scores = np.sort(tp_scores)
+    fpr = np.array([
+            np.sum(fp_scores > tp_scores[k])
+            for k in xrange(tp_scores.shape[0])])/ num_time_points
+    tpr = np.arange(len(tp_scores),dtype=np.float)/num_true
+    fnr = 1. -tpr
+    np.savez('%s%s.npz' % (savedir,roc_fname),fpr=fpr,tpr=tpr)
+    if make_plots:
+        plot_rocs(tpr,fpr,roc_fname,savedir)
+
+def plot_rocs(tpr,fpr,plot_name,savedir,use_fnr=False):
+    if use_fnr:
+        fnr = 1.-tpr
+        plt.close('all')
+        plt.figure()
+        plt.plot(fpr,fnr)
+        plt.ylabel('False Negative Rate')
+        plt.xlabel('False Positive Rate per Second')
+        plt.title(plot_name)
+        plt.savefig('%s%s.png' %(plot_name,savedir))
+    else:
+        plt.close('all')
+        plt.figure()
+        plt.plot(fpr,tpr)
+        plt.ylabel('True Positive Rate')
+        plt.xlabel('False Positive Rate per Second')
+        plt.title(plot_name)
+        plt.savefig('%s%s.png' %(savedir,plot_name))
+
+
+def get_second_stage_roc_curves(num_mix,savedir,syllable_string,thresh_percent,
+                                save_tag,old_max_detect_tag,make_plots=False):
+    detection_lengths = np.load('%sdetection_lengths_%d_%s.npy' % (savedir,num_mix,
+                                                save_tag))
+    false_neg_scores = np.load('%s%s_false_negative_scores_%d_%d_%s.npy' % (savedir,syllable_string,
+                                                             num_mix,
+                                                                  thresh_percent,
+                                                                  save_tag,
+                                                                  ))
+    num_false_negs =float(len(false_neg_scores))
+    num_time_points=float(detection_lengths.sum())
+    outfile = np.load('%s%s_clusters_for_testing_%d_%d_%s.npz' % (savedir,syllable_string,num_mix,thresh_percent,save_tag))
+    clusters_for_classification =tuple(outfile['arr_%d' % i] for i in xrange(num_mix))
+
+    outfile = np.load('%s%s_labels_for_testing_%d_%d_%s.npz' % (savedir,syllable_string,num_mix,thresh_percent,save_tag))
+    labels_for_classification =tuple(outfile['arr_%d' % i] for i in xrange(num_mix))
+
+    outfile= np.load('%slinear_filter_%d_%s.npz'% (savedir,num_mix,old_max_detect_tag))
+    base_lfs = tuple(outfile['arr_%d'%i] for i in xrange(num_mix))
+    like2_lfs =()
+    penalty_list=(('unreg', 1), 
+                                                 ('little_reg',.1), 
+                                                 ('reg', 0.05),
+                                                 ('reg_plus', 0.01),
+                                                 ('reg_plus_plus',.001))
+    svm_lfs ={}
+    for penalty, val in penalty_list:
+        svm_lfs[penalty] =()
+
+    for mix_component in xrange(num_mix):
+        outfile = np.load('%s%s_lf_c_second_stage_%d_%d_%s.npz' % (savedir,syllable_string,
+                                                     mix_component,
+                                                                   num_mix,old_max_detect_tag))
+        like2_lfs += (outfile['lf'],)
+        
+        for penalty,val in penalty_list:
+            outfile =np.load('%s%s_w_b_second_stage_%d_%d_%s_%s.npz' % (savedir,syllable_string,
+                                                                        mix_component,
+                                                                        num_mix,
+                                                                        penalty,old_max_detect_tag))
+            svm_lfs[penalty] += (outfile['w'].reshape(like2_lfs[-1].shape),)
+    
+
+    test_predictors_second_stage(num_mix,base_lfs,clusters_for_classification,
+                                 labels_for_classification,
+                                 num_time_points,num_false_negs,savedir,
+                                 '%s_base_roc_fpr_tpr_%d_%s' % (syllable_string,num_mix,save_tag),
+                                 make_plots=make_plots)
+
+    for penalty,val in penalty_list:
+        print penalty,val
+        test_predictors_second_stage(num_mix,svm_lfs[penalty],clusters_for_classification,
+                                     labels_for_classification,
+                                     num_time_points,num_false_negs,savedir,
+                                     '%s_svms_roc_fpr_tpr_%d_%s_%s' % (syllable_string,num_mix,penalty,save_tag),
+                                     make_plots=make_plots)
+
+    test_predictors_second_stage(num_mix,like2_lfs,clusters_for_classification,
+                                 labels_for_classification,
+                                 num_time_points,num_false_negs,savedir,
+                                 '%s_like2_roc_fpr_tpr_%d_%s' % (syllable_string,num_mix,save_tag),
+                                 make_plots=make_plots)
+        
+        
+
+
+    
+        
 
 def get_roc_curve(detector_neg_scores,detector_pos_scores,
                   num_mix,thresh_percent,syllable_string,
@@ -915,6 +1044,9 @@ def get_roc_curve(detector_neg_scores,detector_pos_scores,
 
 
 
+
+
+
 def run_all_linear_filters(num_mix,syllable_string,save_tag,thresh_percent,make_plots=False,savedir='data/',verbose=False):
     outfile =np.load('%s%s_clusters_for_testing_%d_%d_%s.npz' % (savedir,syllable_string,num_mix,thresh_percent,save_tag)
              )
@@ -930,6 +1062,8 @@ def run_all_linear_filters(num_mix,syllable_string,save_tag,thresh_percent,make_
                                                       num_mix,save_tag))
     lf_second_stage = outfile['lf']
     c_second_stage = outfile['c']
+
+    
     
     outfile = np.load('%s%s_lf_c_second_stage_%d_%d_%s.npz' % (savedir,syllable_string,
                                                      mix_component,
@@ -976,7 +1110,7 @@ def run_fp_detector(num_mix,syllable_string,new_tag,thresh_percent=None,save_tag
     # Display the spectrograms for each component
     #
     # get the original clustering of the parts
-    templates = get_templates(num_mix)
+    templates = get_templates(num_mix,template_tag=save_tag)
     Es_false_pos_clusters = rf.get_false_pos_clusters(Es_false_pos,
                                                templates,
                                                template_ids)
@@ -1507,6 +1641,68 @@ def main(args):
                                  thresh_percent=args.thresh_percent,save_tag=args.save_tag,savedir=args.savedir,
                                  make_plots=args.make_plots,
                                  waveform_offset=args.waveform_offset)
+    if args.perform_test_phase_detection:
+        print "performing test phase detection"
+        if len(args.num_mix_parallel) > 0:
+            print "doing parallel"
+            jobs = []
+            for num_mix in args.num_mix_parallel:
+                p =multiprocessing.Process(target=test_phase_detection(num_mix,test_example_lengths,test_path,
+                                 test_file_indices,
+                                 args.detect_object,sp,ep,leehon_mapping,
+                                 args.save_tag,
+                                 args.savedir,
+                                 args.old_max_detect_tag,
+                                 args.thresh_percent,
+                                 verbose=args.v))
+                jobs.append(p)
+                p.start
+    if args.get_test_output:
+        print "Getting test_outputs"
+        if len(args.num_mix_parallel) > 0:
+            print "doing parallel"
+            jobs = []
+            for num_mix in args.num_mix_parallel:
+                p =multiprocessing.Process(target=get_test_outputs(num_mix,syllable_string,sp,ep,
+                     args.thresh_percent,args.savedir,args.save_tag))
+                jobs.append(p)
+                p.start
+    if args.get_final_test_rocs:
+        print "Getting final test rocs"
+        if len(args.num_mix_parallel) > 0:
+            print "doing parallel"
+            jobs =[]
+            for num_mix in args.num_mix_parallel:
+                p =multiprocessing.Process(target=get_final_test_rocs(num_mix,syllable_string,args.thresh_percent,args.savedir,args.save_tag,args.old_max_detect_tag,make_plots=args.make_plots))
+                jobs.append(p)
+                p.start
+
+
+def get_final_test_rocs(num_mix,syllable_string,thresh_percent,savedir,save_tag,old_max_detect_tag,make_plots=False):
+    perform_second_stage_detection_testing(num_mix,syllable_string,save_tag,thresh_percent,savedir,
+                                           make_plots=False,verbose=False)
+    get_second_stage_roc_curves(num_mix,savedir,syllable_string,thresh_percent,
+                                save_tag,old_max_detect_tag,make_plots=make_plots)
+    
+
+def get_test_outputs(num_mix,syllable_string,sp,ep,
+                     thresh_percent,savedir,save_tag):
+    get_false_pos_examples(num_mix,syllable_string,
+                           sp,ep,waveform_offset=10,
+                           thresh_percent=thresh_percent,save_tag=save_tag,
+                           savedir=savedir,
+                           verbose=True)
+    get_true_pos_examples(num_mix,syllable_string,
+                           sp,ep,waveform_offset=10,
+                           thresh_percent=thresh_percent,save_tag=save_tag,
+                          savedir=savedir,
+                           verbose=True)
+    get_false_neg_examples(num_mix,syllable_string,
+                           sp,ep,waveform_offset=10,
+                           thresh_percent=thresh_percent,save_tag=save_tag,
+                           savedir=savedir,
+                           verbose=True)
+
 
 def perform_test_phase_detection(num_mix,test_example_lengths,test_path,
                                  test_file_indices,
@@ -1767,6 +1963,12 @@ syllables and tracking their performance
                         metavar='N',help="Number of frames to pad the waveform vectors by in order to get samples of the sounds")
     parser.add_argument('--train_second_stage_detectors',action="store_true",
                         help="Include this flag if you want to call train_second_stage_detectors")
+    parser.add_argument('--get_test_output',action="store_true",
+                        help="Include this flag if you want to get all instances of the true/false positives/negatives from the baseline detector over the test data")
+    parser.add_argument('--perform_test_phase_detection',action="store_true",
+                        help="Include this flag if you want to do the test phase all at once")
+    parser.add_argument('--get_final_test_rocs',action="store_true",
+                        help="Include this flag if you want to get the final roc curves once all the data has been processed")
     syllable=('aa','r')
     threshval = 100
     make_plots =True
