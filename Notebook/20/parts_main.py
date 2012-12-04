@@ -22,7 +22,7 @@ SVMResult = collections.namedtuple('SVMResult',
                                     +' b'
                                     +' roc_curve'
                                     +' total_error_rate'))
-                                    
+
 
 
 def get_params(sample_rate=16000,
@@ -41,42 +41,51 @@ def get_params(sample_rate=16000,
                         + "E_templates.npy",
                bernsteinEdgeThreshold=12,
                spreadRadiusX=2,
-               spreadRadiusY=2):
+               spreadRadiusY=2,
+               root_path= '/home/mark/Template-Speech-Recognition/',
+               utterances_path = '/home/mark/Template-Speech-Recognition/Data/Train/',
+               test_path = '/home/mark/Template-Speech-Recognition/Data/Test/',
+               train_path = '/home/mark/Template-Speech-Recognition/Data/Train/',
+               savedir='data/'
+
+               ):
     # we get the basic file paths right here
     # TODO: make this system adaptive
-    root_path = '/home/mark/Template-Speech-Recognition/'
-    utterances_path = '/home/mark/Template-Speech-Recognition/Data/Train/'
-    if os.path.exists('data/train_file_indices.npy'):
-        file_indices = np.load('data/train_file_indices.npy')
+
+    print root_path
+    print utterances_path
+    print test_path
+    print train_path
+
+    if os.path.exists('%strain_file_indices.npy' % savedir):
+        file_indices = np.load('%strain_file_indices.npy'%savedir)
     else:
         file_indices = gtrd.get_data_files_indices(utterances_path)
-        np.save('data/train_file_indices.npy',file_indices)
+        np.save('%strain_file_indices.npy' % savedir,file_indices)
 
     num_mix_params = [1,2,3,5,7,9]
 
     train_file_indices=file_indices
-    test_path = '/home/mark/Template-Speech-Recognition/Data/Test/'
-    train_path = '/home/mark/Template-Speech-Recognition/Data/Train/'
 
-    if os.path.exists('data/test_file_indices.npy'):
-        test_file_indices = np.load('data/test_file_indices.npy')
+    if os.path.exists('%stest_file_indices.npy' % savedir):
+        test_file_indices = np.load('%stest_file_indices.npy' % savedir)
     else:
         test_file_indices = gtrd.get_data_files_indices(test_path)
-        np.save('data/test_file_indices.npy',test_file_indices)
+        np.save('%stest_file_indices.npy' % savedir,test_file_indices)
 
     #file_indices=test_file_indices
 
-    if os.path.exists('data/test_example_lengths.npy'):
-        test_example_lengths =np.load("data/test_example_lengths.npy")
+    if os.path.exists('%stest_example_lengths.npy' % savedir):
+        test_example_lengths =np.load("%stest_example_lengths.npy" % savedir)
     else:
         test_example_lengths = gtrd.get_detect_lengths(test_file_indices,test_path)
-        np.save("data/test_example_lengths.npy",test_example_lengths)
-        
-    if os.path.exists('data/train_example_lengths.npy'):
-        train_example_lengths =np.load("data/train_example_lengths.npy")
+        np.save("%stest_example_lengths.npy" % savedir,test_example_lengths)
+
+    if os.path.exists('%strain_example_lengths.npy' %savedir):
+        train_example_lengths =np.load("%strain_example_lengths.npy" %savedir)
     else:
         train_example_lengths = gtrd.get_detect_lengths(train_file_indices,train_path)
-        np.save("data/train_example_lengths.npy",train_example_lengths)
+        np.save("%strain_example_lengths.npy" % savedir,train_example_lengths)
 
     if use_parts:
         # get the parts Parameters
@@ -114,7 +123,8 @@ def get_params(sample_rate=16000,
             file_indices,num_mix_params,
             test_path,train_path,
             train_example_lengths, train_file_indices,
-            test_example_lengths, test_file_indices)
+            test_example_lengths, test_file_indices,
+        savedir)
 
 
 #
@@ -168,7 +178,7 @@ def get_leehon_mapping():
     for phn in phns_down:
         if phn not in leehon_mapping.keys():
             leehon_mapping[phn] = phn
-            
+
     leehon_mapping["q"] = "q"
 
     use_phns = np.array(list(set(leehon_mapping.values())))
@@ -179,13 +189,13 @@ def get_leehon_mapping():
 def save_syllable_features_to_data_dir(phn_tuple,
                           utterances_path,
                           file_indices,
-                          
+
                          sp,ep,
                           phn_mapping,pp=None,tag_data_with_syllable_string=False,
                                        save_tag="train",
                           waveform_offset=10,
                                        block_features=False,
-                                       savedir='data/'):
+                                       savedir='data/',verbose=False):
     """
     Wrapper function to get all the examples processed
     """
@@ -200,10 +210,10 @@ def save_syllable_features_to_data_dir(phn_tuple,
         E_verbose=False,return_avg_bgd=True,
         waveform_offset=15,
         phn_mapping=phn_mapping,
-        P_Config=pp)
+        P_config=pp,verbose=verbose)
     bgd = np.clip(avg_bgd.E,.1,.4)
     np.save('%sbgd.npy' % savedir,bgd)
-    
+
     example_mat = gtrd.recover_example_map(phn_features)
     lengths,waveforms  = gtrd.recover_waveforms(phn_features,example_mat)
     if tag_data_with_syllable_string:
@@ -254,7 +264,7 @@ def get_processed_examples(phn_tuple,
     then generate it anew
     will later add soemthing for returning the waveforms as needed
     """
-    # this hack makes sure that 
+    # this hack makes sure that
     # we only go through the loop below twice at most
     k =0
     while k<2:
@@ -338,7 +348,7 @@ def estimate_templates(num_mix_params,
                     plt.imshow(spec_templates[i].T,origin="lower left")
                     plt.savefig('%s%d_spec_templates_%d_%s.png' % (savedir,num_mix,i,save_tag))
                     plt.close()
-                    
+
             np.save('%s%d_affinities_%s.npy' % (savedir,num_mix,save_tag),
                     bem.affinities)
             np.savez('%s%d_templates_%s.npz' % (savedir,num_mix,save_tag),
@@ -370,7 +380,7 @@ def get_templates(num_mix,template_tag=None,savedir='data/'):
             templates = tuple( outfile['arr_%d'%i] for i in xrange(len(outfile.files)))
         else:
             templates = (np.load('%s1_templates_%s.npy' % (savedir,template_tag))[0] ,)
-    
+
     return templates
 
 
@@ -388,7 +398,7 @@ def compute_slow_detection_scores(num_mix,data_path,file_indices,
         S = gtrd.get_spectrogram(utterance.s,sp)
         E = gtrd.get_edge_features(S.T,ep,verbose=False
                                        )
-        
+
 
 
 def save_detection_setup(num_mix,train_example_lengths,
@@ -525,7 +535,7 @@ def get_fpr_tpr_tagged(num_mix,syllable_string,
         plt.title('ROC %s 1-stage Likelihood num_mix=%d' %(syllable_string,
                                                                   num_mix))
         plt.savefig('%s%s_fp_roc_discriminationLike_1stage_%d_%s.png' % (savedir,syllable_string,
-                                                     
+
                                                             num_mix,
                                                                           save_tag))
         plt.close('all')
@@ -540,7 +550,7 @@ def get_fpr_tpr_tagged(num_mix,syllable_string,
 
 
 def get_estimated_detection_clusters(num_mix):
-    detection_array = np.load('%sdetection_array_%d.npy' % num_mix)    
+    detection_array = np.load('%sdetection_array_%d.npy' % num_mix)
     max_detect_vals = np.load('%smax_detect_vals_%d.npy' % (num_mix))
     detection_lengths = np.load('%sdetection_lengths_%d.npy' % num_mix)
     templates=get_templates(num_mix)
@@ -558,12 +568,12 @@ def get_estimated_detection_clusters(num_mix):
 
 def get_tagged_detection_clusters(num_mix,thresh_percent,save_tag='',use_thresh=None,old_max_detect_tag=None,savedir='data/'):
     detection_array = np.load('%sdetection_array_%d_%s.npy' % (savedir,num_mix,
-                                                                  save_tag))    
+                                                                  save_tag))
     if old_max_detect_tag is None:
         max_detect_vals = np.load('%smax_detect_vals_%d_%s.npy' % (savedir,num_mix,save_tag))
     else:
         max_detect_vals = np.load('%smax_detect_vals_%d_%s.npy' % (savedir,num_mix,old_max_detect_tag))
-        
+
     detection_lengths = np.load('%sdetection_lengths_%d_%s.npy' % (savedir,num_mix,
                                                                   save_tag))
     templates=get_templates(num_mix)
@@ -585,7 +595,7 @@ def get_tagged_detection_clusters(num_mix,thresh_percent,save_tag='',use_thresh=
     cPickle.dump(detection_clusters,out)
     out.close()
     return detection_clusters
-    
+
 
 
 
@@ -758,11 +768,11 @@ def get_false_neg_examples(num_mix,syllable_string,
 def get_detection_clusters_by_label(num_mix,utterances_path,
                                     file_indices,thresh_percent,single_threshold=True,save_tag='',verbose=False, savedir='data/',
                                     return_example_types=False,
-  
+
                                     detect_clusters=None):
     if verbose:
         print "save_tag=%s" % save_tag
-        
+
     if detect_clusters is not None:
         if verbose:
             print "Using detect_clusters no file loading"
@@ -776,7 +786,7 @@ def get_detection_clusters_by_label(num_mix,utterances_path,
             out = open('%sdetection_clusters_%s.pkl' %(savedir,save_tag),'rb')
         else:
             out = open('%sdetection_clusters.pkl'%savedir,'rb')
-            
+
         detection_clusters =cPickle.load(out)
         out.close()
 
@@ -798,11 +808,11 @@ def get_detection_clusters_by_label(num_mix,utterances_path,
 
     templates=get_templates(num_mix)
     template_lengths = np.array([len(t) for t in templates])
-    
+
     window_start = -int(np.mean(tuple( t.shape[0] for t in templates))/3.+.5)
     window_end = -window_start
-    
-    if single_threshold: 
+
+    if single_threshold:
         return rf.get_pos_false_pos_false_neg_detect_points(detection_clusters,
                                               detection_array,
                                               detection_template_ids,
@@ -815,7 +825,7 @@ def get_detection_clusters_by_label(num_mix,utterances_path,
                                                         return_example_types=return_example_types)
     else:
         detection_cluster_idx = int(len(detection_clusters) * thresh_percent/100.)
-    
+
         return rf.get_pos_false_pos_false_neg_detect_points(detection_clusters[detection_cluster_idx],
                                               detection_array,
                                               detection_template_ids,
@@ -929,7 +939,7 @@ def test_predictors_second_stage(num_mix,linear_filters,Es_clusters,
                        tp_scores_idx[i+1]] = scores[labels_clusters[i] >.5]
         fp_scores[fp_scores_idx[i]:
                        fp_scores_idx[i+1]] = scores[labels_clusters[i] <.5]
-    
+
     tp_scores = np.sort(tp_scores)
     fpr = np.array([
             np.sum(fp_scores > tp_scores[k])
@@ -980,8 +990,8 @@ def get_second_stage_roc_curves(num_mix,savedir,syllable_string,thresh_percent,
     outfile= np.load('%slinear_filter_%d_%s.npz'% (savedir,num_mix,old_max_detect_tag))
     base_lfs = tuple(outfile['arr_%d'%i] for i in xrange(num_mix))
     like2_lfs =()
-    penalty_list=(('unreg', 1), 
-                                                 ('little_reg',.1), 
+    penalty_list=(('unreg', 1),
+                                                 ('little_reg',.1),
                                                  ('reg', 0.05),
                                                  ('reg_plus', 0.01),
                                                  ('reg_plus_plus',.001))
@@ -994,14 +1004,14 @@ def get_second_stage_roc_curves(num_mix,savedir,syllable_string,thresh_percent,
                                                      mix_component,
                                                                    num_mix,old_max_detect_tag))
         like2_lfs += (outfile['lf'],)
-        
+
         for penalty,val in penalty_list:
             outfile =np.load('%s%s_w_b_second_stage_%d_%d_%s_%s.npz' % (savedir,syllable_string,
                                                                         mix_component,
                                                                         num_mix,
                                                                         penalty,old_max_detect_tag))
             svm_lfs[penalty] += (outfile['w'].reshape(like2_lfs[-1].shape),)
-    
+
 
     test_predictors_second_stage(num_mix,base_lfs,clusters_for_classification,
                                  labels_for_classification,
@@ -1022,12 +1032,12 @@ def get_second_stage_roc_curves(num_mix,savedir,syllable_string,thresh_percent,
                                  num_time_points,num_false_negs,savedir,
                                  '%s_like2_roc_fpr_tpr_%d_%s' % (syllable_string,num_mix,save_tag),
                                  make_plots=make_plots)
-        
-        
 
 
-    
-        
+
+
+
+
 
 def get_roc_curve(detector_neg_scores,detector_pos_scores,
                   num_mix,thresh_percent,syllable_string,
@@ -1094,15 +1104,15 @@ def run_all_linear_filters(num_mix,syllable_string,save_tag,thresh_percent,make_
              )
     labels_for_classification = tuple(
         outfile['arr_%d' % k] for k in xrange(num_mix))
-                           
+
     outfile = np.load('%s%s_lf_c_second_stage_%d_%d_%s.npz' % (savedir,syllable_string,
                                                      mix_component,
                                                       num_mix,save_tag))
     lf_second_stage = outfile['lf']
     c_second_stage = outfile['c']
 
-    
-    
+
+
     outfile = np.load('%s%s_lf_c_second_stage_%d_%d_%s.npz' % (savedir,syllable_string,
                                                      mix_component,
                                                       num_mix,save_tag))
@@ -1123,11 +1133,11 @@ def run_all_linear_filters(num_mix,syllable_string,save_tag,thresh_percent,make_
                                                                   thresh_percent,
                                                                   save_tag,
                                                                   ))
-    
-                              
-                               
-    
-    
+
+
+
+
+
 
 def run_fp_detector(num_mix,syllable_string,new_tag,thresh_percent=None,save_tag=None,make_plots=False,savedir='data/',
                     verbose=False):
@@ -1236,7 +1246,7 @@ def get_baseline_second_stage_detection(true_pos_cluster,false_pos_cluster,
     lf,c = et.construct_linear_filter_structured_alternative(
         template,
         false_pos_template,
-        
+
         bgd=None,min_prob=.01)
     np.savez('%s%s_lf_c_second_stage_%d_%d_%s.npz' % (savedir,syllable_string,
                                                      mix_component,
@@ -1247,7 +1257,7 @@ def get_baseline_second_stage_detection(true_pos_cluster,false_pos_cluster,
     false_responses = np.sort((false_pos_cluster[num_false_pos_component/2:]*lf+ c).sum(-1).sum(-1).sum(-1))
     roc_curve = np.array([
                 np.sum(false_responses >= true_response)/float(len(false_responses))
-                for true_response in true_responses]) 
+                for true_response in true_responses])
     np.save('%s%s_fpr_detector_rocLike_%d_%d_%s.npy' % (savedir,syllable_string,
                                                      mix_component,
                                                      num_mix,save_tag),roc_curve)
@@ -1267,8 +1277,8 @@ def get_baseline_second_stage_detection(true_pos_cluster,false_pos_cluster,
 def get_svm_second_stage_detection(true_pos_cluster,false_pos_cluster,
                                         template, num_mix,mix_component,
                                         syllable_string,save_tag,savedir='data/',
-                                   penalty_list=(('unreg', 1), 
-                                                 ('little_reg',.1), 
+                                   penalty_list=(('unreg', 1),
+                                                 ('little_reg',.1),
                                                  ('reg', 0.05),
                                                  ('reg_plus', 0.01),
                                                  ('reg_plus_plus',.001)),
@@ -1346,7 +1356,7 @@ def get_test_clusters_for_2nd_stage(num_mix,data_path,
     detection_clusters=cPickle.load(out)
     out.close()
 
-    
+
     # need to find max point of clusters (perhaps this should
     # happen during the cluster identification phase)
     detection_array = np.load('%sdetection_array_%d_%s.npy' % (savedir,num_mix,
@@ -1379,8 +1389,8 @@ def get_test_clusters_for_2nd_stage(num_mix,data_path,
     clustered_Ss = np.empty(num_mix,dtype=object)
     clustered_labels = np.empty(num_mix,dtype=object)
     clustered_waveforms = np.empty(num_mix,dtype=object)
-        
-    
+
+
     cluster_max_peak_loc = rf.get_max_peak(cluster_vals)
 
     if make_plots:
@@ -1425,8 +1435,8 @@ def main2(syllable,threshval,
                           leehon_mapping,save_tag="train_2",
                           waveform_offset=10)
     print "Finished save_syllabel_features_to_data_dir"
-    (Ss, 
-     Slengths, 
+    (Ss,
+     Slengths,
      Es,
      Elengths) =get_processed_examples(syllable,
                            train_path,
@@ -1533,11 +1543,11 @@ def main2(syllable,threshval,
 
     perform_second_stage_detection_testing(num_mix,syllable_string,'test',thresh_percent,
                                            make_plots=False,verbose=False)
-    
+
     save_syllable_features_to_data_dir(syllable,
                                        test_path,
                                        test_file_indices,
-                          
+
                                        sp,ep,
                                        leehon_mapping,tag_data_with_syllable_string=False,
                                        save_tag="test",
@@ -1555,7 +1565,7 @@ def main(args):
      file_indices,num_mix_params,
      test_path,train_path,
      train_example_lengths, train_file_indices,
-     test_example_lengths, test_file_indices) = get_params(
+     test_example_lengths, test_file_indices,savedir) = get_params(
         sample_rate=args.sample_rate,
         num_window_samples=args.num_window_samples,
         fft_length=args.fft_length,
@@ -1569,13 +1579,19 @@ def main(args):
         parts_path=args.parts_path,
         bernsteinEdgeThreshold=args.bernsteinEdgeThreshold,
         spreadRadiusX=args.spreadRadiusX,
-        spreadRadiusY = args.spreadRadiusY
+        spreadRadiusY = args.spreadRadiusY,
+        root_path=args.root_path,
+        utterances_path=args.utterances_path,
+        test_path =args.test_path,
+        train_path=args.train_path,
+        savedir=args.savedir
         )
     if args.leehon_mapping:
         leehon_mapping, use_phns = get_leehon_mapping()
     else:
         leehon_mapping =None
     if args.save_syllable_features_to_data_dir != '':
+        print "using directory savedir=%s" % savedir
         save_syllable_features_to_data_dir(args.detect_object,
                                            train_path,
                                            train_file_indices,
@@ -1584,14 +1600,17 @@ def main(args):
                                            pp=pp,
                                            save_tag=args.save_tag,
                                            waveform_offset=10,
-                                           savedir=args.save_syllable_features_to_data_dir)
+                                           savedir=args.save_syllable_features_to_data_dir,
+                                           verbose=args.v
+            )
         print "Finished save_syllable_features_to_data_dir"
         savedir=args.save_syllable_features_to_data_dir
     else:
         savedir=args.savedir
+    savedir=args.savedir
     if args.estimate_templates:
-        (Ss, 
-         Slengths, 
+        (Ss,
+         Slengths,
          Es,
          Elengths) =get_processed_examples(args.detect_object,
                                            train_path,
@@ -1625,7 +1644,7 @@ def main(args):
                 jobs.append(p)
                 p.start
 
-                
+
     elif args.save_detection_setup == "train":
         print args.num_mix
         if len(args.num_mix_parallel) > 0:
@@ -1739,7 +1758,7 @@ def get_final_test_rocs(num_mix,syllable_string,thresh_percent,savedir,save_tag,
                                            make_plots=False,verbose=False)
     get_second_stage_roc_curves(num_mix,savedir,syllable_string,thresh_percent,
                                 save_tag,old_max_detect_tag,make_plots=make_plots)
-    
+
 
 def get_test_outputs(num_mix,syllable_string,sp,ep,
                      thresh_percent,savedir,save_tag,pp=None):
@@ -1915,7 +1934,7 @@ def plot_detection_outs(plot_name,num_mix,sp,ep,data_path,file_indices,
                                             e_id)
             cur_plot+=1
             plt.close('all')
-            
+
 
 def get_phone_xticks_locs_labels(start_idx,end_idx,flts,phns):
     middle_phns =np.arange(len(flts))[flts >= start_idx]
@@ -1928,7 +1947,7 @@ def get_phone_xticks_locs_labels(start_idx,end_idx,flts,phns):
     else:
         end_phn_idx =np.arange(len(flts))[flts >  end_idx].min()
     return flts[start_phn_idx:end_phn_idx]-start_idx, phns[start_phn_idx:end_phn_idx]
-    
+
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='''
 Program to run various experiments in detecting
@@ -1975,7 +1994,7 @@ syllables and tracking their performance
                         type=float,metavar='X',
                         help="Quantile to threshold the edges at, defaults to .7")
     parser.add_argument('--save_syllable_features_to_data_dir',
-                        nargs=1,default='',
+                        default='',
                         type=str,metavar='PATH',
                         help="If set to a path then this will attempt to save training data estimated using the parameters to the included path for later processing in an experiment.  This includes spectrograms, edgemaps, and waveforms. Defaults to ''")
     parser.add_argument('--make_plots',action='store_true',
@@ -2041,6 +2060,21 @@ syllables and tracking their performance
     parser.add_argument('--spreadRadiusY',metavar='N',
                         type=int,default=2,
                         help="An integer. The radius along the frequency axis which we spread part detections")
+    parser.add_argument('--root_path',metavar='Path',
+                        type=str,help="Path to the file where the parts are saved or will be saved",
+                        default="/home/mark/Template-Speech-Recognition/")
+
+    parser.add_argument('--utterances_path',metavar='Path',
+                        type=str,help="Path to the file where the parts are saved or will be saved",
+                        default='/home/mark/Template-Speech-Recognition/Data/Train/')
+
+    parser.add_argument('--test_path',metavar='Path',
+                        type=str,help="Path to the file where the parts are saved or will be saved",
+                        default='/home/mark/Template-Speech-Recognition/Data/Test/')
+
+    parser.add_argument('--train_path',metavar='Path',
+                        type=str,help="Path to the file where the parts are saved or will be saved",
+                        default='/home/mark/Template-Speech-Recognition/Data/Train/')
 
     syllable=('aa','r')
     threshval = 100
