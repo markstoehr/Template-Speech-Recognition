@@ -9,7 +9,7 @@ import extract_local_features as elf
 import code_parts as cp
 import spread_waliji_patches as swp
 import compute_likelihood_linear_filter
-
+import multiprocessing
 
 class AverageBackground:
     def __init__(self):
@@ -655,8 +655,8 @@ def _compute_detection_E(E,phns,E_flts,
     """
     detect_lengths.append(E.shape[0])
 
-    
-    
+
+
     example_starts, example_ends = get_examples_from_phns_ftls(syllable,
                                                                phns,
                                                                E_flts,
@@ -721,7 +721,7 @@ def get_vals_pad(x,idx,default_val,window_half_length):
              x[max(0,lo_idx):
                    min(hi,hi_idx)],
             right))
-    
+
 
 PhoneClassificationOut = collections.namedtuple("PhoneClassificationOut",
                                                 "detect_vals"
@@ -774,7 +774,7 @@ def _compute_classification_E(E,phns,E_flts,
                 detect_ids=get_vals_pad(detect_template_ids,flt,
                                             -1, window_half_length),
                 file_idx =file_idx
-                
+
                 ),)
 
 
@@ -939,7 +939,7 @@ def get_detection_scores_mixture_named_params(data_path,file_indices,
                 detection_lengths)
 
 
-                      
+
 
 def get_classification_scores_mixture_named_params(data_path,file_indices,
                                                    phone_label,
@@ -961,7 +961,7 @@ def get_classification_scores_mixture_named_params(data_path,file_indices,
     points on the ROC curve (otherwise we use up too much memory).
 
     We rely on a background model bgd in order to pad examples because
-    the template we are using and the data do not necessarily match each 
+    the template we are using and the data do not necessarily match each
     other.
 
     Window half length is there because we do not totally trust the timit
@@ -974,20 +974,20 @@ def get_classification_scores_mixture_named_params(data_path,file_indices,
       - phn labels immediately preceding
       - phn labels immediately following
       - within a window what were the detection scores and the max score
-      - within a window, which were the templates that fired the hardest 
+      - within a window, which were the templates that fired the hardest
         and which was the max
-    
+
     We create a default dict to hold the phone labels
-        
+
     we'll get this for each phn.  The idea will be to find the hard
     false positives and then we'll do a second stage detector based on
     the svm. But first we'll get some basic statistics on how this is working
-    
+
     """
 
     phn_classification_dict = collections.defaultdict(tuple)
-    
-    
+
+
     for i,data_file_idx in enumerate(file_indices[:num_examples]):
         if verbose:
             if ((i % verbose) == 0 ):
@@ -1113,7 +1113,7 @@ def get_syllable_features(utterance_directory,data_idx,syllable,
                           waveform_offset=0,
                           phn_mapping = None,
                           assigned_phns = None,
-                          P_config=None):
+                          P_config=None,verbose=False):
     """
     Expects a list of (name, parameters) tuples
     names are:
@@ -1131,6 +1131,8 @@ def get_syllable_features(utterance_directory,data_idx,syllable,
         the waveform collection by waveform_offset * S_config.num_window_samples
 
     """
+    if verbose:
+        print data_idx
     utterance = makeUtterance(utterance_directory,data_idx)
     sflts = (utterance.flts * utterance.s.shape[0]/float(utterance.flts[-1]) + .5).astype(int)
     # get the spectrogram
@@ -1141,7 +1143,7 @@ def get_syllable_features(utterance_directory,data_idx,syllable,
             E = get_edge_features(S.T,E_config,verbose=E_verbose)
             # both are the same
             E_flts = S_flts
-            
+
             if P_config is not None:
                 P = get_part_features(E,P_config)
                 P_flts=E_flts.copy()
@@ -1284,7 +1286,7 @@ def get_syllable_features_cluster(utterance_directory,data_idx,cluster_list,
                 avg_bgd.add_frames(E,time_axis=0)
             # both are the same
             E_flts = S_flts
-            
+
             if P_config is not None:
                 P = get_part_features(E,P_config)
                 P_flts=E_flts.copy()
@@ -1398,7 +1400,7 @@ def get_syllable_features_cluster(utterance_directory,data_idx,cluster_list,
 def get_syllable_features_directory(utterances_path,file_indices,syllable,
                                     S_config=None,E_config=None,offset=None,
                                     E_verbose=False,return_avg_bgd=True,waveform_offset=0,
-                                    phn_mapping=None,P_config=None):
+                                    phn_mapping=None,P_config=None,verbose=False,do_parallel=False):
     """
     Parameters:
     ===========
@@ -1418,7 +1420,7 @@ def get_syllable_features_directory(utterances_path,file_indices,syllable,
                               E_verbose=E_verbose,avg_bgd=avg_bgd,
                               waveform_offset=waveform_offset,
                               phn_mapping=phn_mapping,
-                              P_config=P_config)
+                              P_config=P_config,verbose=verbose)
         for data_idx in file_indices)
     if return_avg_bgd:
         return return_tuple, avg_bgd
