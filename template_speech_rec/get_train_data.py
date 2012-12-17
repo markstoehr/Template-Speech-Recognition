@@ -1091,6 +1091,15 @@ def phns_syllable_matches(phns,syllable):
                       for phn_id in xrange(len(phns)-syllable_len+1)
                       if np.all(phns[phn_id:phn_id+syllable_len]==np.array(syllable))])
 
+def get_example_over_interval(E,start_idx,end_idx,bgd=None):
+    len_E = len(E)
+    if len_E <end_idx:
+        return np.vstack((E[start_idx:],
+                          np.zeros(end_idx-len_E,E.shape[1:])))
+    else:
+        return E[start_idx:end_idx]
+                         
+
 def get_example_with_offset(F,offset,start_idx,end_idx,default_val=0):
     if len(F.shape) > 1:
         return np.vstack(
@@ -1113,7 +1122,9 @@ def get_syllable_features(utterance_directory,data_idx,syllable,
                           waveform_offset=0,
                           phn_mapping = None,
                           assigned_phns = None,
-                          P_config=None):
+                          P_config=None,
+                          verbose=False,
+                          mel_smoothing_kernel=-1):
     """
     Expects a list of (name, parameters) tuples
     names are:
@@ -1131,11 +1142,14 @@ def get_syllable_features(utterance_directory,data_idx,syllable,
         the waveform collection by waveform_offset * S_config.num_window_samples
 
     """
+    if verbose:
+        print "%s%s" % (utterance_directory,data_idx)
     utterance = makeUtterance(utterance_directory,data_idx)
     sflts = (utterance.flts * utterance.s.shape[0]/float(utterance.flts[-1]) + .5).astype(int)
     # get the spectrogram
     if S_config is not None:
-        S = get_spectrogram(utterance.s,S_config)
+        S = get_spectrogram(utterance.s,S_config,
+                            mel_smoothing_kernel=mel_smoothing_kernel)
         S_flts = (sflts * S.shape[0] /float(sflts[-1]) + .5).astype(int)
         if E_config is not None:
             E = get_edge_features(S.T,E_config,verbose=E_verbose)
@@ -1252,7 +1266,7 @@ def get_syllable_features(utterance_directory,data_idx,syllable,
 def get_syllable_features_cluster(utterance_directory,data_idx,cluster_list,
                           S_config=None,E_config=None,P_config=None,offset =0,E_verbose=False,avg_bgd=None,
                           waveform_offset=0,
-                                  assigned_phns = None):
+                                  assigned_phns = None,verbose=False):
     """
     Expects a list of (name, parameters) tuples
     names are:
@@ -1369,15 +1383,19 @@ def get_syllable_features_cluster(utterance_directory,data_idx,cluster_list,
                 start_end=cluster)
                  for s_cluster,cluster in itertools.izip(s_cluster_list,cluster_list))
     elif (waveform_offset > 0) and (S is not None and E is not None):
+        if verbose:
+            print "waveform_offset=%d, S is not none, E is not None" % waveform_offset
+            for cluster_id,cluster in enumerate(cluster_list):
+                print "cluster_id=%d, cluster=(%d,%d)\tlength=%d\tlen E=%d" %(cluster_id, cluster[0],cluster[1],len(E[cluster[0]:cluster[1]]),len(E))
         return tuple( SyllableFeatures(
                 s = get_example_with_offset(utterance.s,
                                             waveform_offset,
                                             s_cluster[0],
                                             s_cluster[1],
                                             default_val=0),
-                S = get_example_with_offset(S,offset,cluster[0],cluster[1]),
+                S = S[cluster[0]:cluster[1]],
                 S_config = S_config,
-                E = get_example_with_offset(E,offset,cluster[0],cluster[1]),
+                E = E[cluster[0]:cluster[1]],
                 E_config = E_config,
                 offset = offset,
                 phn_context = get_phn_context(cluster[0],
@@ -1398,7 +1416,8 @@ def get_syllable_features_cluster(utterance_directory,data_idx,cluster_list,
 def get_syllable_features_directory(utterances_path,file_indices,syllable,
                                     S_config=None,E_config=None,offset=None,
                                     E_verbose=False,return_avg_bgd=True,waveform_offset=0,
-                                    phn_mapping=None,P_config=None):
+                                    phn_mapping=None,P_config=None,verbose=False,
+                                    mel_smoothing_kernel=-1):
     """
     Parameters:
     ===========
@@ -1418,7 +1437,9 @@ def get_syllable_features_directory(utterances_path,file_indices,syllable,
                               E_verbose=E_verbose,avg_bgd=avg_bgd,
                               waveform_offset=waveform_offset,
                               phn_mapping=phn_mapping,
-                              P_config=P_config)
+                              P_config=P_config,
+                              verbose=verbose,
+                              mel_smoothing_kernel=mel_smoothing_kernel)
         for data_idx in file_indices)
     if return_avg_bgd:
         return return_tuple, avg_bgd
@@ -1553,7 +1574,25 @@ SpectrogramParameters = collections.namedtuple("SpectrogramParameters",
                                                 +" fft_length"
                                                 +" kernel_length"
                                                 +" freq_cutoff"
-                                                +" use_mel"))
+                                                +" use_mel"
+                                                +" mel_smoothing_kernel"))
+
+def makeSpectrogramParameters(sample_rate=16000,
+                              num_window_samples=320,
+                              num_window_step_samples=80,
+                              fft_length=512,
+                              kernel_length=7,
+                              freq_cutoff=3000,
+                              use_mel=False,
+                              mel_smoothing_kernel=-1):
+    return SpectrogramParameters(sample_rate=sample_rate,
+                                 num_window_samples=num_window_samples,
+                                 num_window_step_samples=num_window_step_samples,
+                                 fft_length=fft_length,
+                                 kernel_length=kernel_length,
+                                 freq_cutoff=freq_cutoff,
+                                 use_mel=use_mel,
+                                 mel_smoothing_kernel=mel_smoothing_kernel)
 
 def get_spectrogram(waveform,spectrogram_parameters,mel_smoothing_kernel=-1):
     if spectrogram_parameters.use_mel:
@@ -1562,7 +1601,7 @@ def get_spectrogram(waveform,spectrogram_parameters,mel_smoothing_kernel=-1):
                         spectrogram_parameters.num_window_samples,
                         spectrogram_parameters.num_window_step_samples,
                         spectrogram_parameters.fft_length,
-                                mel_smoothing_kernel=mel_smoothing_kernel).T
+                                mel_smoothing_kernel=spectrogram_parameters.mel_smoothing_kernel).T
     else:
         return esp.get_spectrogram_features(waveform,
                                      spectrogram_parameters.sample_rate,
