@@ -795,6 +795,7 @@ def threshold_edge_block(E_block,quantile_level,
     if maxima_vals.shape[0] <= 0:
         E_block[:] = 0
         return E_block
+
     tau_quant = maxima_vals[int(quantile_level*maxima_vals.shape[0])].copy()
     # zero out everything less than the quantile
     A = E_block[maxima_idx]
