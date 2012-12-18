@@ -45,7 +45,8 @@ def pad_examples_bgd_samples(examples,lengths,bgd_probs):
     return out
 
 def recover_different_length_templates(affinities,examples,lengths,
-                                       block_size=5000):
+                                       block_size=5000,
+                                       do_truncation=True):
     """
     Now uses a memory efficient algorithm where block_size
     is the most of the matrix that is used at any given time
@@ -62,7 +63,14 @@ def recover_different_length_templates(affinities,examples,lengths,
     """
     affinities_trans = affinities.T
     affinities_trans /= affinities_trans.sum(1)[:,np.newaxis]
-    avg_lengths = (np.dot(affinities_trans,lengths)  + .5).astype(int)
+    if do_truncation:
+        avg_lengths = (np.dot(affinities_trans,lengths)  + .5).astype(int)
+    else:
+        avg_lengths = np.ceil(np.dot(affinities_trans,lengths)).astype(int)
+        max_length = avg_lengths.max()
+        for i in xrange(avg_lengths.shape[0]):
+            avg_lengths[i]=max_length
+    
     example_shapes = examples.shape[1:]
     num_data = examples.shape[0]
     if num_data < block_size:
@@ -168,12 +176,12 @@ def construct_linear_filter_structured_alternative(T1,T2,
     if T1.shape[0] < T2.shape[0]:
         T1p = np.vstack((T1,
                          np.tile(bgd,
-                  (T2.shape[0] - T1.shape[0],) + tuple(1 for i in xrange(len(T.shape-1))))))
+                  (T2.shape[0] - T1.shape[0],) + tuple(1 for i in xrange(len(T1.shape-1))))))
         T2p = T2
     elif T2.shape[0] < T1.shape[0]:
         T2p = np.vstack((T2,
                          np.tile(bgd,
-                  (T1.shape[0] - T2.shape[0],) + tuple(1 for i in xrange(len(T.shape-1))))))
+                  (T1.shape[0] - T2.shape[0],) + tuple(1 for i in xrange(len(T1.shape-1))))))
         T1p = T1
     else:
         T1p = T1

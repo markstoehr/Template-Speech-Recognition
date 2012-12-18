@@ -694,7 +694,7 @@ def get_pos_false_pos_false_neg_detect_points(detection_clusters_at_threshold,
                     examples_not_detected[example_id] = False
             if is_false_pos:
 
-                if c[0]-c[1] < 2:
+                if c[1]-c[0] < 2:
                     cluster_max_peak_loc=0
                     cluster_max_peak_val=detection_row[c[0]]
                     cluster_vals = detection_row[c[0]:c[1]]
@@ -803,6 +803,7 @@ def get_pos_false_pos_false_neg_detect_points(detection_clusters_at_threshold,
         if return_example_types:
             cur_example_for_typing+=len(start_end_times)
             assert cur_example_for_typing <= num_examples
+
     if return_example_types:
         return pos_times, false_pos_times, false_neg_times, example_types
     else:
@@ -814,6 +815,8 @@ def get_false_positives(false_pos_times,S_config,E_config,P_config=None,
                         waveform_offset=0,
                         verbose=False):
     return_false_positives = []
+    if verbose:
+        all_lengths=set()
     for utt_id, utt_false_positives in enumerate(false_pos_times):
         if len(utt_false_positives)== 0: 
             return_false_positives.append([])
@@ -821,6 +824,7 @@ def get_false_positives(false_pos_times,S_config,E_config,P_config=None,
         # we know its non-empty
         # will open the data
         print "utt_id=%d" %utt_id
+        print "utt_false_positives[0].utterances_path=%s\nutt_false_positives[0].file_index=%s" %(utt_false_positives[0].utterances_path,utt_false_positives[0].file_index)
         # for fp_id, fp in enumerate(utt_false_positives):
         #     print (fp.cluster_start_end[0]+fp.cluster_max_peak_loc
         #              + fp.cluster_detect_lengths[fp.cluster_max_peak_loc] - 
@@ -842,7 +846,26 @@ def get_false_positives(false_pos_times,S_config,E_config,P_config=None,
                 # we aren't estimating background here at all
                 avg_bgd=None,
                 waveform_offset=waveform_offset,
-                assigned_phns = (utt_false_positives[0].cluster_max_peak_phn,)))
+                assigned_phns = (utt_false_positives[0].cluster_max_peak_phn,),
+                verbose=verbose))
+        if verbose and len(return_false_positives) > 0:
+            for c in return_false_positives[-1]:
+                if c.E.shape[0] == 0:
+                    print "utt_id %d has E of shape %d" % (utt_id,c.E.shape[0])
+                    print "cluster inputs were these:"
+                    print tuple(
+                    (fp0.cluster_start_end[0]+fp0.cluster_max_peak_loc,
+                     fp0.cluster_start_end[0]+fp0.cluster_max_peak_loc
+                     + fp0.cluster_detect_lengths[fp0.cluster_max_peak_loc])
+                    for fp0 in utt_false_positives)
+                all_lengths.add(c.E.shape[0])
+        elif len(return_false_positives) > 0:
+            for c in return_false_positives[-1]:
+                if c.E.shape[0] == 0:
+                    print "utt_id %d has E of shape %d" % (utt_id,c.E.shape[0])
+    
+    if verbose:
+        print "All E lengths are: %s" % str(all_lengths)
     return tuple(return_false_positives)
 
 def get_true_positives(true_pos_times,S_config,E_config,P_config=None,
@@ -928,11 +951,12 @@ def recover_template_ids_detect_times(detect_times):
     return_template_ids = np.array([],dtype=int)
     for utt_id, utt_detect_times in enumerate(detect_times):
         if len(utt_detect_times) == 0: continue
-
+        print utt_id
         return_template_ids = np.append(
             return_template_ids, 
             tuple(
-                fp.cluster_detect_ids[fp.cluster_max_peak_loc]
+                fp.cluster_detect_ids[np.clip(fp.cluster_max_peak_loc,
+                                              0,len(fp.cluster_detect_ids)-1)]
                 for fp in utt_detect_times))
 
     return return_template_ids
