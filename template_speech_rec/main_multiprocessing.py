@@ -340,7 +340,8 @@ def visualize_processed_examples(Es,Elengths,Ss,Slengths,syllable_string='aa_r',
                                           E[:Elengths[E_id]],Ss[E_id][:Slengths[E_id]],part_id)
 
 
-def visualize_template(num_mix_parallel,syllable_string='aa_r',template_tag='',
+def visualize_template(num_mix_parallel,syllable_string='aa_r',
+                       template_tag='',
                                  savedir='data/',plot_prefix='vis_template'):
     max_length=0
     for num_mix in num_mix_parallel:
@@ -356,27 +357,65 @@ def visualize_template(num_mix_parallel,syllable_string='aa_r',template_tag='',
     for num_mix in num_mix_parallel:
         if num_mix > 1:
             outfile = np.load('%s%d_spec_templates_%s.npz' % (savedir,num_mix,template_tag))
-            templates = tuple( outfile['arr_%d'%i] for i in xrange(len(outfile.files)))
+            Stemplates = tuple( outfile['arr_%d'%i] for i in xrange(len(outfile.files)))
+            outfile = np.load('%s%d_templates_%s.npz' % (savedir,num_mix,template_tag))
+            Etemplates = tuple( outfile['arr_%d'%i] for i in xrange(len(outfile.files)))
+
         else:
-            templates = (np.load('%s1_spec_templates_%s.npy' % (savedir,template_tag))[0] ,)
-        for S_idx,S in enumerate(templates):
+            Stemplates = (np.load('%s1_spec_templates_%s.npy' % (savedir,template_tag))[0] ,)
+            Etemplates = (np.load('%s1_templates_%s.npy' % (savedir,template_tag))[0] ,)
+        for S_idx,SE in enumerate(itertools.izip(Stemplates,Etemplates)):
+            S,E=SE
             if len(S) == max_length:
                 view_S = S
+                view_E = E
             else:
                 view_S = np.vstack((S,
                                     S.min() * np.ones(
                             (max_length-len(S),) + S.shape[1:])))
-                             
+                view_E = np.vstack((E,
+                                    E.min() * np.ones(
+                            (max_length-len(E),) + E.shape[1:],
+                            )))
+            
+            view_E=view_E.swapaxes(2,1).swapaxes(0,1)
                                 
+            
             plt.close('all')
-            plt.figure()
-            plt.imshow(view_S.T.astype(np.float),aspect=.3,origin="lower")
-            plt.axes('off')
-            plt.savefig('%s%s_%s_%s_%d_%d.png' % (savedir,
+            
+            for plt_id in xrange(view_E.shape[0]/8):
+                plt.figure()
+            
+                for i in xrange(view_E.shape[0]):
+                    plt.subplot(4,2,i+1)
+                    plt.imshow(view_S.T.astype(np.float),aspect=.3,
+                               cmap=cm.bone,
+                               origin="lower",
+                               alpha=.8)
+                    plt.imshow(view_E[plt_id* view_E.shape[0]+i].T,vmin=0,vmax=1,
+                               origin="lower left",alpha=.4,aspect=.3)
+                    plt.axis('off')
+                plt.tight_layout()
+                plt.savefig('%s%s_%s_%s_%d_%d_%d_pos.png' % (savedir,
                                               syllable_string, template_tag,
                                               plot_prefix,
-                                              num_mix,S_idx))
-            plt.close('all')
+                                              num_mix,S_idx,plt_id))
+                plt.close('all')
+                plt.figure()
+                for i in xrange(view_E.shape[0]):
+                    plt.subplot(4,2,i+1)
+                    plt.imshow(view_S.T.astype(np.float),aspect=.3,cmap=cm.bone,
+                               origin="lower",
+                               alpha=.8)
+                    plt.imshow(1-view_E[plt_id* view_E.shape[0]+i].T,vmin=0,vmax=1,
+                           origin="lower left",alpha=.4,aspect=.3)
+                    plt.axis('off')
+                plt.tight_layout()
+                plt.savefig('%s%s_%s_%s_%d_%d_%d_neg.png' % (savedir,
+                                                          syllable_string, template_tag,
+                                                          plot_prefix,
+                                                          num_mix,S_idx,plt_id))
+                plt.close('all')
 
 
                                  
@@ -2096,8 +2135,10 @@ def main(args):
                                do_truncation=(not args.no_template_truncation))
 
     if args.visualize_templates:
-        visualize_template(num_mix_parallel,syllable_string,
-                               args.save_tag,args.savedir)
+        visualize_template(args.num_mix_parallel,syllable_string,
+                           args.template_tag,
+                           args.savedir,
+                           args.save_tag)
 
     print "Finished estimate_templates"
     if args.save_detection_setup == "test":
@@ -2830,7 +2871,7 @@ syllables and tracking their performance
     parser.add_argument('--test_suffix',metavar='Path',type=str,default='Data/Test/',help='A string that when appended to the root_path is the path to where the testing data is located')
     parser.add_argument('--visualize_processed_examples',type=str,default=None,
                         help='include this flag and a string to take all the stored examples and create plots of them with the string as a prefix for the plot name')
-    parser.add_argument('--visualize_templates',type=str,default=None,
+    parser.add_argument('--visualize_templates',action='store_true',
                         help='include this flag and a string to take all the stored templates and create plots of them with the string as a prefix for the plot name')
     parser.add_argument('--num_use_file_idx',default=-1,type=int,    
                         help='An integer, specifies the number of utterances to use in save_detection_setup so that way errors can be identified quickly, default is -1, which means that all files are used')
