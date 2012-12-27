@@ -38,7 +38,7 @@ def detect(np.ndarray[ndim=3,
     cdef np.uint16_t F_dim_2 = F.shape[2]
     cdef np.uint16_t LF_dim_0 = LF.shape[0]
     cdef np.uint16_t num_detections = F_dim_0 - LF_dim_0 +1
-    cdef np.ndarray[ndim=1,dtype=DTYPE_t] detect_scores = np.zeros(num_detections,
+    cdef np.ndarray[ndim=1,dtype=DTYPE_t] detect_scores = np.zeros(F_dim_0,
                                                                    dtype=DTYPE)
     cdef np.uint32_t cur_detection,filter_timepoint,frequency,part_identity,lo_spread_0_idx,hi_spread_0_idx,lo_spread_1_idx,hi_spread_1_idx,x0,x1
     # cur_detection is the time point in the overall vector
