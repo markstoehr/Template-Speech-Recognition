@@ -176,12 +176,12 @@ def construct_linear_filter_structured_alternative(T1,T2,
     if T1.shape[0] < T2.shape[0]:
         T1p = np.vstack((T1,
                          np.tile(bgd,
-                  (T2.shape[0] - T1.shape[0],) + tuple(1 for i in xrange(len(T1.shape-1))))))
+                  (T2.shape[0] - T1.shape[0],) + tuple(1 for i in xrange(len(T1.shape[0]-1))))))
         T2p = T2
     elif T2.shape[0] < T1.shape[0]:
         T2p = np.vstack((T2,
                          np.tile(bgd,
-                  (T1.shape[0] - T2.shape[0],) + tuple(1 for i in xrange(len(T1.shape-1))))))
+                  (T1.shape[0] - T2.shape[0],) + tuple(1 for i in xrange(len(T1.shape[0]-1))))))
         T1p = T1
     else:
         T1p = T1
