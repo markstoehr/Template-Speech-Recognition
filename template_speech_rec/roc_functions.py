@@ -815,6 +815,7 @@ def get_false_positives(false_pos_times,S_config,E_config,P_config=None,
                         waveform_offset=0,
                         verbose=False):
     return_false_positives = []
+    all_lengths= set()
     if verbose:
         all_lengths=set()
     for utt_id, utt_false_positives in enumerate(false_pos_times):
@@ -849,16 +850,25 @@ def get_false_positives(false_pos_times,S_config,E_config,P_config=None,
                 assigned_phns = (utt_false_positives[0].cluster_max_peak_phn,),
                 verbose=verbose))
         if verbose and len(return_false_positives) > 0:
-            for c in return_false_positives[-1]:
-                if c.E.shape[0] == 0:
-                    print "utt_id %d has E of shape %d" % (utt_id,c.E.shape[0])
-                    print "cluster inputs were these:"
-                    print tuple(
-                    (fp0.cluster_start_end[0]+fp0.cluster_max_peak_loc,
-                     fp0.cluster_start_end[0]+fp0.cluster_max_peak_loc
-                     + fp0.cluster_detect_lengths[fp0.cluster_max_peak_loc])
-                    for fp0 in utt_false_positives)
-                all_lengths.add(c.E.shape[0])
+            lengths =tuple( c.E.shape[0]
+                    for c in return_false_positives[-1])
+            print "all_lengths=%s" % str(all_lengths)
+            print "lengths=%s" % str(lengths)
+            all_lengths = all_lengths.union(lengths)
+            print "all_lengths=%s" % str(all_lengths)
+            if len(all_lengths) > 1:
+                import pdb; pdb.set_trace()
+
+            # for c in return_false_positives[-1]:
+            #     if c.E.shape[0] == 0:
+            #         print "utt_id %d has E of shape %d" % (utt_id,c.E.shape[0])
+            #         print "cluster inputs were these:"
+            #         print tuple(
+            #         (fp0.cluster_start_end[0]+fp0.cluster_max_peak_loc,
+            #          fp0.cluster_start_end[0]+fp0.cluster_max_peak_loc
+            #          + fp0.cluster_detect_lengths[fp0.cluster_max_peak_loc])
+            #         for fp0 in utt_false_positives)
+            #     all_lengths.add(c.E.shape[0])
         elif len(return_false_positives) > 0:
             for c in return_false_positives[-1]:
                 if c.E.shape[0] == 0:
