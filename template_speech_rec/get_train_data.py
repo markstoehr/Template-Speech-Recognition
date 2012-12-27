@@ -653,7 +653,8 @@ def _compute_detection_E(E,phns,E_flts,
 
     we also save the lengths to detect_lengths
     """
-    detect_lengths.append(E.shape[0])
+    detect_length = 0
+
 
 
 
@@ -665,7 +666,7 @@ def _compute_detection_E(E,phns,E_flts,
                                                                verbose=verbose)
 
     detection_array[len(detect_lengths)-1,
-                    :E.shape[0]-linear_filters_cs[0][0].shape[0]+1]\
+                    :E.shape[0]]\
                     = (compute_likelihood_linear_filter.detect(
                             E.astype(np.uint8),
                             linear_filters_cs[0][0])
@@ -676,25 +677,25 @@ def _compute_detection_E(E,phns,E_flts,
     filter_id = 0
     if len(linear_filters_cs) > 1:
         for cur_filt,cur_c in linear_filters_cs[1:]:
+            detect_length = E.shape[0]
             filter_id += 1
             v = compute_likelihood_linear_filter.detect(E.astype(np.uint8),
                                                                                              cur_filt) + cur_c
+
             if detection_template_ids is not None:
                 detection_template_ids[len(detect_lengths)-1,
-                                       :E.shape[0]-cur_filt.shape[0]+1]\
+                                       :E.shape[0]]\
                                        [v >
                                         detection_array[
                                                len(detect_lengths)-1,
-                                               :E.shape[0]
-                                               -cur_filt.shape[0]+1]] = filter_id
+                                               :E.shape[0]]] = filter_id
 
             detection_array[len(detect_lengths)-1,
-                    :E.shape[0]-cur_filt.shape[0]+1] = np.maximum(
+                    :E.shape[0]] = np.maximum(
                 v,
                 detection_array[
                             len(detect_lengths)-1,
-                            :E.shape[0]
-                            -cur_filt.shape[0]+1])
+                            :E.shape[0]])
 
 
     if np.any(np.isnan(detection_array)) == True:
@@ -705,6 +706,8 @@ def _compute_detection_E(E,phns,E_flts,
     else:
         example_start_end_times.append([])
 
+    detect_lengths.append(detect_length)
+    print "E lenth = %d, detect_length = %d" % (E.shape[0],detect_length)
 
 def get_vals_pad(x,idx,default_val,window_half_length):
     hi = len(x)
@@ -1102,10 +1105,17 @@ def get_example_over_interval(E,start_idx,end_idx,bgd=None):
 
 def get_example_with_offset(F,offset,start_idx,end_idx,default_val=0):
     if len(F.shape) > 1:
-        return np.vstack(
-            (default_val * np.ones((-min(start_idx-offset,0),)+F.shape[1:],dtype=F.dtype),
-             F[start_idx:end_idx],
-             default_val * np.ones((-min(end_idx-offset,0),) + F.shape[1:],dtype=F.dtype)))
+        if end_idx <= F.shape[0]:
+            return np.vstack(
+                (default_val * np.ones((-min(start_idx-offset,0),)+F.shape[1:],dtype=F.dtype),
+                 F[start_idx:end_idx],
+                 default_val * np.ones((-min(end_idx-offset,0),) + F.shape[1:],dtype=F.dtype)))
+        else: 
+            return np.vstack(
+                (default_val * np.ones((-min(start_idx-offset,0),)+F.shape[1:],dtype=F.dtype),
+                 F[start_idx:end_idx],
+                 default_val * np.ones((end_idx-F.shape[0],)+F.shape[1:],dtype=F.dtype),
+                 default_val * np.ones((-min(end_idx-offset,0),) + F.shape[1:],dtype=F.dtype)))
     elif type(F[0]) == np.string_:
         return np.hstack(
             (np.zeros((-min(start_idx-offset,0),),dtype=F.dtype),
@@ -1185,11 +1195,11 @@ def get_syllable_features(utterance_directory,data_idx,syllable,
     if (waveform_offset is None or waveform_offset == 0) and (S is not None and P is not None):
         return [ SyllableFeatures(
                 s = (utterance.s)[sflts[syllable_start]:sflts[syllable_start+syllable_length]],
-                S = S[S_flts[syllable_start]:S_flts[syllable_start+syllable_length]],
+                S = get_example_with_offset(S,offset,S_flts[syllable_start],S_flts[syllable_start+syllable_length]),
                 S_config = S_config,
-                E = P[P_flts[syllable_start]:P_flts[syllable_start+syllable_length]],
+                E = get_example_with_offset(P,offset,P_flts[syllable_start],P_flts[syllable_start+syllable_length]),
                 E_config = {'E':E_config, 'P':P_config},
-                offset = 0,
+                offset = offset,
                 phn_context = get_phn_context(syllable_start,
                                               syllable_start+syllable_length,
                                               utterance.phns,
@@ -1224,11 +1234,11 @@ def get_syllable_features(utterance_directory,data_idx,syllable,
     elif (waveform_offset is None or waveform_offset == 0) and (S is not None and E is not None):
         return [ SyllableFeatures(
                 s = (utterance.s)[sflts[syllable_start]:sflts[syllable_start+syllable_length]],
-                S = S[S_flts[syllable_start]:S_flts[syllable_start+syllable_length]],
+                S = get_example_with_offset(S,offset,S_flts[syllable_start],S_flts[syllable_start+syllable_length]),
                 S_config = S_config,
-                E = E[E_flts[syllable_start]:E_flts[syllable_start+syllable_length]],
+                E = get_example_with_offset(E,offset,E_flts[syllable_start],E_flts[syllable_start+syllable_length]),
                 E_config = E_config,
-                offset = 0,
+                offset = offset,
                 phn_context = get_phn_context(syllable_start,
                                               syllable_start+syllable_length,
                                               utterance.phns,
@@ -1345,6 +1355,11 @@ def get_syllable_features_cluster(utterance_directory,data_idx,cluster_list,
                 start_end=cluster)
                  for s_cluster,cluster in itertools.izip(s_cluster_list,cluster_list))
     elif (waveform_offset > 0) and (S is not None and P is not None):
+        for s_cluster,cluster in itertools.izip(s_cluster_list,cluster_list):
+            if cluster[1] > P.shape[0]:
+                print "one cluster is too big: %d" % (cluster[1]-P.shape[0])
+                
+
         return tuple( SyllableFeatures(
                 s = get_example_with_offset(utterance.s,
                                             waveform_offset,
