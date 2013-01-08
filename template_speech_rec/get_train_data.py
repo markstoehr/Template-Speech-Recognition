@@ -633,6 +633,40 @@ def _save_detection_results_mixture(s,phns,flts,
         example_start_end_times.append([])
 
 
+def compute_detection_E(E,phns,E_flts,
+                        detection_array,
+                        cascade,
+                         syllable,                        
+                         phn_mapping=None,
+                         verbose=False):
+    """
+    Detection array will have detection scores saved to it
+    and we will make entries of detection_array that are trailing
+    be some minimum value: min_val, which is initially None
+    and if it is None then it is set to
+         - 2* np.abs(detection_array[next_id,:next_length]).max()
+         and then it is set to that threshold the rest of the time
+
+    we also save the lengths to detect_lengths
+    """
+    example_starts, example_ends = get_examples_from_phns_ftls(syllable,
+                                                               phns,
+                                                               E_flts,
+                                                               None,
+                                                               E.shape[0],
+                                                               verbose=verbose)
+
+
+    # detection_template_ids is either None or Zero so we are set
+
+    filter_id = -1
+    for cur_filt,cur_c in cascade:
+        filter_id += 1
+        detect_array[filter_id] = compute_likelihood_linear_filter.detect(E.astype(np.uint8),
+                                                    cur_filt) + cur_c
+
+    return E_length-1,zip(example_starts,example_ends)
+
 
 def _compute_detection_E(E,phns,E_flts,
                          detection_array,
@@ -665,7 +699,8 @@ def _compute_detection_E(E,phns,E_flts,
                                                                E.shape[0],
                                                                verbose=verbose)
 
-    detection_array[len(detect_lengths)-1,
+    print "len(detect_lengths)=%d" % (len(detect_lengths))
+    detection_array[len(detect_lengths),
                     :E.shape[0]]\
                     = (compute_likelihood_linear_filter.detect(
                             E.astype(np.uint8),
@@ -683,18 +718,18 @@ def _compute_detection_E(E,phns,E_flts,
                                                                                              cur_filt) + cur_c
 
             if detection_template_ids is not None:
-                detection_template_ids[len(detect_lengths)-1,
+                detection_template_ids[len(detect_lengths),
                                        :E.shape[0]]\
                                        [v >
                                         detection_array[
-                                               len(detect_lengths)-1,
+                                               len(detect_lengths),
                                                :E.shape[0]]] = filter_id
 
-            detection_array[len(detect_lengths)-1,
+            detection_array[len(detect_lengths),
                     :E.shape[0]] = np.maximum(
                 v,
                 detection_array[
-                            len(detect_lengths)-1,
+                            len(detect_lengths),
                             :E.shape[0]])
 
 
@@ -703,10 +738,16 @@ def _compute_detection_E(E,phns,E_flts,
 
     if example_starts is not None:
         example_start_end_times.append(zip(example_starts,example_ends))
+        for estart, eend in itertools.izip(example_starts,example_ends):
+            if np.max(detection_array[len(detect_lengths),
+                                      max(estart-11,0):min(estart+11,E.shape[0])]) == 0.:
+                import pdb; pdb.set_trace()
+
     else:
         example_start_end_times.append([])
 
     detect_lengths.append(detect_length)
+    
     print "E lenth = %d, detect_length = %d" % (E.shape[0],detect_length)
 
 def get_vals_pad(x,idx,default_val,window_half_length):
