@@ -30,7 +30,8 @@ def get_max_detection_in_syllable_windows(detection_array,
                                           detection_lengths,
                                           window_start,
                                           window_end,
-                                          verbose=False):
+                                          verbose=False,
+                                          return_argsort_idx=False):
     """
     The max detect vals essentially returns the potential thresholds
     for detecting examples.  In particular for a given instance in the
@@ -55,6 +56,7 @@ def get_max_detection_in_syllable_windows(detection_array,
         default is 1/3 of the template length
     """
     max_detect_vals = []
+    utterance_ids = []
     for example_idx,start_end_times in enumerate(example_start_end_times):
         for start_time, end_time in start_end_times:
             detect_vals = detection_array[example_idx,max(start_time+window_start,0):
@@ -67,9 +69,50 @@ def get_max_detection_in_syllable_windows(detection_array,
                 val = -np.inf
             if verbose:
                 print "Utt: %d, loc: %d, val:%g" % (example_idx,start_time,val)
+            if np.abs(val) < .1:
+                import pdb; pdb.set_trace()
             max_detect_vals.append(val)
-    return np.sort(max_detect_vals)
+            utterance_ids.append(example_idx)
+    if return_argsort_idx:
+        return np.sort(max_detect_vals),np.argsort(max_detect_vals),np.array(utterance_ids)
+    else:
+        return np.sort(max_detect_vals)
 
+def get_limited_overlap_detection_sorted_placement(detection_vals,
+                                                   detection_length,
+                                                   detection_template_ids,
+                                                   template_lengths,
+                                                   threshold,
+                                                   overlap_percent):
+    """
+    Parameters
+    ==========
+    detection_vals: array
+        array with the value of the log-likelihood ratio test statistic at each point
+    detection_lengths: array
+        support of the detection statistic (modulo a constant factor)
+    detection_template_ids: array
+        the template id for each of the template scores, indicates which
+        object model attained the maximal score
+    template_lengths: array
+        length for each template for overlap calculation 
+    threshold: float
+        value for the detection threshold
+    overlap_percent: float
+        amount of allowed overlap among placed templates
+    """
+    detection_vals_sorted_ids = np.argsort(detection_vals)[::-1]
+    placed_detections = np.zeros(len(detection_vals),dtype=np.uint8)
+    detections = ()
+    for idx, detection_start in enumerate(detection_vals_sorted_ids):
+        detection_end = detection_start + template_lengths[detection_template_ids[detection_start]]
+        detection_middle = (detection_start+detection_end)/2
+        detection_end_length = float(detection_end-detection_middle)
+        detection_start_length = float(detection_start-detection_middle)
+        if placed_detections[detection_middle:detection_end].sum()/detection_end_length <= overlap_percent and placed_detections[detection_start:detection_middle].sum()/detection_start_length <= overlap_percent:
+            placed_detections[detection_start:detection_end] = 1
+            detections += (detection_vals[detection_start],(detection_start,detection_end))
+    
 
 def get_max_above_threshold(detection_vals,detection_length,threshold,C0):
     l = detection_length-C0+1
@@ -200,6 +243,54 @@ def generate_example_detection_windows(example_start_end_times,
         tuple( (s -win_front_length, s+win_back_length)
                for s,e in utt_examples)
         for utt_examples in example_start_end_times)
+
+
+def _get_detect_clusters_limited_overlaps(threshold,
+                                          detection_array,
+                                          detection_lengths,
+                                          detection_template_ids,
+                                          template_lengths,
+                                          overlap_percent=.10):
+    """
+    a clustering is dependent upon a threshold level the treshold
+    levels are the max_detect_vals for each value in max_detect_vals
+    there is going to be a cluster these clusters are determined by
+    the detection array, and the parameters for the shapes of the
+    clusters the output for a given threshold should be a list of
+    segments for each utterance in the rows of detection_array
+
+    limited overlaps means that we take the top scoring detection as 
+    the truth and then we only consider detections that have limited overlap
+    (governed by overlap_percent) with that detection, and we keep placing detections
+    until we don't have any more to place or until we hit the threshold.
+
+    Parameters:
+    ===========
+    threshold: float
+        detection threshold
+        detection_vals: array
+        array with the value of the log-likelihood ratio test statistic at each point
+    detection_lengths: array
+        support of the detection statistic (modulo a constant factor)
+    detection_template_ids: array
+        the template id for each of the template scores, indicates which
+        object model attained the maximal score
+    template_lengths: array
+        length for each template for overlap calculation 
+
+    """
+    return tuple(
+        perform_detection_time_limited_overlap_placement(
+            get_limited_overlap_detection_sorted_placement(detect_vals,
+                                    detect_length,
+                                    detect_template_ids,
+                                    template_lengths,
+                                    threshold,overlap_percent),
+            C0,C1)
+        for detect_vals, detect_length,detect_template_ids in itertools.izip(detection_array,
+                                                         detection_lengths,
+                                                                             detection_template_ids))
+
 
 def _get_detect_clusters_single_threshold(threshold,
                                           detection_array,
@@ -415,6 +506,28 @@ def get_detection_rates_from_clusters_utterance(seq_of_true_segments,
             for true_segment, detected_clusters in itertools.izip(seq_of_true_segments,
                                       seq_of_detected_clusters)]).T
     return stats_rates[1],stats_rates[2]
+
+def get_detections_lo_nms(potential_thresholds,
+                  detection_array,
+                  detection_lengths,
+                  example_start_end_times,
+
+                  win_front_length = None,
+                  win_back_length = None,
+                  return_detected_examples=False,
+                  return_clusters = False):
+    """
+    Get the detections where limited overlap is allowed and 
+    we block out overlapping hypotheses, this is done 
+    with threshold where we place detections until the
+    likelihood threshold for the utterance is achieved
+    
+    we also have a mode where we keep adding the hypotheses until we 
+    start losing likelihood
+    """
+    
+    
+
 
 def get_roc_curve(potential_thresholds,
                   detection_array,
