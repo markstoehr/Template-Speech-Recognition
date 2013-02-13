@@ -347,3 +347,49 @@ def spread_patches(np.ndarray[ndim=2,dtype=np.int64_t] X,
                     if X[x0,x1] > 0:
                         bin_out_map[i,j,X[x0,x1]-1] = 1
     return bin_out_map
+
+def spread_graph_patches(np.ndarray[ndim=3,dtype=np.uint8_t] X,
+                         np.ndarray[ndim=2,dtype=np.uint8_t] part_graph,
+                         ):
+    """
+    Performs patch spreading according to Bernstein and Amit [1].
+
+    Parameters
+    ----------
+    X : ndarray[ndim=2,dtype=int]
+        Best feature fit for the different locations on the 
+        data.  A feature of value zero means that there were
+        insufficient edges in that region
+        a feature value in [1 ... num_parts] means that 
+        a feature was a best fit there.
+    spread_0_dim : int
+        Radius of this size indicates the spread region along
+        the 0th axis.  0 corresponds to no spread. 1 Corresponds
+        to spreading over 1 cell in both directions (boundaries
+        are handled by assuming zeros in all other coordinates)
+    spread_1_dim : int
+        Radius of the spread along dimension 1
+    num_parts : int
+        Number of parts.
+
+    Returns
+    -------
+    bin_out_map : np.ndarray[ndim=3,dtype=np.uint8]
+        Performs spreading and returns TODO.
+
+    References
+    ----------
+    [1] E.J. Bernstein, Y. Amit : Part-Based Statistical Models for Object Classification and Detection (2005)
+    """
+    cdef np.uint16_t X_dim_0 = X.shape[0]
+    cdef np.uint16_t X_dim_1 = X.shape[1]
+    cdef np.uint16_t num_parts = X.shape[2]
+
+    cdef int i,j,part_id1,part_id2,lo_spread_0_idx,hi_spread_0_idx,lo_spread_1_idx,hi_spread_1_idx,x0,x1
+    for i in range(X_dim_0):
+        for j in range(X_dim_1):
+            for part_id1 in range(num_parts):
+                if X[i,j,part_id1] > 0:
+                    for part_id2 in range(num_parts):
+                        if part_graph[part_id1,part_id2]:
+                            X[i,j,part_id2]=1
