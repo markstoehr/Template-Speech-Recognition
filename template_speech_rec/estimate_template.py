@@ -140,17 +140,18 @@ def register_templates_time_zero(examples,lengths=None,min_prob=.01):
                    1-min_prob), registered_examples
 
 def construct_linear_filters(Ts,
-                            bgd):
+                            bgd,all_cs=False):
     """
     Bgd is the tiled matrix of bgd vectors slaooed onto each other
+    all_cs option returns many different cs corresponding to different lengths of the template
     """
     return tuple(
-        construct_linear_filter(T,bgd)
+        construct_linear_filter(T,bgd,all_cs=all_cs)
         for T in Ts)
 
 
 def construct_linear_filter(T,
-                            bgd,min_prob=.01):
+                            bgd,min_prob=.01,all_cs=False):
     """
     Bgd is the tiled matrix of bgd vectors slaooed onto each other
     """
@@ -160,7 +161,11 @@ def construct_linear_filter(T,
     T_inv = 1. - T
     Bgd_inv = 1. - Bgd
     C_exp_inv = T_inv/Bgd_inv
-    c = np.log(C_exp_inv).sum()
+    if all_cs:
+        c = np.cumsum(np.log(C_exp_inv.reshape(len(C_exp_inv),
+                                               np.prod(C_exp_inv.shape[1:]))).sum(1)[::-1])[::-1]
+    else:
+        c = np.log(C_exp_inv).sum()
     expW = (T/Bgd) / C_exp_inv
     return np.log(expW).astype(np.float32), c
 
