@@ -1681,7 +1681,33 @@ PartsParameters = collections.namedtuple("PartsParameters",
                                             +" logInvParts"
                                             +" spreadRadiusX"
                                             +" spreadRadiusY"
-                                            +" numParts"))
+                                            +" numParts"
+                                            +" partGraph"
+                                            +" parts_S"))
+
+def makePartsParameters(use_parts,
+                        parts_path,
+                        bernsteinEdgeThreshold,
+                        logParts,
+                        logInvParts,
+                        spreadRadiusX,
+                        spreadRadiusY,
+                        numParts,
+                        partGraph=None,
+                        parts_S=None):
+    pp2= PartsParameters(use_parts=use_parts,
+                           parts_path=parts_path,
+                           bernsteinEdgeThreshold=bernsteinEdgeThreshold,
+                           logParts=logParts,
+                           logInvParts=logInvParts,
+                           spreadRadiusX=spreadRadiusX,
+                           spreadRadiusY=spreadRadiusY,
+                           numParts=numParts,
+                         partGraph=partGraph,
+                         parts_S=parts_S)
+
+
+    return pp2
 
 
 def get_edge_features(S,parameters,verbose=False):
@@ -1700,8 +1726,12 @@ def get_part_features(E,parameters,verbose=False):
     out = cp.code_parts(E.astype(np.uint8),
                         parameters.logParts,parameters.logInvParts,parameters.bernsteinEdgeThreshold)
     max_responses = np.argmax(out,-1)
-    return cp.spread_patches(max_responses,
-                                    parameters.spreadRadiusX,
-                                    parameters.spreadRadiusY,
-                                    parameters.numParts)
+    spread_responses = cp.spread_patches(max_responses,
+                                         parameters.spreadRadiusX,
+                                         parameters.spreadRadiusY,
+                                         parameters.numParts)
+    if parameters.partGraph is not None:
+        cp.spread_graph_patches(spread_responses,
+                          parameters.partGraph)
+    return spread_responses
 
