@@ -28,7 +28,7 @@ def main(args):
 
     for phn in phns:
         print "\n"
-        print "../../template_speech_rec/main_multiprocessing.py --detect_object %s --visualize_templates --savedir data/ --save_tag %s_edge --num_mix_parallel 1 2 3 4 5 6 7 8 9" % (phn,phn)
+        print "../../template_speech_rec/main_multiprocessing.py --detect_object %s --template_tag %s_edge --savedir data/ --save_tag %s_edge --num_mix_parallel 1 2 3 4 5 6 7 8 9 --root_path /var/tmp/stoehr/Temlate-Speech-Recognition/ --save_detection_setup test --old_max_detect_tag %s_edge" % (phn,phn,phn,phn)
 #        print "../../template_speech_rec/main_multiprocessing.py --detect_object %s --save_syllable_features_to_data_dir --savedir data/ --save_tag %s_edge" % (phn,phn)
 #        print "../../template_speech_rec/main_multiprocessing.py --detect_object %s --estimate_templates --num_mix_parallel 1 2 3 4 5 6 7 8 9 --savedir data/ --save_tag %s_edge --template_tag %s_edge" % (phn,phn,phn)
 #        print "rm data/*lengths*"

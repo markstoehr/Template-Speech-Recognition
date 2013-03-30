@@ -407,7 +407,8 @@ def save_detection_setup(num_mix,train_example_lengths,
                          pp=None,
                          save_tag='',template_tag=None,savedir='data/',verbose=False):
     bgd = np.load('%sbgd.npy' %savedir)
-    templates =get_templates(num_mix,template_tag=template_tag)
+    templates =get_templates(num_mix,template_tag=template_tag,
+                             savedir=savedir)
     detection_array = np.zeros((train_example_lengths.shape[0],
                             train_example_lengths.max() + 2),dtype=np.float32)
     linear_filters_cs = et.construct_linear_filters(templates,
@@ -500,7 +501,7 @@ def get_fpr_tpr_tagged(num_mix,syllable_string,
     example_start_end_times = pickle.load(out)
     out.close()
 
-    templates=get_templates(num_mix)
+    templates=get_templates(num_mix,template_tag=save_tag,savedir=savedir)
     window_start = -int(np.mean(tuple( t.shape[0] for t in templates))/3.+.5)
     window_end = -window_start
     max_detect_vals = rf.get_max_detection_in_syllable_windows(detection_array,
@@ -576,7 +577,8 @@ def get_tagged_detection_clusters(num_mix,thresh_percent,save_tag='',use_thresh=
 
     detection_lengths = np.load('%sdetection_lengths_%d_%s.npy' % (savedir,num_mix,
                                                                   save_tag))
-    templates=get_templates(num_mix)
+    templates=get_templates(num_mix,template_tag=old_max_detect_tag,
+                            savedir=savedir)
     C0 = int(np.mean(tuple( t.shape[0] for t in templates))+.5)
     C1 = int( 33 * 1.5 + .5)
     thresh_id = int((len(max_detect_vals)-1) *thresh_percent/float(100))
@@ -806,7 +808,8 @@ def get_detection_clusters_by_label(num_mix,utterances_path,
     example_start_end_times = pickle.load(out)
     out.close()
 
-    templates=get_templates(num_mix)
+    templates=get_templates(num_mix,template_tag=save_tag,
+                            savedir=savedir)
     template_lengths = np.array([len(t) for t in templates])
 
     window_start = -int(np.mean(tuple( t.shape[0] for t in templates))/3.+.5)
@@ -1640,7 +1643,7 @@ def main(args):
                                      test_path,test_file_indices,args.detect_object,sp,
                                      ep,leehon_mapping,
                                                                        pp=pp,
-                                                                       save_tag=args.save_tag,template_tag='train_2',savedir=args.savedir,verbose=args.v))
+                                                                       save_tag=args.save_tag,template_tag=args.old_max_detect_tag,savedir=args.savedir,verbose=args.v))
                 jobs.append(p)
                 p.start
 
@@ -1656,7 +1659,7 @@ def main(args):
                                                                        args.detect_object,sp,
                              ep,leehon_mapping,
                                                                        pp=pp,
-                                                                       save_tag=args.save_tag,template_tag='train_2',savedir=args.savedir,verbose=args.v))
+                                                                       save_tag=args.save_tag,template_tag=args.save_tag,savedir=args.savedir,verbose=args.v))
                 jobs.append(p)
                 p.start
         else:
@@ -1664,7 +1667,7 @@ def main(args):
                                  train_path,train_file_indices,args.detect_object,sp,
                                  ep,leehon_mapping,
                                  pp=pp,
-                                 save_tag=args.save_tag,template_tag='train_2',savedir=args.savedir,verbose=args.v)
+                                 save_tag=args.save_tag,template_tag=args.save_tag,savedir=args.savedir,verbose=args.v)
 
     if args.plot_detection_outs != '':
         print "Plotting the detection outputs"
@@ -1681,6 +1684,93 @@ def main(args):
                            return_clusters=False,
                            save_tag=args.save_tag,
                            get_plots=True)
+    if args.get_detection_clusters_by_label:
+
+        if len(args.num_mix_parallel) > 0:
+            print "doing parallel"
+            jobs = []
+            for num_mix in args.num_mix_parallel:
+
+                out = open('%sdetection_clusters_single_thresh_%d_%d_%s.pkl' % (args.savedir,num_mix,
+                                                                                args.thresh_percent,
+                                                                                args.save_tag)
+                                                                                                                                                     ,'rb')
+                detection_clusters = cPickle.load(out)
+                out.close()
+                (pos_times,
+                 false_pos_times,
+                 false_neg_times,
+                example_types,
+                ) = get_detection_clusters_by_label(args.num_mix,train_path,
+                                                    train_file_indices,args.thresh_percent,single_threshold=True,save_tag=args.save_tag,verbose=args.v,return_example_types=True,
+                                                    detect_clusters=detection_clusters)
+                out = open('%s%s_false_pos_times_%d_%d_%s.pkl' % (args.savedir,syllable_string,num_mix,
+                                                                  args.thresh_percent,args.save_tag),'wb')
+                pickle.dump(false_pos_times,out)
+                out.close()
+                out = open('%s%s_pos_times_%d_%d_%s.pkl' % (args.savedir,syllable_string,num_mix,
+                                                                                                         args.thresh_percent,args.save_tag),'wb')
+                pickle.dump(pos_times,out)
+                out.close()
+                out = open('%s%s_false_neg_times_%d_%d_%s.pkl' % (args.savedir,syllable_string,num_mix,
+                                                                  args.thresh_percent,args.save_tag),'wb')
+                pickle.dump(false_neg_times,out)
+                out.close()
+
+            else:
+                out = open('%sdetection_clusters_single_thresh_%d_%d_%s.pkl' % (args.savedir,args.num_mix,
+                                                                                args.thresh_percent,
+                                                                                args.save_tag)
+                                                                                                                                                 ,'rb')
+                detection_clusters = cPickle.load(out)
+                out.close()
+                (pos_times,
+                 false_pos_times,
+                 false_neg_times,
+                 example_types,
+                 ) = get_detection_clusters_by_label(args.num_mix,train_path,
+                                                     train_file_indices,args.thresh_percent,single_threshold=True,save_tag=args.save_tag,verbose=args.v,return_example_types=True,
+                                                     detect_clusters=detection_clusters)
+                out = open('%s%s_false_pos_times_%d_%d_%s.pkl' % (args.savedir,syllable_string,args.num_mix,
+                                                                  args.thresh_percent,args.save_tag),'wb')
+                pickle.dump(false_pos_times,out)
+                out.close()
+                out = open('%s%s_pos_times_%d_%d_%s.pkl' % (args.savedir,syllable_string,args.num_mix,
+                                                            args.thresh_percent,args.save_tag),'wb')
+                pickle.dump(pos_times,out)
+                out.close()
+                out = open('%s%s_false_neg_times_%d_%d_%s.pkl' % (args.savedir,syllable_string,args.num_mix,
+                                                                  args.thresh_percent,args.save_tag),'wb')
+                pickle.dump(false_neg_times,out)
+                out.close()
+
+    if args.get_false_pos_examples:
+        print args.num_mix
+        if len(args.num_mix_parallel) > 0:
+            print "doing parallel"
+            jobs = []
+            for num_mix in args.num_mix_parallel:
+                p =multiprocessing.Process(target=
+                                           get_false_pos_examples(num_mix,syllable_string,
+                                                                  sp,ep,waveform_offset=10,
+                                                                  thresh_percent=args.thresh_percent,save_tag=args.save_tag,
+                                                                  savedir=args.savedir,
+                                                                  verbose=args.v))
+                jobs.append(p)
+                p.start
+
+
+    if args.run_fp_detector:
+        if len(args.num_mix_parallel) > 0:
+            print "doing parallel"
+            jobs = []
+            for num_mix in args.num_mix_parallel:
+                p =multiprocessing.Process(target=run_fp_detector(num_mix,syllable_string,args.save_tag,make_plots=args.make_plots,
+                                                                  thresh_percent=args.thresh_percent,save_tag=args.save_tag,savedir=args.savedir,verbose=args.v))
+                jobs.append(p)
+                p.start
+
+
     if args.get_detection_clusters_for_2nd_stage:
         print "Getting detection clusters for 2nd stage"
         if len(args.num_mix_parallel) > 0:
@@ -2075,6 +2165,12 @@ syllables and tracking their performance
     parser.add_argument('--train_path',metavar='Path',
                         type=str,help="Path to the file where the parts are saved or will be saved",
                         default='/home/mark/Template-Speech-Recognition/Data/Train/')
+    parser.add_argument('--get_detection_clusters_by_label',action="store_true",
+                        help="Include this flag to just run this particular function for diagnosing the clustered detections")
+    parser.add_argument('--get_false_pos_examples',action="store_true",
+                        help="Include this flag to just run this particular function for retrieving false positive examples")
+    parser.add_argument('--run_fp_detector',action="store_true",
+                        help="Gets the basic SVM and second stage models setup for detection")
 
     syllable=('aa','r')
     threshval = 100
