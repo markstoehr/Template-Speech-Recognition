@@ -25,7 +25,7 @@ sp = gtrd.makeSpectrogramParameters(
     use_mel=False,
     )
 
-ep = gtrd.EdgemapParameters(block_length=40,
+ep = gtrd.makeEdgemapParameters(block_length=40,
                             spread_length=1,
                             threshold=.7)
 
@@ -93,7 +93,7 @@ def get_params(args,
             kernel_length=7,
             freq_cutoff=3000,
             use_mel=args.use_mel),
-            gtrd.EdgemapParameters(block_length=args.edgeMapBlockLength,
+            gtrd.makeEdgemapParameters(block_length=args.edgeMapBlockLength,
                                         spread_length=args.edgeMapSpreadLength,
                                         threshold=args.edgeMapThreshold),
             root_path,utterances_path,
