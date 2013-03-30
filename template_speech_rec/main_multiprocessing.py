@@ -117,8 +117,10 @@ def get_params(sample_rate=16000,
         np.save("%strain_example_lengths.npy" %savedir,train_example_lengths)
 
     if os.path.exists('%strain_classify_lengths.npy' %savedir):
+        print "loaded train classify lengths"
         train_classify_lengths = np.load("%strain_classify_lengths.npy" %savedir)
     else:
+        print "getting train classify lengths"
         train_classify_lengths = gtrd.get_classify_lengths(train_file_indices,
                                                           train_path)
         np.save("%strain_classify_lengths.npy" %savedir,train_classify_lengths)
@@ -196,6 +198,67 @@ def get_params(sample_rate=16000,
 # need to access the files where we perform the estimation
 #
 
+def get_leehon39_dict():
+    """
+    Output:
+    ======
+    leehon_mapping:
+       dictionary with the 39 phone classes from leehon paper
+    rejected_phones:
+       rejected phones
+    use_phns:
+       use_phns
+    """
+    leehon_groups = {
+        'sil': ['h#','#h','pau','bcl','dcl','gcl','pcl','tcl','kcl','qcl','epi'],
+        'iy': ['iy'],
+        'ih': ['ih','ix'],
+        'eh': ['eh'],
+        'ae': ['ae'],
+        'ax': ['ax','ah','ax-h'],
+        'uw': ['uw','ux'],
+        'uh': ['uh'],
+        'ao': ['ao','aa'],
+        'ey': ['ey'],
+        'ay': ['ay'],
+        'oy': ['oy'],
+        'aw': ['aw'],
+        'ow': ['ow'],
+        'l': ['l','el'],
+        'r': ['r'],
+        'y': ['y'],
+        'w': ['w'],
+        'er': ['axr','er'],
+        'm': ['m','em'],
+        'n': ['n','nx','en'],
+        'ng': ['ng','eng'],
+        'ch': ['ch'],
+        'jh': ['jh'],
+        'dh': ['dh'],
+        'b': ['b'],
+        'd':['d'],
+        'dx': ['dx'],
+        'g': ['g'],
+        'p': ['p'],
+        't': ['t'],
+        'k': ['k'],
+        'z': ['z'],
+        'zh': ['zh','sh'],
+        'v': ['v'],
+        'f': ['f'],
+        'th': ['th'],
+        's': ['s'],
+        'hh': ['hh','hv'],
+        'q': ['q']
+        }
+    
+    rejected_phns = ['sil','q']
+    leehon_mapping = dict(reduce(lambda x,y: x+y,
+                                 (tuple( (v_elem,k) 
+                                        for v_elem in v)
+                                 for k,v in leehon_groups.items())))
+    return leehon_mapping, rejected_phns,leehon_groups.keys()
+
 def get_leehon_mapping():
     """
     Output:
@@ -248,6 +311,70 @@ def get_leehon_mapping():
 
     use_phns = np.array(list(set(leehon_mapping.values())))
     return leehon_mapping, use_phns
+
+
+def save_all_leehon_phones(utterances_path,file_indices,leehon_mapping,phn,
+                           sp,ep,pp,save_tag,savedir,mel_smoothing_kernel,
+                           offset,waveform_offset,num_use_file_idx=-1):
+    """
+    Parameters:
+    ==========
+    Output:
+    =======
+    """
+
+    
+    if num_use_file_idx == -1:
+        num_use_file_idx = len(file_indices)
+
+    phn_features,avg_bgd, avg_spec_bgd=gtrd.get_syllable_features_directory(
+        utterances_path,
+        file_indices[:num_use_file_idx],
+        (phn,),
+        S_config=sp,E_config=ep,offset=offset,
+        E_verbose=False,return_avg_bgd=True,
+        waveform_offset=15,
+        phn_mapping=leehon_mapping,
+        P_config=pp,
+        mel_smoothing_kernel=mel_smoothing_kernel,
+        do_avg_bgd_spec=True)        
+    bgd = np.clip(avg_bgd.E,.01,.4)
+    avg_spec_bgd = avg_spec_bgd.E
+    np.save('%sbgd_%s.npy' % (savedir,save_tag),bgd)
+    np.save('%sspec_bgd_%s.npy' % (savedir,save_tag),avg_spec_bgd)
+        
+    example_mat = gtrd.recover_example_map(phn_features)
+
+    avg_bgd_std = gtrd.AverageBackground()
+    for e in phn_features:
+        if len(e) > 0: break
+
+    for fl in file_indices[:num_use_file_idx]:
+        utterance = gtrd.makeUtterance(e[0].utt_path,e[0].file_idx,
+                                           use_noise_file=None,
+                                           noise_db=None)
+
+        S = gtrd.get_spectrogram(utterance.s,sp)
+        S -= avg_spec_bgd
+        avg_bgd_std.add_frames(S**2,time_axis=0)
+    
+    avg_bgd_sigma = avg_bgd_std.E * ( avg_bgd.num_frames/(avg_bgd.num_frames+1.))
+    np.save('%sspec_bgd_sigma_%s.npy' % (savedir,save_tag),avg_bgd_sigma)
+
+
+    Slengths,Ss  = gtrd.recover_specs(phn_features,example_mat,bgd=avg_spec_bgd,bgd_std=avg_bgd_sigma)
+    Ss = Ss.astype(np.float32)
+
+    np.savez('%s%s_Ss_lengths_%s.npz' % (savedir,
+                                             phn,
+                                             save_tag),Ss=Ss,Slengths=Slengths,example_mat=example_mat)
+
+    Elengths,Es  = gtrd.recover_edgemaps(phn_features,example_mat,bgd=bgd)
+    Es = Es.astype(np.uint8)
+    np.savez('%s%s_Es_lengths_%s.npz'% (savedir,
+                                        phn,
+                                        save_tag) ,Es=Es,Elengths=Elengths,example_mat=example_mat)
+
 
 
 
@@ -2678,7 +2805,7 @@ def get_false_neg_examples(num_mix,syllable_string,
 
 def get_detection_clusters_by_label(num_mix,utterances_path,
                                     file_indices,thresh_percent,single_threshold=True,save_tag='',verbose=False, savedir='data/',
-                                    return_example_types=False, old_max_detect_tag='train_2',
+                                    return_example_types=False, old_max_detect_tag='train_2',template_tag=None,
   
                                     detect_clusters=None,
                                     use_spectral=False):
@@ -2712,6 +2839,8 @@ def get_detection_clusters_by_label(num_mix,utterances_path,
     Saves:
     ======
     """
+    if template_tag is None:
+        template_tag = old_max_detect_tag
     if verbose:
         print "save_tag=%s" % save_tag
         
@@ -2748,7 +2877,7 @@ def get_detection_clusters_by_label(num_mix,utterances_path,
     example_start_end_times = pickle.load(out)
     out.close()
     
-    template_out = get_templates(num_mix,template_tag=old_max_detect_tag,savedir=savedir, use_spectral=use_spectral)
+    template_out = get_templates(num_mix,template_tag=template_tag,savedir=savedir, use_spectral=use_spectral)
     if use_spectral:
 
         templates,sigmas = template_out
@@ -4829,6 +4958,25 @@ def main(args):
         leehon_mapping, use_phns = get_leehon_mapping()
     else:
         leehon_mapping =None
+    if args.save_all_leehon_phones:
+        leehon_mapping, rejected_phones, use_phns = get_leehon39_dict()
+        jobs = []
+        for phn in use_phns:
+            if phn in rejected_phones: continue
+            
+            p = multiprocessing.Process(target=save_all_leehon_phones(train_path,
+                                   train_file_indices,
+                                   leehon_mapping, phn,
+                                   sp,ep,pp,
+                                   args.save_tag,
+                                   args.savedir,
+                                   args.mel_smoothing_kernel,
+                                   args.offset,
+                                   10,
+                                   num_use_file_idx= args.num_use_file_idx))
+            jobs.append(p)
+            p.start
+
     if args.save_syllable_features_to_data_dir:
         save_syllable_features_to_data_dir(args.detect_object,
                                            train_path,
@@ -5123,7 +5271,7 @@ def main(args):
                  ) = get_detection_clusters_by_label(num_mix,train_path,
                                                      train_file_indices,args.thresh_percent,single_threshold=True,save_tag=args.save_tag,verbose=args.v,
                                                      savedir=args.savedir,
-                                                     return_example_types=True, old_max_detect_tag=args.old_max_detect_tag,
+                                                     return_example_types=True, old_max_detect_tag=args.old_max_detect_tag,template_tag=args.template_tag,
                                                      detect_clusters=detection_clusters,
                                                      use_spectral=args.do_spectral_detection)
                 print '%s%s_false_pos_times_%d_%d_%s.pkl' % (args.savedir,syllable_string,num_mix,
@@ -5173,7 +5321,7 @@ def main(args):
              example_types,
              ) = get_detection_clusters_by_label(args.num_mix,train_path,
                                              train_file_indices,args.thresh_percent,single_threshold=True,save_tag=args.save_tag,verbose=args.v,
-                                                     savedir=args.savedir,return_example_types=True, old_max_detect_tag=args.old_max_detect_tag,
+                                                     savedir=args.savedir,return_example_types=True, old_max_detect_tag=args.old_max_detect_tag,template_tag=args.template_tag,
                                          detect_clusters=detection_clusters,
                                                      use_spectral=args.do_spectral_detection)
             out = open('%s%s_false_pos_times_%d_%d_%s.pkl' % (args.savedir,syllable_string,args.num_mix,
@@ -5210,7 +5358,7 @@ def main(args):
                                                      single_threshold=True,save_tag=args.save_tag,
                                                      verbose=args.v,
                                                      savedir=args.savedir,
-                                                     return_example_types=True, old_max_detect_tag=args.old_max_detect_tag,
+                                                     return_example_types=True, old_max_detect_tag=args.old_max_detect_tag,template_tag=args.template_tag,
                                                      detect_clusters=detection_clusters,
                                                      use_spectral=args.do_spectral_detection)
                 print '%s%s_false_pos_times_%d_%d_%s.pkl' % (args.savedir,syllable_string,num_mix,
@@ -5259,7 +5407,7 @@ def main(args):
              ) = get_detection_clusters_by_label(args.num_mix,test_path,
                                              test_file_indices,args.thresh_percent,single_threshold=True,save_tag=args.save_tag,verbose=args.v,
                                                  savedir=args.savedir,
-                                                 return_example_types=True, old_max_detect_tag=args.old_max_detect_tag,
+                                                 return_example_types=True, old_max_detect_tag=args.old_max_detect_tag,template_tag=args.template_tag,
                                          detect_clusters=detection_clusters,
                                                      use_spectral=args.do_spectral_detection)
             out = open('%s%s_false_pos_times_%d_%d_%s.pkl' % (args.savedir,syllable_string,args.num_mix,
@@ -5867,6 +6015,9 @@ syllables and tracking their performance
     parser.add_argument('--save_syllable_features_to_data_dir',
                         action='store_true',
                         help="If included this will attempt to save training data estimated using the parameters to the included path for later processing in an experiment.  This includes spectrograms, edgemaps, and waveforms. Defaults to ")
+    parser.add_argument('--save_all_leehon_phones',
+                        action='store_true',
+                        help="Get the features for the lee-hon phones")
     parser.add_argument('--make_plots',action='store_true',
                         help="Ubiquitous argument for whether or not to make plots in whatever functions are called. Defaults to False.")
     parser.add_argument('-v',action='store_true',
