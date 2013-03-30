@@ -1,33 +1,41 @@
+#!/usr/bin/env python
 
-def configuration(parent_package='', top_path=None):
-    import numpy
-    from numpy.distutils.misc_util import Configuration
+from distutils.core import setup
+from distutils.extension import Extension
+import os.path
 
-    config = Configuration('.',
-                           parent_package,
-                           top_path)
-    config.add_extension('npufunc_log_quantizer', ['single_type_log_quantizer.c'])
+cython_req = (0, 16)
+try:
+    import Cython
+    from Cython.Distutils import build_ext
+    import re
+    cython_ok = tuple(map(int, re.sub(r"[^\d.]*", "", Cython.__version__).split('.')[:2])) >= cython_req 
+except ImportError:
+    cython_ok = False 
 
-    return config
+if not cython_ok:
+    raise ImportError("At least Cython {0} is required".format(".".join(map(str, cython_req))))
 
-if __name__ == "__main__":
-    from numpy.distutils.core import setup
-    setup(configuration=configuration)
 
-    from distutils.core import setup
-    from Cython.Build import cythonize
+def cython_extension(modpath, mp=False):
+    extra_compile_args = []
+    extra_link_args = []
+    if mp:
+        extra_compile_args.append('-fopenmp')
+        extra_link_args.append('-fopenmp') 
+    filepath = os.path.join(*modpath.split('.')) + ".pyx"
+    return Extension(modpath, [filepath], extra_compile_args=extra_compile_args, extra_link_args=extra_link_args)
 
-    setup(
-        name = "code_parts",
-        ext_modules = cythonize('code_parts.pyx'), # accepts a glob pattern
-        )
-
-    setup(
-        name = "spread_waliji_patches",
-        ext_modules = cythonize('spread_waliji_patches.pyx'), # accepts a glob pattern
-        )
-
-    setup(
-        name = "compute_likelihood_linear_filter",
-        ext_modules = cythonize('compute_likelihood_linear_filter.pyx'), # accepts a glob pattern
-        )
+setup(name='amitgroup',
+    cmdclass = {'build_ext': build_ext},
+    version='0',
+    url="https://github.com/Template-Speech-Rec/Template-Speech_rec",
+    description="Code for Mark Stoehr's research",
+    packages=[    ],
+    ext_modules = [
+        cython_extension("compute_likelihood_linear_filter"),
+        cython_extension("code_parts"),
+        cython_extension("spread_waliji_patches"),
+        
+    ]
+)

@@ -13,9 +13,193 @@
 
 import numpy as np
 from scipy import linalg
-from scipy.fftpack import fft
+from scipy.fftpack import fft,dct
 from scipy.signal.windows import hanning
 from scipy.signal import convolve
+from scipy.ndimage.filters import generic_filter, correlate,correlate1d
+
+dctm13_40 = np.array([[  1.58113883e-01,   1.58113883e-01,   1.58113883e-01,
+          1.58113883e-01,   1.58113883e-01,   1.58113883e-01,
+          1.58113883e-01,   1.58113883e-01,   1.58113883e-01,
+          1.58113883e-01,   1.58113883e-01,   1.58113883e-01,
+          1.58113883e-01,   1.58113883e-01,   1.58113883e-01,
+          1.58113883e-01,   1.58113883e-01,   1.58113883e-01,
+          1.58113883e-01,   1.58113883e-01,   1.58113883e-01,
+          1.58113883e-01,   1.58113883e-01,   1.58113883e-01,
+          1.58113883e-01,   1.58113883e-01,   1.58113883e-01,
+          1.58113883e-01,   1.58113883e-01,   1.58113883e-01,
+          1.58113883e-01,   1.58113883e-01,   1.58113883e-01,
+          1.58113883e-01,   1.58113883e-01,   1.58113883e-01,
+          1.58113883e-01,   1.58113883e-01,   1.58113883e-01,
+          1.58113883e-01],
+       [  2.23434405e-01,   2.22056858e-01,   2.19310256e-01,
+          2.15211533e-01,   2.09785960e-01,   2.03066987e-01,
+          1.95096038e-01,   1.85922257e-01,   1.75602204e-01,
+          1.64199505e-01,   1.51784461e-01,   1.38433616e-01,
+          1.24229281e-01,   1.09259031e-01,   9.36151633e-02,
+          7.73941268e-02,   6.06959298e-02,   4.36235222e-02,
+          2.62821611e-02,   8.77876168e-03,  -8.77876168e-03,
+         -2.62821611e-02,  -4.36235222e-02,  -6.06959298e-02,
+         -7.73941268e-02,  -9.36151633e-02,  -1.09259031e-01,
+         -1.24229281e-01,  -1.38433616e-01,  -1.51784461e-01,
+         -1.64199505e-01,  -1.75602204e-01,  -1.85922257e-01,
+         -1.95096038e-01,  -2.03066987e-01,  -2.09785960e-01,
+         -2.15211533e-01,  -2.19310256e-01,  -2.22056858e-01,
+         -2.23434405e-01],
+       [  2.22917493e-01,   2.17428524e-01,   2.06585744e-01,
+          1.90656137e-01,   1.70031943e-01,   1.45220998e-01,
+          1.16834231e-01,   8.55706169e-02,   5.21999703e-02,
+          1.75439872e-02,  -1.75439872e-02,  -5.21999703e-02,
+         -8.55706169e-02,  -1.16834231e-01,  -1.45220998e-01,
+         -1.70031943e-01,  -1.90656137e-01,  -2.06585744e-01,
+         -2.17428524e-01,  -2.22917493e-01,  -2.22917493e-01,
+         -2.17428524e-01,  -2.06585744e-01,  -1.90656137e-01,
+         -1.70031943e-01,  -1.45220998e-01,  -1.16834231e-01,
+         -8.55706169e-02,  -5.21999703e-02,  -1.75439872e-02,
+          1.75439872e-02,   5.21999703e-02,   8.55706169e-02,
+          1.16834231e-01,   1.45220998e-01,   1.70031943e-01,
+          1.90656137e-01,   2.06585744e-01,   2.17428524e-01,
+          2.22917493e-01],
+       [  2.22056858e-01,   2.09785960e-01,   1.85922257e-01,
+          1.51784461e-01,   1.09259031e-01,   6.06959298e-02,
+          8.77876168e-03,  -4.36235222e-02,  -9.36151633e-02,
+         -1.38433616e-01,  -1.75602204e-01,  -2.03066987e-01,
+         -2.19310256e-01,  -2.23434405e-01,  -2.15211533e-01,
+         -1.95096038e-01,  -1.64199505e-01,  -1.24229281e-01,
+         -7.73941268e-02,  -2.62821611e-02,   2.62821611e-02,
+          7.73941268e-02,   1.24229281e-01,   1.64199505e-01,
+          1.95096038e-01,   2.15211533e-01,   2.23434405e-01,
+          2.19310256e-01,   2.03066987e-01,   1.75602204e-01,
+          1.38433616e-01,   9.36151633e-02,   4.36235222e-02,
+         -8.77876168e-03,  -6.06959298e-02,  -1.09259031e-01,
+         -1.51784461e-01,  -1.85922257e-01,  -2.09785960e-01,
+         -2.22056858e-01],
+       [  2.20853827e-01,   1.99235116e-01,   1.58113883e-01,
+          1.01515362e-01,   3.49798098e-02,  -3.49798098e-02,
+         -1.01515362e-01,  -1.58113883e-01,  -1.99235116e-01,
+         -2.20853827e-01,  -2.20853827e-01,  -1.99235116e-01,
+         -1.58113883e-01,  -1.01515362e-01,  -3.49798098e-02,
+          3.49798098e-02,   1.01515362e-01,   1.58113883e-01,
+          1.99235116e-01,   2.20853827e-01,   2.20853827e-01,
+          1.99235116e-01,   1.58113883e-01,   1.01515362e-01,
+          3.49798098e-02,  -3.49798098e-02,  -1.01515362e-01,
+         -1.58113883e-01,  -1.99235116e-01,  -2.20853827e-01,
+         -2.20853827e-01,  -1.99235116e-01,  -1.58113883e-01,
+         -1.01515362e-01,  -3.49798098e-02,   3.49798098e-02,
+          1.01515362e-01,   1.58113883e-01,   1.99235116e-01,
+          2.20853827e-01],
+       [  2.19310256e-01,   1.85922257e-01,   1.24229281e-01,
+          4.36235222e-02,  -4.36235222e-02,  -1.24229281e-01,
+         -1.85922257e-01,  -2.19310256e-01,  -2.19310256e-01,
+         -1.85922257e-01,  -1.24229281e-01,  -4.36235222e-02,
+          4.36235222e-02,   1.24229281e-01,   1.85922257e-01,
+          2.19310256e-01,   2.19310256e-01,   1.85922257e-01,
+          1.24229281e-01,   4.36235222e-02,  -4.36235222e-02,
+         -1.24229281e-01,  -1.85922257e-01,  -2.19310256e-01,
+         -2.19310256e-01,  -1.85922257e-01,  -1.24229281e-01,
+         -4.36235222e-02,   4.36235222e-02,   1.24229281e-01,
+          1.85922257e-01,   2.19310256e-01,   2.19310256e-01,
+          1.85922257e-01,   1.24229281e-01,   4.36235222e-02,
+         -4.36235222e-02,  -1.24229281e-01,  -1.85922257e-01,
+         -2.19310256e-01],
+       [  2.17428524e-01,   1.70031943e-01,   8.55706169e-02,
+         -1.75439872e-02,  -1.16834231e-01,  -1.90656137e-01,
+         -2.22917493e-01,  -2.06585744e-01,  -1.45220998e-01,
+         -5.21999703e-02,   5.21999703e-02,   1.45220998e-01,
+          2.06585744e-01,   2.22917493e-01,   1.90656137e-01,
+          1.16834231e-01,   1.75439872e-02,  -8.55706169e-02,
+         -1.70031943e-01,  -2.17428524e-01,  -2.17428524e-01,
+         -1.70031943e-01,  -8.55706169e-02,   1.75439872e-02,
+          1.16834231e-01,   1.90656137e-01,   2.22917493e-01,
+          2.06585744e-01,   1.45220998e-01,   5.21999703e-02,
+         -5.21999703e-02,  -1.45220998e-01,  -2.06585744e-01,
+         -2.22917493e-01,  -1.90656137e-01,  -1.16834231e-01,
+         -1.75439872e-02,   8.55706169e-02,   1.70031943e-01,
+          2.17428524e-01],
+       [  2.15211533e-01,   1.51784461e-01,   4.36235222e-02,
+         -7.73941268e-02,  -1.75602204e-01,  -2.22056858e-01,
+         -2.03066987e-01,  -1.24229281e-01,  -8.77876168e-03,
+          1.09259031e-01,   1.95096038e-01,   2.23434405e-01,
+          1.85922257e-01,   9.36151633e-02,  -2.62821611e-02,
+         -1.38433616e-01,  -2.09785960e-01,  -2.19310256e-01,
+         -1.64199505e-01,  -6.06959298e-02,   6.06959298e-02,
+          1.64199505e-01,   2.19310256e-01,   2.09785960e-01,
+          1.38433616e-01,   2.62821611e-02,  -9.36151633e-02,
+         -1.85922257e-01,  -2.23434405e-01,  -1.95096038e-01,
+         -1.09259031e-01,   8.77876168e-03,   1.24229281e-01,
+          2.03066987e-01,   2.22056858e-01,   1.75602204e-01,
+          7.73941268e-02,  -4.36235222e-02,  -1.51784461e-01,
+         -2.15211533e-01],
+       [  2.12662702e-01,   1.31432778e-01,   1.36919675e-17,
+         -1.31432778e-01,  -2.12662702e-01,  -2.12662702e-01,
+         -1.31432778e-01,  -4.10759024e-17,   1.31432778e-01,
+          2.12662702e-01,   2.12662702e-01,   1.31432778e-01,
+          6.84598373e-17,  -1.31432778e-01,  -2.12662702e-01,
+         -2.12662702e-01,  -1.31432778e-01,  -9.58437722e-17,
+          1.31432778e-01,   2.12662702e-01,   2.12662702e-01,
+          1.31432778e-01,   1.23227707e-16,  -1.31432778e-01,
+         -2.12662702e-01,  -2.12662702e-01,  -1.31432778e-01,
+         -5.47817107e-16,   1.31432778e-01,   2.12662702e-01,
+          2.12662702e-01,   1.31432778e-01,  -2.19209888e-16,
+         -1.31432778e-01,  -2.12662702e-01,  -2.12662702e-01,
+         -1.31432778e-01,  -6.02584976e-16,   1.31432778e-01,
+          2.12662702e-01],
+       [  2.09785960e-01,   1.09259031e-01,  -4.36235222e-02,
+         -1.75602204e-01,  -2.23434405e-01,  -1.64199505e-01,
+         -2.62821611e-02,   1.24229281e-01,   2.15211533e-01,
+          2.03066987e-01,   9.36151633e-02,  -6.06959298e-02,
+         -1.85922257e-01,  -2.22056858e-01,  -1.51784461e-01,
+         -8.77876168e-03,   1.38433616e-01,   2.19310256e-01,
+          1.95096038e-01,   7.73941268e-02,  -7.73941268e-02,
+         -1.95096038e-01,  -2.19310256e-01,  -1.38433616e-01,
+          8.77876168e-03,   1.51784461e-01,   2.22056858e-01,
+          1.85922257e-01,   6.06959298e-02,  -9.36151633e-02,
+         -2.03066987e-01,  -2.15211533e-01,  -1.24229281e-01,
+          2.62821611e-02,   1.64199505e-01,   2.23434405e-01,
+          1.75602204e-01,   4.36235222e-02,  -1.09259031e-01,
+         -2.09785960e-01],
+       [  2.06585744e-01,   8.55706169e-02,  -8.55706169e-02,
+         -2.06585744e-01,  -2.06585744e-01,  -8.55706169e-02,
+          8.55706169e-02,   2.06585744e-01,   2.06585744e-01,
+          8.55706169e-02,  -8.55706169e-02,  -2.06585744e-01,
+         -2.06585744e-01,  -8.55706169e-02,   8.55706169e-02,
+          2.06585744e-01,   2.06585744e-01,   8.55706169e-02,
+         -8.55706169e-02,  -2.06585744e-01,  -2.06585744e-01,
+         -8.55706169e-02,   8.55706169e-02,   2.06585744e-01,
+          2.06585744e-01,   8.55706169e-02,  -8.55706169e-02,
+         -2.06585744e-01,  -2.06585744e-01,  -8.55706169e-02,
+          8.55706169e-02,   2.06585744e-01,   2.06585744e-01,
+          8.55706169e-02,  -8.55706169e-02,  -2.06585744e-01,
+         -2.06585744e-01,  -8.55706169e-02,   8.55706169e-02,
+          2.06585744e-01],
+       [  2.03066987e-01,   6.06959298e-02,  -1.24229281e-01,
+         -2.22056858e-01,  -1.64199505e-01,   8.77876168e-03,
+          1.75602204e-01,   2.19310256e-01,   1.09259031e-01,
+         -7.73941268e-02,  -2.09785960e-01,  -1.95096038e-01,
+         -4.36235222e-02,   1.38433616e-01,   2.23434405e-01,
+          1.51784461e-01,  -2.62821611e-02,  -1.85922257e-01,
+         -2.15211533e-01,  -9.36151633e-02,   9.36151633e-02,
+          2.15211533e-01,   1.85922257e-01,   2.62821611e-02,
+         -1.51784461e-01,  -2.23434405e-01,  -1.38433616e-01,
+          4.36235222e-02,   1.95096038e-01,   2.09785960e-01,
+          7.73941268e-02,  -1.09259031e-01,  -2.19310256e-01,
+         -1.75602204e-01,  -8.77876168e-03,   1.64199505e-01,
+          2.22056858e-01,   1.24229281e-01,  -6.06959298e-02,
+         -2.03066987e-01],[  1.99235116e-01,   3.49798098e-02,  -1.58113883e-01,
+         -2.20853827e-01,  -1.01515362e-01,   1.01515362e-01,
+          2.20853827e-01,   1.58113883e-01,  -3.49798098e-02,
+         -1.99235116e-01,  -1.99235116e-01,  -3.49798098e-02,
+          1.58113883e-01,   2.20853827e-01,   1.01515362e-01,
+         -1.01515362e-01,  -2.20853827e-01,  -1.58113883e-01,
+          3.49798098e-02,   1.99235116e-01,   1.99235116e-01,
+          3.49798098e-02,  -1.58113883e-01,  -2.20853827e-01,
+         -1.01515362e-01,   1.01515362e-01,   2.20853827e-01,
+          1.58113883e-01,  -3.49798098e-02,  -1.99235116e-01,
+         -1.99235116e-01,  -3.49798098e-02,   1.58113883e-01,
+          2.20853827e-01,   1.01515362e-01,  -1.01515362e-01,
+         -2.20853827e-01,  -1.58113883e-01,   3.49798098e-02,
+          1.99235116e-01]])
+
 
 # windows to be used for the slepian sequence
 # assumes that we are applying the slepian sequences to a
@@ -411,6 +595,72 @@ class Pattern_Examples:
             break
 
 
+def magnitude_features(S,block_length,spread_radius,threshold_quantile):
+    """
+    Construct a binary map from a spectrogram where values are binarized
+    via an adaptive threshold.
+
+    The algorithm proceeds as follows: we are attempting to find the
+    top values in a band, to prevent aliasing we do a windowing operation.
+    
+    The start time for the windows is  [-block_length/4,3*block_length/4]
+    the next is over [block_length/4,5*block_length/4] then
+    [3*block_length/4, 7*block_length/4], ...
+    these are the windows for estimating the quantiles
+
+    The windows that we actually set the quantiles for are 
+    [0,block_length/2], [block_length/2,block_length],
+    [block_length,3*block_length/2], ...
+    where these correspond to the middle half of the estimation windows
+    
+    Parameters:
+    ===========
+    S: numpy.ndarray[ndim=2]
+        Dimension 0 corresponds to frequency, dimension 1 corresponds to time
+        this is the spectrogram to be quantized
+    block_length: int
+        Length of block to use for estimating the threshold
+    spread_radius: int
+        How much to spread in a radius
+    threshold_quantile: float
+        Quantile for thresholding
+
+    Returns:
+    ========
+    E: numpy.ndarray[ndim=2]
+        Dimension 0 corresponds to the time dimension and dimension 1
+        to the frequency dimension.  These are the binary magnitude features
+    """
+    num_features, num_frames = S.shape
+    block_quarter = block_length/4
+    S = S.T
+    E = np.zeros(S.shape,dtype=np.uint8)
+    # handling the initial window
+    block = np.sort(S[:3*block_quarter],axis=0)
+    E[:2*block_quarter]  = S[:2*block_quarter] >= block[int(threshold_quantile*3*block_quarter+.5)]
+    next_frame_to_set = 2*block_quarter
+    while next_frame_to_set < num_frames:
+        estimate_win_start = next_frame_to_set-block_quarter
+        estimate_win_end = min(num_frames,
+                               estimate_win_start+4*block_quarter)
+        last_frame_to_set = min(next_frame_to_set + 2*block_quarter,
+                                num_frames)
+        block = np.sort(S[estimate_win_start:estimate_win_end],
+                        axis=0)
+        E[next_frame_to_set:last_frame_to_set] = (
+            S[next_frame_to_set:last_frame_to_set]
+            >= block[int(threshold_quantile*(estimate_win_end -
+                                             estimate_win_start))])
+        next_frame_to_set=last_frame_to_set
+        
+    
+    # now we spread the detected points in all directions
+    weight_filter = np.ones((2*spread_radius+1,2*spread_radius+1)) * 1./spread_radius
+    weight_filter[spread_radius,spread_radius]=1
+    E = (correlate(E,weight_filter,mode='constant') >= 1).astype(np.uint8)
+    return E
+    
+
 def get_pattern_examples(data_files_iter,pattern,
                          sample_rate,num_window_samples,
                          num_window_step_samples,fft_length,
@@ -553,22 +803,49 @@ def _get_spectrogram_label_times(s,
                             num_window_step_samples):
     return _get_windows_sample_stats(s,num_window_samples,num_window_step_samples)
 
+def smooth_downsample_spectrogram(S,downsample_factor,bin_width=None):
+    """
+    Parameters:
+    ==========
+    S: numpy.ndarray[ndim=2]
+       dim 0 is the feature axis and dim 1 is the time axis.
+       We downsample and smooth along the dim 0 axis -- over the
+       spectral features
+    downsample_factor: int
+       Factor by which we downsample, choose the bins so that way
+       we get ``downsample_factor`` number of bins, bin_width
+       is then not used
+    bin_width: [optional] int
+       If this is not None (and its assumed to be an integer) then
+       choose the number of bins so that way we get bins of this length
+       one bin might be shorter
+    """
+    
+    
+
 def get_spectrogram_features(s,sample_rate,num_window_samples,
                           num_window_step_samples,fft_length,
                              freq_cutoff,kernel_length,
-                             preemph=.95,mode="valid",dim_0_is='features'):
+                             preemph=.95,mode="valid",dim_0_is='features',
+                             no_use_dpss=False,
+                             do_freq_smoothing=True):
     s = _preemphasis(s,preemph)
     S = _spectrograms(s,num_window_samples,
                       num_window_step_samples,
                       fft_length,
-                      sample_rate)
+                      sample_rate,
+                      no_use_dpss=no_use_dpss)
+
     freq_idx = int(freq_cutoff/(float(sample_rate)/fft_length))
     S = S[:,:freq_idx]
+
     if dim_0_is == 'features':
         # correct for the shape
         # we want each row of S to correspond to a frequency
         # and we want the bottom row to represent the lowest
         # frequency
+        if np.any(S==0):
+            import pdb; pdb.set_trace()
         S = np.log(S.transpose())
         # S = S[::-1,:]
         # smooth the spectrogram
@@ -578,7 +855,10 @@ def get_spectrogram_features(s,sample_rate,num_window_samples,
         g=1/(sigma * np.sqrt(2*np.pi)) *np.exp(-((x-x0)**2  / 2* sigma**2))
         smoothing_kernel = g/g.sum()
         # feature smoothing should leave only meaningful features
-        S_smoothed = convolve(S,smoothing_kernel.reshape(kernel_length,1),mode ='valid')
+        if do_freq_smoothing:
+            S_smoothed = convolve(S,smoothing_kernel.reshape(kernel_length,1),mode ='valid')
+        else:
+            S_smoothed = S
         # preserve time length of spectrogram, smooth over time
         S_smoothed= convolve(S_smoothed,smoothing_kernel.reshape(1,kernel_length),mode='same')
         S_subsampled = S_smoothed[::2,:]
@@ -619,12 +899,14 @@ def get_log_spectrogram(s,sample_rate,
                         num_window_step_samples,
                         fft_length,
                         preemph=.95,
-                        return_freqs=False):
+                        return_freqs=False,
+                        no_use_dpss=False):
     s = _preemphasis(s,preemph)
     S = _spectrograms(s,num_window_samples,
                       num_window_step_samples,
                       fft_length,
-                      sample_rate)
+                      sample_rate,
+                      no_use_dpss=no_use_dpss)
     freq_idx = np.arange(S.shape[1]) * (float(sample_rate)/fft_length)
     #S = S[:,:freq_idx]
     # correct for the shape
@@ -643,19 +925,54 @@ def get_mel_spec(s,sample_rate,
                         preemph=.95,
                         freq_cutoff=None,
                  nbands = 40,
-                 mel_smoothing_kernel=-1):
+                 mel_smoothing_kernel=-1,
+                 num_ceps=13,
+                 lift=.6,
+                 include_energy=False,
+                 no_use_dpss=False):
     """
     The mel spectrogram, this is the basis for MFCCs
+    Parameters:
+    ===========
+    num_ceps: int
+        If mel_smoothing_kernel < 1 then we do cepstral
+        smoothing and liftering to the mel spectrogram
+        thus we get a spectral representation with
+        somewhat nice properties than we would otherwise
+        have
+    lift: float
+        This is the liftering factor if we do the cepstral
+        smoothing and liftering of the mel spectral features
     """
-    S,freq_idx = get_log_spectrogram(s,sample_rate,
-                               num_window_samples,
-                               num_window_step_samples,
-                               fft_length,
-                               preemph=.95,
-                               return_freqs=True)
+    s = _preemphasis(s,preemph)
+    S = _spectrograms(s,num_window_samples,
+                      num_window_step_samples,
+                      fft_length,
+                      sample_rate,
+                      no_use_dpss=no_use_dpss)
+    freq_idx = np.arange(S.shape[1]) * (float(sample_rate)/fft_length)
+    #S = S[:,:freq_idx]
+    # correct for the shape
+    # we want each row of S to correspond to a frequency
+    # and we want the bottom row to represent the lowest
+    # frequency
+
+    energy = S.sum(1)
+    S = S.transpose()
     if mel_smoothing_kernel < 1:
-        return audspec(S,sample_rate,nbands=nbands,
+        # here we use cepstral smoothing
+        S = audspec(S,sample_rate,nbands=nbands,
                        maxfreq=freq_cutoff)
+
+
+        S = spec2cep(S,num_ceps=num_ceps)
+
+        S = ceplifter(S,lift=.6)
+        S = spec2cep(S,num_ceps=num_ceps,do_inv=True,inv_nrow=nbands)
+
+        if include_energy:
+            S = np.vstack((S,energy))
+        return S
     else:
         M =audspec(S,sample_rate,nbands=nbands,
                        maxfreq=freq_cutoff)
@@ -667,8 +984,68 @@ def get_mel_spec(s,sample_rate,
         # feature smoothing should leave only meaningful features
         M_smoothed = convolve(M,smoothing_kernel.reshape(mel_smoothing_kernel,1),mode ='valid')
         # preserve time length of spectrogram, smooth over time
-        return convolve(M_smoothed,smoothing_kernel.reshape(1,mel_smoothing_kernel),mode='same')
+        M_smoothed = convolve(M_smoothed,smoothing_kernel.reshape(1,mel_smoothing_kernel),mode='same')
+        if include_energy:
+            M = np.vstack((M,energy))
+        return M
 
+
+def get_melfcc(s,sample_rate,
+                        num_window_samples,
+                        num_window_step_samples,
+                        fft_length,
+                        preemph=.95,
+                        freq_cutoff=None,
+                 nbands = 40,
+                 num_ceps=13,
+               lift=.6,
+               include_energy=True,
+               include_deltas=False,
+               include_double_deltas=False,
+               delta_window=9,
+               no_use_dpss=False):
+    """
+    The mel spectrogram, this is the basis for MFCCs
+
+    Translated from matlab in to python from this source
+    http://labrosa.ee.columbia.edu/matlab/rastamat/melfcc.m
+
+    Parameters:
+    ==========
+    include_energy: bool
+        whether to correct the energy computation in the MFCCs
+    include_deltas: bool
+        whether to include the delta features
+
+    """
+    s = _preemphasis(s,preemph)
+    S = _spectrograms(s,num_window_samples,
+                      num_window_step_samples,
+                      fft_length,
+                      sample_rate,
+                      no_use_dpss=no_use_dpss)
+    freq_idx = np.arange(S.shape[1]) * (float(sample_rate)/fft_length)
+    energy = S.sum(1)
+    S = S.transpose()
+    S = audspec(S,sample_rate,nbands=nbands,
+                       maxfreq=freq_cutoff)
+    S = spec2cep(S,num_ceps=num_ceps)
+    S = ceplifter(S,lift=lift)
+    # the log energy is non-sense right now
+    # so we  replace that with a sensible log energy
+    # this is copied from Dan ellis's implementation
+    S[0,:] = energy[:]
+    
+    if not include_deltas:
+        return S
+    elif not include_double_deltas:
+        delta_S = compute_deltas(S,delta_window=9)
+        return S.vstack((S,delta_S))
+    else:
+        delta_S = compute_deltas(S,delta_window=9)
+        delta_delta_S = compute_deltas(delta_S,delta_window=9)
+        return np.vstack((S,delta_S,delta_delta_S))
+    
 
 def get_edgemap_no_threshold(s,sample_rate,
                              num_window_samples,
@@ -1604,7 +1981,8 @@ def _spectrograms(s,num_window_samples,
                   num_window_step_samples,
                   fft_length,
                   sample_rate,
-                  K=5):
+                  K=5,
+                  no_use_dpss=False):
     """
     Gives the discrete prolate slepian sequence
     estimation of the power spectrum
@@ -1614,10 +1992,17 @@ def _spectrograms(s,num_window_samples,
     num_windows = int(.5 + (len(s)-num_window_samples)/float(num_window_step_samples))
     Slep = np.zeros((num_windows,
                      fft_length/2))
+    H = np.hamming(num_window_samples)
+
     for win_id in xrange(num_windows):
-        J = fft(E_slep[:5] * s[win_id*num_window_step_samples:win_id*num_window_step_samples+num_window_samples],fft_length)
-        J=J[:,:fft_length/2]
-        Slep[win_id] = (np.abs(J)**2).sum(0)/5
+        if no_use_dpss:
+            Slep[win_id] = np.abs(fft( H * s[win_id*num_window_step_samples:win_id*num_window_step_samples+num_window_samples],fft_length)[:fft_length/2])**2
+        else:
+            J = fft(E_slep[:5] * s[win_id*num_window_step_samples:win_id*num_window_step_samples+num_window_samples],fft_length)
+            J=J[:,:fft_length/2]
+            Slep[win_id] = (np.abs(J)**2).sum(0)/5
+            
+    
     return Slep
 
 def audspec(spectrogram,sample_rate,nbands=None,
@@ -1637,8 +2022,102 @@ def audspec(spectrogram,sample_rate,nbands=None,
     wts,_ = fft2melmx(nfft,sample_rate,nbands,bwidth,
                     minfreq,maxfreq)
     wts = wts[:, :nfreqs]
-    return np.dot(wts, spectrogram)
+    return np.log(np.dot(wts, spectrogram))
 
+def ceplifter(ceps,lift = .6):
+    """
+    Copied from Dan Ellis 
+    http://labrosa.ee.columbia.edu/matlab/rastamat/lifter.m
+    
+
+    We assume lift \in (0,10]
+    
+    Parameters:
+    ===========
+    ceps: np.ndarray[ndim=2]
+        These are the cepstral coefficients to be liftered. The 0
+        dimension is assumed to be the coefficients and dimension
+        1 is assumed to be time
+    lift: float
+        Liftering constant
+    """
+    
+    return np.dot(np.diag(np.hstack((1.,
+                              np.arange(1.,ceps.shape[0])**lift))),
+                  ceps)
+    
+
+def spec2cep(log_spectrogram,num_ceps=13,do_inv=False,inv_nrow=40):
+    """
+    Computes the cepstrum
+
+    Copied from Dan Ellis http://labrosa.ee.columbia.edu/matlab/rastamat/spec2cep.m
+    to mimic his defaults
+    
+    Parameters:
+    ===========
+    log_spectrogram: np.ndarray[ndim=2]
+        Should be nfilts by ntime, the default
+        expectation is that nfilts = 40 so there
+        are 40 bands and then we have a matrix that we can
+        multiply that by in order to get the MFCCs
+    num_cep: int
+        Number of cepstral coefficients to keep
+    do_inv: bool
+        Whether to perform the inverse transformation, this is useful
+        for doing cepstral liftering/smoothing
+    
+    """
+    nrow = log_spectrogram.shape[0]
+    if nrow != 40 and not do_inv: # we saved a matrix for the 40 case
+        dctm = np.cos(np.dot(np.diag(np.arange(num_ceps,dtype=np.float)),np.tile(np.arange(1.,2*nrow,2)/(2*nrow)*np.pi,(num_ceps,1)))) * np.sqrt(2./nrow)
+        dctm[0,:] /= np.sqrt(2.)
+    elif inv_nrow != 40 and do_inv:
+        dctm = np.cos(np.dot(np.diag(np.arange(num_ceps,dtype=np.float)),np.tile(np.arange(1.,2*inv_nrow,2)/(2*inv_nrow)*np.pi,(num_ceps,1)))) * np.sqrt(2./inv_nrow)
+        dctm[0,:] /= np.sqrt(2.)
+    else:
+        dctm = dctm13_40
+        
+    if do_inv:
+        return  np.dot(dctm.T,log_spectrogram)
+    else:
+        return  np.dot(dctm,log_spectrogram)
+
+def compute_deltas(S,delta_window=9):
+    """
+    Functionality Copied from 
+    http://www.ee.columbia.edu/~dpwe/resources/matlab/rastamat/deltas.m
+    which was in turn written to mimic 
+    feacalc
+
+    We use a window of length delta_window to compute a time derivative
+    for the features, time derivative corresponds to the regression
+    coefficient taken over a window. We use the first or last elements
+    repeated
+    
+    Parameters:
+    ===========
+    S: np.ndarray[ndim=2]
+        Spectrogram, frequency or quefrency is supposed to be along the 
+        0-th axis while time is along the  1st axis.
+    delta_window: int
+        Converted to float for computational purposes: this is the 
+        length of the window used to compute the derivative.
+    
+    """
+    delta_window = float(delta_window)
+
+
+    t_vec = np.arange(delta_window,dtype=float)
+    sum_vec = np.ones(delta_window,dtype=float)
+    t_sum = t_vec.sum()
+
+    denom = delta_window * np.sum(t_vec**2) - t_vec.sum()**2
+
+    A = ( delta_window * correlate1d(S,t_vec,axis=-1,mode='nearest') - correlate1d(S,sum_vec,axis=-1,mode='nearest')*t_sum)/denom
+    return A
+
+    
 
 def fft2melmx(nfft,sample_rate,nfilts=40,width=1.0,minfrq=0,
               maxfrq=None):

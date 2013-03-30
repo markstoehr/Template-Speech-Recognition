@@ -30,7 +30,8 @@ def get_max_detection_in_syllable_windows(detection_array,
                                           detection_lengths,
                                           window_start,
                                           window_end,
-                                          verbose=False):
+                                          verbose=False,
+                                          return_argsort_idx=False):
     """
     The max detect vals essentially returns the potential thresholds
     for detecting examples.  In particular for a given instance in the
@@ -55,6 +56,7 @@ def get_max_detection_in_syllable_windows(detection_array,
         default is 1/3 of the template length
     """
     max_detect_vals = []
+    utterance_ids = []
     for example_idx,start_end_times in enumerate(example_start_end_times):
         for start_time, end_time in start_end_times:
             detect_vals = detection_array[example_idx,max(start_time+window_start,0):
@@ -67,16 +69,61 @@ def get_max_detection_in_syllable_windows(detection_array,
                 val = -np.inf
             if verbose:
                 print "Utt: %d, loc: %d, val:%g" % (example_idx,start_time,val)
+            if np.abs(val) < .1:
+                pass #import pdb; pdb.set_trace()
             max_detect_vals.append(val)
-    return np.sort(max_detect_vals)
+            utterance_ids.append(example_idx)
+    if return_argsort_idx:
+        return np.sort(max_detect_vals),np.argsort(max_detect_vals),np.array(utterance_ids)
+    else:
+        return np.sort(max_detect_vals)
 
+def get_limited_overlap_detection_sorted_placement(detection_vals,
+                                                   detection_length,
+                                                   detection_template_ids,
+                                                   template_lengths,
+                                                   threshold,
+                                                   overlap_percent):
+    """
+    Parameters
+    ==========
+    detection_vals: array
+        array with the value of the log-likelihood ratio test statistic at each point
+    detection_lengths: array
+        support of the detection statistic (modulo a constant factor)
+    detection_template_ids: array
+        the template id for each of the template scores, indicates which
+        object model attained the maximal score
+    template_lengths: array
+        length for each template for overlap calculation 
+    threshold: float
+        value for the detection threshold
+    overlap_percent: float
+        amount of allowed overlap among placed templates
+    """
+    detection_vals_sorted_ids = np.argsort(detection_vals)[::-1]
+    placed_detections = np.zeros(len(detection_vals),dtype=np.uint8)
+    detections = ()
+    for idx, detection_start in enumerate(detection_vals_sorted_ids):
+        detection_end = detection_start + template_lengths[detection_template_ids[detection_start]]
+        detection_middle = (detection_start+detection_end)/2
+        detection_end_length = float(detection_end-detection_middle)
+        detection_start_length = float(detection_start-detection_middle)
+        if placed_detections[detection_middle:detection_end].sum()/detection_end_length <= overlap_percent and placed_detections[detection_start:detection_middle].sum()/detection_start_length <= overlap_percent:
+            placed_detections[detection_start:detection_end] = 1
+            detections += (detection_vals[detection_start],(detection_start,detection_end))
+    
 
 def get_max_above_threshold(detection_vals,detection_length,threshold,C0):
     l = detection_length-C0+1
-    return np.arange(1,l-1,dtype=np.uint16)[
-        (detection_vals[1:l-1] >= detection_vals[:l-2])
+    try:
+        max_detection = np.arange(1,l-1,dtype=np.uint16)[
+            (detection_vals[1:l-1] >= detection_vals[:l-2])
         * (detection_vals[1:l-1] >= detection_vals[2:l])
-        * (detection_vals[1:l-1] >= threshold)]
+            * (detection_vals[1:l-1] >= threshold)]
+    except:
+        import pdb; pdb.set_trace()
+    return max_detection
 
 def get_cluster_starts_ends(potential_detect_times,cluster_partition):
     """
@@ -200,6 +247,54 @@ def generate_example_detection_windows(example_start_end_times,
         tuple( (s -win_front_length, s+win_back_length)
                for s,e in utt_examples)
         for utt_examples in example_start_end_times)
+
+
+def _get_detect_clusters_limited_overlaps(threshold,
+                                          detection_array,
+                                          detection_lengths,
+                                          detection_template_ids,
+                                          template_lengths,
+                                          overlap_percent=.10):
+    """
+    a clustering is dependent upon a threshold level the treshold
+    levels are the max_detect_vals for each value in max_detect_vals
+    there is going to be a cluster these clusters are determined by
+    the detection array, and the parameters for the shapes of the
+    clusters the output for a given threshold should be a list of
+    segments for each utterance in the rows of detection_array
+
+    limited overlaps means that we take the top scoring detection as 
+    the truth and then we only consider detections that have limited overlap
+    (governed by overlap_percent) with that detection, and we keep placing detections
+    until we don't have any more to place or until we hit the threshold.
+
+    Parameters:
+    ===========
+    threshold: float
+        detection threshold
+        detection_vals: array
+        array with the value of the log-likelihood ratio test statistic at each point
+    detection_lengths: array
+        support of the detection statistic (modulo a constant factor)
+    detection_template_ids: array
+        the template id for each of the template scores, indicates which
+        object model attained the maximal score
+    template_lengths: array
+        length for each template for overlap calculation 
+
+    """
+    return tuple(
+        perform_detection_time_limited_overlap_placement(
+            get_limited_overlap_detection_sorted_placement(detect_vals,
+                                    detect_length,
+                                    detect_template_ids,
+                                    template_lengths,
+                                    threshold,overlap_percent),
+            C0,C1)
+        for detect_vals, detect_length,detect_template_ids in itertools.izip(detection_array,
+                                                         detection_lengths,
+                                                                             detection_template_ids))
+
 
 def _get_detect_clusters_single_threshold(threshold,
                                           detection_array,
@@ -416,6 +511,28 @@ def get_detection_rates_from_clusters_utterance(seq_of_true_segments,
                                       seq_of_detected_clusters)]).T
     return stats_rates[1],stats_rates[2]
 
+def get_detections_lo_nms(potential_thresholds,
+                  detection_array,
+                  detection_lengths,
+                  example_start_end_times,
+
+                  win_front_length = None,
+                  win_back_length = None,
+                  return_detected_examples=False,
+                  return_clusters = False):
+    """
+    Get the detections where limited overlap is allowed and 
+    we block out overlapping hypotheses, this is done 
+    with threshold where we place detections until the
+    likelihood threshold for the utterance is achieved
+    
+    we also have a mode where we keep adding the hypotheses until we 
+    start losing likelihood
+    """
+    
+    
+
+
 def get_roc_curve(potential_thresholds,
                   detection_array,
                   detection_lengths,
@@ -439,6 +556,7 @@ def get_roc_curve(potential_thresholds,
                                      example_detection_windows,
                                      C0,C1,frame_rate)
             for threshold in potential_thresholds]).T
+
     return_tuple = (rate_mat[0],rate_mat[1])
     if return_detected_examples:
         return_tuple +=  (true_false_positive_rate(threshold,
@@ -561,6 +679,7 @@ FalseNegativeDetection = collections.namedtuple("FalseNegativeDetection",
                                                 ("true_window_cluster"
                                                  +" max_peak_loc"
                                                  +" max_peak_val"
+                                                 +" max_peak_id"
                                                  +" window_vals"
                                                  +" true_label_times"
                                                  +" phn_context"
@@ -595,7 +714,6 @@ def get_max_peak(cluster_window):
 
 
 
-
 def get_pos_false_pos_false_neg_detect_points(detection_clusters_at_threshold,
                                               detection_array,
                                               detection_template_ids,
@@ -607,6 +725,9 @@ def get_pos_false_pos_false_neg_detect_points(detection_clusters_at_threshold,
                                               verbose=True,
                                               return_example_types=False):
     """
+    Main Detection function. Implements the detection algorithm of Koloydenko.
+    
+
     Parameters:
     ===========
     detection_clusters_at_threshold:
@@ -659,17 +780,21 @@ def get_pos_false_pos_false_neg_detect_points(detection_clusters_at_threshold,
                     #   these head and tail points
                     #   but, once we find the largest local maximum
                     #   we then need to remove those points
-                    cluster_vals = detection_row[c[0]-1:c[1]+1]
-                    cluster_max_peak_loc = get_max_peak(cluster_vals)
-                    if cluster_max_peak_loc == -1:
-                        cluster_max_peak_val = -np.inf
+                    cluster_vals = detection_row[c[0]-1:c[1]+1][1:-1]
+                    peak_window = np.arange(se[0]-int((se[1]-se[0] + 0.)/3. + .5),
+                                            se[0]+int((se[1]-se[0])/3. + .5)) -c[0]
+                    peak_window = peak_window[ ( peak_window >= 0) *
+                                               ( peak_window < len(cluster_vals))]
+                    if len(peak_window) == 0:
+                        cluster_max_peak_loc = np.argmax(cluster_vals)
+                        print "peak_window is zero"
                     else:
-                        cluster_max_peak_val=cluster_vals[cluster_max_peak_loc]
+                        max_id = np.argmax(cluster_vals[peak_window])
+                        cluster_max_peak_loc = peak_window[max_id]
                     # map the peak location and the
                     # cluster length back to the original system
                     # getting rid of the extended cluster
-                    cluster_max_peak_loc -= 1
-                    cluster_vals = cluster_vals[1:-1]
+                    
                     cluster_detect_lengths = np.array([template_lengths[idx] for idx in detection_template_ids[utt_id,c[0]:c[1]]])
                     cluster_detect_ids = detection_template_ids[utt_id,c[0]:c[1]]
                     
@@ -679,6 +804,9 @@ def get_pos_false_pos_false_neg_detect_points(detection_clusters_at_threshold,
                                                               flts,
                                                               offset=1,
                                                               return_flts_context=True)
+                    
+                    cluster_max_peak_val = cluster_vals.max()
+                    cluster_max_peak_loc = np.argmax(cluster_vals)
                     pos_times[utt_id].append(PositiveDetection(
                             cluster_start_end=c,
                             cluster_max_peak_loc = cluster_max_peak_loc,
@@ -729,7 +857,8 @@ def get_pos_false_pos_false_neg_detect_points(detection_clusters_at_threshold,
                                                           flts,
                                                           offset=1,
                                                           return_flts_context=True)
-                
+                cluster_max_peak_loc = np.argmax( cluster_vals)
+                cluster_max_peak_val = cluster_vals[cluster_max_peak_loc]
                 false_pos_times[utt_id].append(FalsePositiveDetection(
                         cluster_start_end=c,
                         cluster_max_peak_loc = cluster_max_peak_loc,
@@ -793,6 +922,7 @@ def get_pos_false_pos_false_neg_detect_points(detection_clusters_at_threshold,
                     true_window_cluster=c,
                     max_peak_loc=cluster_max_peak_loc,
                     max_peak_val=cluster_max_peak_val,
+                    max_peak_id=cluster_detect_ids[cluster_max_peak_loc],
                     window_vals=cluster_vals,
                     true_label_times=(s,e),
                     phn_context=phn_context,
@@ -813,8 +943,10 @@ def get_pos_false_pos_false_neg_detect_points(detection_clusters_at_threshold,
 def get_false_positives(false_pos_times,S_config,E_config,P_config=None,
                        offset=0,
                         waveform_offset=0,
-                        verbose=False):
+                        verbose=False,
+                        use_spectral=False):
     return_false_positives = []
+    all_lengths= set()
     if verbose:
         all_lengths=set()
     for utt_id, utt_false_positives in enumerate(false_pos_times):
@@ -823,13 +955,18 @@ def get_false_positives(false_pos_times,S_config,E_config,P_config=None,
             continue
         # we know its non-empty
         # will open the data
-        print "utt_id=%d" %utt_id
-        print "utt_false_positives[0].utterances_path=%s\nutt_false_positives[0].file_index=%s" %(utt_false_positives[0].utterances_path,utt_false_positives[0].file_index)
+        if verbose:
+            print "utt_id=%d" %utt_id
+            print "utt_false_positives[0].utterances_path=%s\nutt_false_positives[0].file_index=%s" %(utt_false_positives[0].utterances_path,utt_false_positives[0].file_index)
         # for fp_id, fp in enumerate(utt_false_positives):
         #     print (fp.cluster_start_end[0]+fp.cluster_max_peak_loc
         #              + fp.cluster_detect_lengths[fp.cluster_max_peak_loc] - 
         #            fp.cluster_start_end[0]+fp.cluster_max_peak_loc)
         #    print "fp_id=%d" %fp_id
+        max_length = np.max(
+            tuple(
+                fp0.cluster_detect_lengths.max()
+                for fp0 in utt_false_positives))
         return_false_positives.append( gtrd.get_syllable_features_cluster(
                 utt_false_positives[0].utterances_path,
                 utt_false_positives[0].file_index,
@@ -847,18 +984,29 @@ def get_false_positives(false_pos_times,S_config,E_config,P_config=None,
                 avg_bgd=None,
                 waveform_offset=waveform_offset,
                 assigned_phns = (utt_false_positives[0].cluster_max_peak_phn,),
-                verbose=verbose))
+                verbose=verbose,
+                detect_length=max_length
+                ))
         if verbose and len(return_false_positives) > 0:
-            for c in return_false_positives[-1]:
-                if c.E.shape[0] == 0:
-                    print "utt_id %d has E of shape %d" % (utt_id,c.E.shape[0])
-                    print "cluster inputs were these:"
-                    print tuple(
-                    (fp0.cluster_start_end[0]+fp0.cluster_max_peak_loc,
-                     fp0.cluster_start_end[0]+fp0.cluster_max_peak_loc
-                     + fp0.cluster_detect_lengths[fp0.cluster_max_peak_loc])
-                    for fp0 in utt_false_positives)
-                all_lengths.add(c.E.shape[0])
+            lengths =tuple( c.E.shape[0]
+                    for c in return_false_positives[-1])
+            print "all_lengths=%s" % str(all_lengths)
+            print "lengths=%s" % str(lengths)
+            all_lengths = all_lengths.union(lengths)
+            print "all_lengths=%s" % str(all_lengths)
+            if len(all_lengths) > 1:
+                import pdb; pdb.set_trace()
+
+            # for c in return_false_positives[-1]:
+            #     if c.E.shape[0] == 0:
+            #         print "utt_id %d has E of shape %d" % (utt_id,c.E.shape[0])
+            #         print "cluster inputs were these:"
+            #         print tuple(
+            #         (fp0.cluster_start_end[0]+fp0.cluster_max_peak_loc,
+            #          fp0.cluster_start_end[0]+fp0.cluster_max_peak_loc
+            #          + fp0.cluster_detect_lengths[fp0.cluster_max_peak_loc])
+            #         for fp0 in utt_false_positives)
+            #     all_lengths.add(c.E.shape[0])
         elif len(return_false_positives) > 0:
             for c in return_false_positives[-1]:
                 if c.E.shape[0] == 0:
@@ -873,18 +1021,37 @@ def get_true_positives(true_pos_times,S_config,E_config,P_config=None,
                         waveform_offset=0,
                         verbose=False):
     return_true_positives = []
+    # debugging code here
+    # figure out if lengths are all the same
+    found_an_example = False
+    examples_len = 0
+    old_num_examples = 0
     for utt_id, utt_true_positives in enumerate(true_pos_times):
         if len(utt_true_positives)== 0: 
             return_true_positives.append([])
             continue
         # we know its non-empty
         # will open the data
-        print "utt_id=%d" %utt_id
+
+        #print "utt_id=%d" %utt_id
         # for fp_id, fp in enumerate(utt_true_positives):
         #     print (fp.cluster_start_end[0]+fp.cluster_max_peak_loc
         #              + fp.cluster_detect_lengths[fp.cluster_max_peak_loc] - 
         #            fp.cluster_start_end[0]+fp.cluster_max_peak_loc)
         #    print "fp_id=%d" %fp_id
+
+
+        # we will pick the peak in the list that is closest to the true
+        # label time, this will avoid the situation of the length being wrong
+        cluster_list = ()
+        #for fp0 in utt_true_positives:
+        #    print fp0.cluster_detect_ids[fp0.cluster_max_peak_loc]
+        #    print fp0.cluster_detect_lengths[fp0.cluster_max_peak_loc]
+                   
+        max_length = np.max(
+            tuple(
+                tp0.cluster_detect_lengths.max()
+                for tp0 in utt_true_positives))
 
         return_true_positives.append( gtrd.get_syllable_features_cluster(
                 utt_true_positives[0].utterances_path,
@@ -901,7 +1068,22 @@ def get_true_positives(true_pos_times,S_config,E_config,P_config=None,
                 E_verbose=False,
                 # we aren't estimating background here at all
                 avg_bgd=None,
-                waveform_offset=waveform_offset))
+                waveform_offset=waveform_offset,
+                detect_length=max_length))
+
+
+
+        for true_pos in return_true_positives[-1]:
+            #print len(true_pos.E), examples_len
+            if found_an_example:
+                if len(true_pos.E) != examples_len:
+                    print "something is wrong: the example is not the right length"
+                    import pdb; pdb.set_trace()
+            else:
+                examples_len = len(true_pos.E)
+                found_an_example = True
+
+
     return tuple(return_true_positives)
 
 def get_false_negatives(false_negative_times,S_config,E_config,P_config=None,
