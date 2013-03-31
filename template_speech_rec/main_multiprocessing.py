@@ -25,7 +25,7 @@ SVMResult = collections.namedtuple('SVMResult',
                                     +' b'
                                     +' roc_curve'
                                     +' total_error_rate'))
-                                    
+
 
 
 def get_params(sample_rate=16000,
@@ -65,8 +65,8 @@ def get_params(sample_rate=16000,
                test_suffix='Data/Test/',
                savedir='data/',
                mel_smoothing_kernel=-1,
-               penalty_list=['unreg', '1.0', 
-                                                 'little_reg','0.1', 
+               penalty_list=['unreg', '1.0',
+                                                 'little_reg','0.1',
                                                  'reg', '0.05',
                                                  'reg_plus', '0.01',
                                                  'reg_plus_plus','0.001'],
@@ -109,7 +109,14 @@ def get_params(sample_rate=16000,
         test_classify_lengths = gtrd.get_classify_lengths(test_file_indices,
                                                           test_path)
         np.save("%stest_classify_lengths.npy" %savedir,test_classify_lengths)
-        
+
+    if not os.path.exists('%stest_classify_labels.npy' %savedir):
+        test_classify_labels = gtrd.get_classify_labels(test_file_indices,
+                                                          test_path,test_classify_lengths)
+        np.save("%stest_classify_labels.npy" %savedir,test_classify_labels)
+
+
+
     if os.path.exists('%strain_example_lengths.npy' %savedir):
         train_example_lengths =np.load("%strain_example_lengths.npy" %savedir)
     else:
@@ -124,6 +131,12 @@ def get_params(sample_rate=16000,
         train_classify_lengths = gtrd.get_classify_lengths(train_file_indices,
                                                           train_path)
         np.save("%strain_classify_lengths.npy" %savedir,train_classify_lengths)
+
+
+    if not os.path.exists('%strain_classify_labels.npy' %savedir):
+        train_classify_labels = gtrd.get_classify_labels(train_file_indices,
+                                                          train_path,train_classify_lengths)
+        np.save("%strain_classify_labels.npy" %savedir,train_classify_labels)
 
 
     if use_parts:
@@ -154,7 +167,7 @@ def get_params(sample_rate=16000,
             parts_S=parts_S)
     else:
         pp=None
-                           
+
 
     if magnitude_block_length ==0:
         magnitude_block_length = block_length
@@ -190,7 +203,7 @@ def get_params(sample_rate=16000,
             test_path,train_path,
             train_example_lengths, train_file_indices,train_classify_lengths,
             test_example_lengths, test_file_indices,test_classify_lengths,
-            
+
             zip(penalty_list[::2],(float(k) for k in  penalty_list[1::2])))
 
 
@@ -248,16 +261,15 @@ def get_leehon39_dict():
         'f': ['f'],
         'th': ['th'],
         's': ['s'],
-        'hh': ['hh','hv'],
-        'q': ['q']
+        'hh': ['hh','hv']
         }
-    
-    rejected_phns = ['sil','q']
+
+    rejected_phns = ['q']
     leehon_mapping = dict(reduce(lambda x,y: x+y,
-                                 (tuple( (v_elem,k) 
+                                 (tuple( (v_elem,k)
                                         for v_elem in v)
                                  for k,v in leehon_groups.items())))
-    return leehon_mapping, rejected_phns,leehon_groups.keys()
+    return leehon_mapping, rejected_phns,leehon_groups.keys() 
 
 def get_leehon_mapping():
     """
@@ -306,7 +318,7 @@ def get_leehon_mapping():
     for phn in phns_down:
         if phn not in leehon_mapping.keys():
             leehon_mapping[phn] = phn
-            
+
     leehon_mapping["q"] = "q"
 
     use_phns = np.array(list(set(leehon_mapping.values())))
@@ -323,7 +335,7 @@ def save_all_leehon_phones(utterances_path,file_indices,leehon_mapping,phn,
     =======
     """
 
-    
+
     if num_use_file_idx == -1:
         num_use_file_idx = len(file_indices)
 
@@ -337,12 +349,12 @@ def save_all_leehon_phones(utterances_path,file_indices,leehon_mapping,phn,
         phn_mapping=leehon_mapping,
         P_config=pp,
         mel_smoothing_kernel=mel_smoothing_kernel,
-        do_avg_bgd_spec=True)        
+        do_avg_bgd_spec=True)
     bgd = np.clip(avg_bgd.E,.01,.4)
     avg_spec_bgd = avg_spec_bgd.E
     np.save('%sbgd_%s.npy' % (savedir,save_tag),bgd)
     np.save('%sspec_bgd_%s.npy' % (savedir,save_tag),avg_spec_bgd)
-        
+
     example_mat = gtrd.recover_example_map(phn_features)
 
     avg_bgd_std = gtrd.AverageBackground()
@@ -357,7 +369,7 @@ def save_all_leehon_phones(utterances_path,file_indices,leehon_mapping,phn,
         S = gtrd.get_spectrogram(utterance.s,sp)
         S -= avg_spec_bgd
         avg_bgd_std.add_frames(S**2,time_axis=0)
-    
+
     avg_bgd_sigma = avg_bgd_std.E * ( avg_bgd.num_frames/(avg_bgd.num_frames+1.))
     np.save('%sspec_bgd_sigma_%s.npy' % (savedir,save_tag),avg_bgd_sigma)
 
@@ -381,7 +393,7 @@ def save_all_leehon_phones(utterances_path,file_indices,leehon_mapping,phn,
 def save_syllable_features_to_data_dir(phn_tuple,
                           utterances_path,
                           file_indices,
-                          
+
                          sp,ep,
                           phn_mapping,pp=None,tag_data_with_syllable_string=False,
                                        save_tag="train",
@@ -407,7 +419,7 @@ def save_syllable_features_to_data_dir(phn_tuple,
         print "will save Es to %s" % ('%sEs_lengths_%s.npz' % (
                 savedir,
                                              save_tag))
-        
+
 
     if num_use_file_idx == -1:
         num_use_file_idx = len(file_indices)
@@ -443,7 +455,7 @@ def save_syllable_features_to_data_dir(phn_tuple,
         S = gtrd.get_spectrogram(utterance.s,sp)
         S -= avg_spec_bgd
         avg_bgd_std.add_frames(S**2,time_axis=0)
-    
+
     avg_bgd_sigma = avg_bgd_std.E * ( avg_bgd.num_frames/(avg_bgd.num_frames+1.))
     np.save('%sspec_bgd_sigma_%s.npy' % (savedir,save_tag),avg_bgd_sigma)
 
@@ -500,7 +512,7 @@ def get_processed_examples(phn_tuple,
     then generate it anew
     will later add soemthing for returning the waveforms as needed
     """
-    # this hack makes sure that 
+    # this hack makes sure that
     # we only go through the loop below twice at most
     k =0
     while k<2:
@@ -604,8 +616,8 @@ def visualize_template(num_mix_parallel,syllable_string='aa_r',
             templates = (np.load('%s1_spec_templates_%s.npy' % (savedir,template_tag))[0] ,)
         max_length=max(max_length,
                        max(len(t) for t in templates))
-            
-    
+
+
     for num_mix in num_mix_parallel:
         if num_mix > 1:
             outfile = np.load('%s%d_spec_templates_%s.npz' % (savedir,num_mix,template_tag))
@@ -629,15 +641,15 @@ def visualize_template(num_mix_parallel,syllable_string='aa_r',
                                     E.min() * np.ones(
                             (max_length-len(E),) + E.shape[1:],
                             )))
-            
+
             view_E=view_E.swapaxes(2,1).swapaxes(0,1)
-                                
-            
+
+
             plt.close('all')
-            
+
             for plt_id in xrange(view_E.shape[0]/8):
                 plt.figure()
-            
+
                 for i in xrange(view_E.shape[0]):
                     plt.subplot(4,2,i+1)
                     plt.imshow(view_S.T.astype(np.float),aspect=.3,
@@ -670,7 +682,7 @@ def visualize_template(num_mix_parallel,syllable_string='aa_r',
                 plt.close('all')
 
 
-                                 
+
 
 def estimate_templates(num_mix_params,
                        Es,Elengths,
@@ -691,8 +703,8 @@ def estimate_templates(num_mix_params,
         Elengths = Elengths[use_idx]
         Ss = Ss[use_idx]
         Slengths = Slengths[use_idx]
-        
-        
+
+
     for num_mix in num_mix_params:
         print num_mix
         if num_mix == 1:
@@ -734,7 +746,7 @@ def estimate_templates(num_mix_params,
                     plt.imshow(spec_templates[i].T,origin="lower left")
                     plt.savefig('%s%d_spec_templates_%d_%s.png' % (savedir,num_mix,i,template_tag))
                     plt.close()
-                    
+
             np.save('%s%d_affinities_%s.npy' % (savedir,num_mix,template_tag),
                     bem.affinities)
             np.savez('%s%d_templates_%s.npz' % (savedir,num_mix,template_tag),
@@ -771,7 +783,7 @@ def estimate_spectral_templates(num_mix_params,
                                                                   Es,
                                                                   Elengths,
                                                               do_truncation=do_truncation)
-            
+
             np.save('%s%d_affinities_%s.npy' % (savedir,num_mix,save_tag),
                     affinities)
             np.savez('%s%d_spec_templates_%s.npz' % (savedir,num_mix,save_tag),
@@ -789,9 +801,9 @@ def estimate_spectral_templates(num_mix_params,
         else:
             centers = gmm_em.kmeanspp_gmm_init(num_mix,Ss)
             centers,sigmas,weights,membership_probs = gmm_em.GMM_EM(Ss,centers,tol=.000001)
-            
 
-            
+
+
 
             templates = et.recover_different_length_templates(membership_probs,
                                                                   Es,
@@ -809,7 +821,7 @@ def estimate_spectral_templates(num_mix_params,
                     plt.imshow(spec_templates[i].T,origin="lower left")
                     plt.savefig('%s%d_spec_templates_%d_%s.png' % (savedir,num_mix,i,save_tag))
                     plt.close()
-                    
+
             np.save('%s%d_affinities_%s.npy' % (savedir,num_mix,save_tag),
                     membership_probs)
             np.savez('%s%d_templates_%s.npz' % (savedir,num_mix,save_tag),
@@ -847,45 +859,45 @@ def get_templates(num_mix,template_tag=None,savedir='data/',
         print "using svm based template"
         if num_mix > 1:
             outfile = np.load('%s%s_svm_based_lrt_templates_%d_%s_%s.npz' % (savedir,syllable_string,
-                                                          
+
                                                           num_mix,
                                                                svm_name,template_tag))
             print 'template loading: %s%s_svm_based_lrt_templates_%d_%s_%s.npz' % (savedir,syllable_string,
-                                                          
+
                                                           num_mix,
                                                                svm_name,template_tag)
             templates = tuple(np.clip(outfile['arr_%d' %i],clip_factor,
                                       1-clip_factor) for i in xrange(len(outfile.files)))
         else:
             templates = (np.clip(np.load('%s%s_svm_based_lrt_templates_%d_%s_%s.npz' % (savedir,syllable_string,
-                                                          
+
                                                           num_mix,
                                                                svm_name,template_tag)),clip_factor,
                                       1-clip_factor),)
             print 'template loading %s%s_svm_based_lrt_templates_%d_%s_%s.npz' % (savedir,syllable_string,
-                                                          
+
                                                           num_mix,
                                                                svm_name,template_tag)
     elif use_spectral:
         print "using spectrum based template"
         outfile = np.load('%s%d_spec_templates_%s.npz' % (savedir,
-                                                          
+
                                                           num_mix,
                                                                template_tag))
         print 'template loading: %s%d_spec_templates_%s.npz' % (savedir,
-                                                          
+
                                                           num_mix,
                                                                template_tag)
         templates = tuple(outfile['arr_%d' %i]
                           for i in xrange(len(outfile.files)))
 
         outfile=np.load('%s%d_spec_sigmas_%s.npz' % (savedir,
-                                                          
+
                                                           num_mix,
                                                                template_tag))
         sigmas = tuple(outfile['arr_%d' %i]
                           for i in xrange(len(outfile.files)))
-        
+
     else:
         if num_mix > 1:
             outfile = np.load('%s%d_templates_%s.npz' % (savedir,num_mix,template_tag))
@@ -896,7 +908,7 @@ def get_templates(num_mix,template_tag=None,savedir='data/',
         else:
             templates = (np.clip(np.load('%s1_templates_%s.npy' % (savedir,template_tag))[0] ,
                                  clip_factor,1-clip_factor),)
-    
+
             print 'template loading %s1_templates_%s.npy' % (savedir,template_tag)
     if use_spectral:
         return templates, sigmas
@@ -932,7 +944,7 @@ def visualize_detection_setup(num_mix,data_example_lengths,
     out = open('%sexample_start_end_times_%s.pkl' % (savedir,save_tag),'rb')
     example_start_end_times=pickle.load(out)
     out.close()
-    
+
 
     for fl_id, fl in enumerate(file_indices):
         utterance = gtrd.makeUtterance(data_path,fl)
@@ -969,7 +981,7 @@ def visualize_detection_setup(num_mix,data_example_lengths,
                                           num_mix
                                            )
         plt.close('all')
-        
+
         for e_id,e in enumerate(example_start_end_times[fl_id]):
             start_idx = max(e[0]-20,0)
             end_idx = min(e[0]+60,utterance.flts[-1])
@@ -1010,9 +1022,9 @@ def get_first_layer_cascade(num_mix,syllable_string,template_tag,
                                                         num_mix,
                                                         template_tag),
              *(reduce(lambda x,y: x+y,linear_filters_cs)))
-    
-    
-        
+
+
+
 def run_detection_cascade_over_files(num_mix,test_example_lengths,
                           test_path,file_indices,syllable_string,sp,
                           ep,leehon_mapping,thresh_percent,
@@ -1032,7 +1044,7 @@ def run_detection_cascade_over_files(num_mix,test_example_lengths,
                                                           num_mix,
                                                           thresh_percent,
                                                           template_tag))
-    
+
     for fl_idx,fl in enumerate(file_indices):
         utterance = makeUtterance(test_path,fl_idx)
         sflts = (utterance.flts * utterance.s.shape[0]/float(utterance.flts[-1]) + .5).astype(int)
@@ -1045,17 +1057,17 @@ def run_detection_cascade_over_files(num_mix,test_example_lengths,
             E = get_part_features(E,pp,verbose=False)
             E_flts = S_flts.copy()
             E_flts[-1] = len(E)
-        
+
 
 def save_second_layer_cascade(num_mix,syllable_string,
                               save_tag,template_tag,savedir,
                               num_binss=np.array([0,3,4,5,7,10,15,23]),
-                              penalty_list=(('unreg', 1), 
-                                                 ('little_reg',.1), 
+                              penalty_list=(('unreg', 1),
+                                                 ('little_reg',.1),
                                                  ('reg', 0.05),
                                                  ('reg_plus', 0.01),
                                                  ('reg_plus_plus',.001)),
-                              
+
                               verbose=False,
                               only_svm=False,
                               use_spectral=False,
@@ -1079,7 +1091,7 @@ def save_second_layer_cascade(num_mix,syllable_string,
                            baseline_linear_filters[mix_component],
                            baseline_linear_filter_biases[mix_component],
                            '%s_baseline_%d_%s' % (syllable_string,
-                                                                                     
+
                                                   num_mix,
                                                   template_tag)),)
 
@@ -1087,7 +1099,7 @@ def save_second_layer_cascade(num_mix,syllable_string,
                                                      mix_component,
                                                       num_mix,
                                                              template_tag),)
-        
+
         if not only_svm:
             for num_bins in num_binss:
                 outfile = np.load('%s%s_lf_c_quantized_second_stage_%d_%d_%d_%s.npz' % (savedir,syllable_string,
@@ -1101,25 +1113,25 @@ def save_second_layer_cascade(num_mix,syllable_string,
                                                              template_tag)
                 cascade_layer += ((mix_component,outfile['lf'],outfile['c'],
                                '%s_lf_c_quantized_second_stage_%d_%d_%s' % (syllable_string,
-                                                                                     
+
                                                                                      num_mix,num_bins,
                                                              template_tag)),)
                 if verbose:
                     print '%s_lf_c_quantized_second_stage_%d_%d_%s' % (syllable_string,
-                                                                                     
+
                                                                                      num_mix,num_bins,
                                                              template_tag)
                 cascade_names += ('%s_lf_c_quantized_second_stage_%d_%d_%d_%s' % (syllable_string,
                                                      mix_component,
                                                       num_mix,num_bins,
                                                              template_tag),)
-                
+
                 if verbose:
                     print '%s_lf_c_quantized_second_stage_%d_%d_%d_%s' % (syllable_string,
                                                      mix_component,
                                                       num_mix,num_bins,
                                                              template_tag)
-                    
+
             outfile = np.load('%s%s_lf_c_second_stage_%d_%d_%s.npz' % (savedir,syllable_string,
                                                      mix_component,
                                                                    num_mix,template_tag))
@@ -1141,9 +1153,9 @@ def save_second_layer_cascade(num_mix,syllable_string,
                 print '%s_lf_c_second_stage_%d_%d_%s' % (syllable_string,
                                                      mix_component,
                                                       num_mix,template_tag)
-            
+
         template_out = get_templates(num_mix,template_tag=template_tag,savedir=savedir, use_spectral=use_spectral)
-        
+
         if use_spectral:
 
             templates,sigmas = template_out
@@ -1186,71 +1198,71 @@ def save_second_layer_cascade(num_mix,syllable_string,
                                                           num_mix,
                                                                name,template_tag)
     np.savez('%s%s_second_layer_cascade_filters_%d_%s.npz' % (savedir,syllable_string,
-                                                          
+
                                                           num_mix,
                                                                save_tag),
              *(tuple(
-                k[1] 
+                k[1]
                 for k in cascade_layer)))
     if verbose:
         print '%s%s_second_layer_cascade_filters_%d_%s.npz' % (savedir,syllable_string,
-                                                          
+
                                                           num_mix,
                                                                save_tag)
     np.save('%s%s_second_layer_cascade_mix_components_%d_%s.npy' % (savedir,syllable_string,
-                                                          
+
                                                           num_mix,
                                                                save_tag),
              np.array(
-                [k[0] 
+                [k[0]
                 for k in cascade_layer]))
     if verbose:
         print '%s%s_second_layer_cascade_mix_components_%d_%s.npy' % (savedir,syllable_string,
-                                                          
+
                                                           num_mix,
                                                                save_tag)
     np.save('%s%s_second_layer_cascade_constant_terms_%d_%s.npy' % (savedir,syllable_string,
-                                                          
+
                                                           num_mix,
                                                                save_tag),
              np.array(
-                [k[2] 
+                [k[2]
                 for k in cascade_layer]))
     if verbose:
         print '%s%s_second_layer_cascade_constant_terms_%d_%s.npy' % (savedir,syllable_string,
-                                                          
+
                                                           num_mix,
                                                                save_tag)
     np.save('%s%s_second_layer_cascade_identities_%d_%s.npy' % (savedir,syllable_string,
-                                                          
+
                                                           num_mix,
                                                                save_tag),
              np.array(
-                [k[3] 
+                [k[3]
                 for k in cascade_layer]))
     if verbose:
         print '%s%s_second_layer_cascade_identities_%d_%s.npy' % (savedir,syllable_string,
-                                                          
+
                                                           num_mix,
                                                                save_tag)
     np.save('%s%s_second_layer_cascade_names_%d_%s.npy' % (savedir,syllable_string,
-                                                          
+
                                                           num_mix,
                                                                save_tag),
              cascade_names)
     if verbose:
         print '%s%s_second_layer_cascade_names_%d_%s.npy' % (savedir,syllable_string,
-                                                          
+
                                                           num_mix,
                                                                save_tag)
-    
+
 
 def apply_first_layer_cascade(num_mix,train_example_lengths,
                          train_path,file_indices,syllable,sp,
                          ep,leehon_mapping,
                          pp=None,
                          save_tag='',template_tag=None,savedir='data/',verbose=False,num_use_file_idx=-1):
-    
+
     detection_array = np.zeros((train_example_lengths.shape[0],
                             train_example_lengths.max() + 2),dtype=np.float32)
 
@@ -1286,18 +1298,18 @@ def apply_first_layer_cascade(num_mix,train_example_lengths,
             E = get_part_features(E,pp,verbose=False)
             E_flts = S_flts.copy()
             E_flts[-1] = len(E)
-        (detect_length, 
+        (detect_length,
          utt_example_starts_ends) = gtrd.compute_detection_E(E,phns,E_flts,
                                                         detection_array[fl_id],
                                                         cascade,
-                                                        syllable,                        
+                                                        syllable,
                                                         phn_mapping=None,
                                                         verbose=False)
         detect_lengths.append(detect_length)
         example_starts_ends.append(utt_example_starts_ends)
         # check whether there is a local max in the example_starts_ends
-            
-        
+
+
 
     detection_array = np.max(detection_array,axis=1)
     detection_template_ids = np.argmax(detection_array,axis=1)
@@ -1332,8 +1344,8 @@ def save_detection_setup(num_mix,train_example_lengths,
     '%s%s_svm_based_bgd.npy' % (savedir,syllable_string)
     '%sspec_bgd_%s.npy' % (savedir,load_data_tag)
     '%sbgd_%s.npy' %(savedir,load_data_tag)
-    
-    
+
+
     Saves:
     ======
     '%slinear_filter_%d.npz'% (savedir,num_mix),*(tuple(lfc[0] for lfc in linear_filters_cs))
@@ -1347,7 +1359,7 @@ def save_detection_setup(num_mix,train_example_lengths,
     '%sdetection_lengths_%d_%s.npy' % (savedir,num_mix,
                                                 save_tag)
     '%sexample_start_end_times_%s.pkl' % (savedir,save_tag)
-    
+
     """
     if load_data_tag is None:
         load_data_tag = template_tag
@@ -1368,7 +1380,7 @@ def save_detection_setup(num_mix,train_example_lengths,
     except:
         print "It seems that the templates could not be loaded for"
         print "template_tag=%s\tnum_mix=%d" % (template_tag,num_mix)
-        return 
+        return
     if use_spectral:
         templates, sigmas = out
     else:
@@ -1392,7 +1404,7 @@ def save_detection_setup(num_mix,train_example_lengths,
                                           use_svm_filter[1]))
             linear_filters_cs += ((outfile['w'].reshape(templates[mix_component].shape).astype(np.float32),
                                    float(outfile['b'])),)
-        
+
 
 
     if template_tag is None:
@@ -1431,7 +1443,7 @@ def save_detection_setup(num_mix,train_example_lengths,
                                                 save_tag),detection_lengths)
 
     out = open('%sexample_start_end_times_%s.pkl' % (savedir,save_tag),'wb')
-    
+
     pickle.dump(example_start_end_times,out)
     out.close()
 
@@ -1452,8 +1464,8 @@ def get_classification_scores(num_mix,data_classify_lengths,
     '%s%s_svm_based_bgd.npy' % (savedir,syllable_string)
     '%sspec_bgd_%s.npy' % (savedir,load_data_tag)
     '%sbgd_%s.npy' %(savedir,load_data_tag)
-    
-    
+
+
     Saves:
     ======
     '%slinear_filter_%d.npz'% (savedir,num_mix),*(tuple(lfc[0] for lfc in linear_filters_cs))
@@ -1467,7 +1479,7 @@ def get_classification_scores(num_mix,data_classify_lengths,
     '%sdetection_lengths_%d_%s.npy' % (savedir,num_mix,
                                                 save_tag)
     '%sexample_start_end_times_%s.pkl' % (savedir,save_tag)
-    
+
     """
     if load_data_tag is None:
         load_data_tag = template_tag
@@ -1488,7 +1500,7 @@ def get_classification_scores(num_mix,data_classify_lengths,
     except:
         print "It seems that the templates could not be loaded for"
         print "template_tag=%s\tnum_mix=%d" % (template_tag,num_mix)
-        return 
+        return
     if use_spectral:
         templates, sigmas = out
     else:
@@ -1512,7 +1524,7 @@ def get_classification_scores(num_mix,data_classify_lengths,
                                           use_svm_filter[1]))
             linear_filters_cs += ((outfile['w'].reshape(templates[mix_component].shape).astype(np.float32),
                                    float(outfile['b'])),)
-        
+
 
 
     if template_tag is None:
@@ -1553,7 +1565,7 @@ def get_classification_scores(num_mix,data_classify_lengths,
                                                 save_tag),classify_locs)
 
 
-    
+
 
 def get_fpr_tpr(num_mix,
                 return_detected_examples=False,
@@ -1611,7 +1623,7 @@ def get_fpr_tpr_tagged(num_mix,syllable_string,
     '%sdetection_lengths_%d_%s.npy' % (savedir,num_mix,
                                                                       save_tag)
     '%sexample_start_end_times_%s.pkl' % (savedir,save_tag)
-    
+
     SAVES:
     ======
     '%smax_detect_vals_%d_%s.npy' % (savedir,num_mix,
@@ -1628,7 +1640,7 @@ def get_fpr_tpr_tagged(num_mix,syllable_string,
     np.save('%stpr_1stage_%d_%s.npy' % (savedir,num_mix,
                                     save_tag),
                 roc_out[1])
-    
+
     """
     if template_tag is None:
         template_tag = old_max_detect_tag
@@ -1666,7 +1678,7 @@ def get_fpr_tpr_tagged(num_mix,syllable_string,
     C0 = int(np.max(tuple( t.shape[0] for t in templates))+.5)
     C1 = int( 33 * 1.5 + .5)
     frame_rate = 1/.005
-    
+
     roc_out  = rf.get_roc_curve(max_detect_vals,
                                 detection_array,
                                 detection_lengths,
@@ -1689,7 +1701,7 @@ def get_fpr_tpr_tagged(num_mix,syllable_string,
         plt.title('ROC %s 1-stage Likelihood num_mix=%d' %(syllable_string,
                                                                   num_mix))
         plt.savefig('%s%s_fp_roc_discriminationLike_1stage_full_%d_%s.png' % (savedir,syllable_string,
-                                                     
+
                                                             num_mix,
                                                                           save_tag))
         plt.close('all')
@@ -1700,12 +1712,12 @@ def get_fpr_tpr_tagged(num_mix,syllable_string,
         plt.title('ROC %s 1-stage Likelihood num_mix=%d' %(syllable_string,
                                                                   num_mix))
         plt.savefig('%s%s_fp_roc_discriminationLike_1stage_limited_%d_%s.png' % (savedir,syllable_string,
-                                                     
+
                                                             num_mix,
                                                                           save_tag))
         plt.close('all')
 
-        
+
     if len(roc_out) > 2:
         if len(roc_out)==4:
             np.save('%sdetected_examples.npy',roc_out[2])
@@ -1716,10 +1728,108 @@ def get_fpr_tpr_tagged(num_mix,syllable_string,
             np.save('%sdetected_examples.npy',roc_out[2])
 
 
+def get_fpr_tpr_classify(num_mix,
+                         phn,mapping,reject_phns,use_phns,data_type='train',
+                         save_tag='',savedir='data/',
+                         get_plots=False,
+
+                         use_spectral=False,
+                         template_tag=None):
+    """
+    Parameters:
+    ===========
+    data_type: str
+       Should be 'train' or 'test', decides which labels to get
+
+    LOADS:
+    ======
+    '%sdetection_array_%d_%s.npy' % (savedir,num_mix,
+                                                                  save_tag)
+    '%sdetection_lengths_%d_%s.npy' % (savedir,num_mix,
+                                                                      save_tag)
+    '%sexample_start_end_times_%s.pkl' % (savedir,save_tag)
+
+    SAVES:
+    ======
+    '%smax_detect_vals_%d_%s.npy' % (savedir,num_mix,
+                                                save_tag),max_detect_vals)
+    '%smax_detect_ids_%d_%s.npy' % (savedir,num_mix,
+                                                save_tag),max_detect_ids)
+    '%smax_detect_utt_ids_%d_%s.npy' % (savedir,num_mix,
+                                                save_tag),max_detect_utt_ids)
+
+
+    np.save('%sfpr_1stage_%d_%s.npy' % (savedir,num_mix,
+                                    save_tag),
+            roc_out[0])
+    np.save('%stpr_1stage_%d_%s.npy' % (savedir,num_mix,
+                                    save_tag),
+                roc_out[1])
+
+    """
+    classify_array = np.load('%sclassify_array_%d_%s.npy' % (savedir,num_mix,
+                                                             save_tag))
+    classify_template_lengths = np.load('%sclassify_template_lengths_%d_%s.npy' % (savedir,num_mix,
+                                                                      save_tag))
+
+    classify_labels = np.load('%s%s_classify_labels.npy' % (savedir,data_type))
+    classify_lengths = np.load('%s%s_classify_lengths.npy' % (savedir,data_type))
+
+
+    template_out=get_templates(num_mix,template_tag=template_tag,savedir=savedir,
+                      use_spectral=use_spectral)
+    if use_spectral:
+        templates,sigmas = template_out
+    else:
+        templates = template_out
+
+    (sorted_positive_scores,
+     sorted_positive_locs,
+     sorted_negative_scores,
+     sorted_negative_locs,
+     sorted_use_phns,
+     sorted_negative_counts) = rf.get_true_positive_classify_scores(phn,classify_array,classify_labels,classify_lengths,use_phns,mapping)
+    np.savez('%ssorted_scoring_arrays_%d_%s.npz' % (savedir,num_mix,
+                                                save_tag),
+                                                sorted_positive_scores=sorted_positive_scores,
+                                                sorted_positive_locs=sorted_positive_locs,
+                                                sorted_negative_scores=sorted_negative_scores,
+                                                sorted_negative_locs=sorted_negative_locs,
+                                                sorted_use_phns=sorted_use_phns,
+                                                sorted_negative_counts=sorted_negative_counts)
+
+    fpr,tpr  = rf.get_classify_roc_curve(sorted_positive_scores,
+                                         sorted_negative_scores,
+                                         classify_lengths)
+
+    np.save('%sfpr_classify_stage1_%d_%s.npy' % (savedir,num_mix,
+                                    save_tag),
+            fpr)
+
+    np.save('%stpr_classify_stage1_%d_%s.npy' % (savedir,num_mix,
+                                    save_tag),
+                tpr)
+    if get_plots:
+        plt.close('all')
+        plt.plot(tpr,fpr)
+        plt.xlabel('Percent True Positives Retained')
+        plt.ylabel('False Positives Per Second')
+        plt.title('ROC %s 1-stage Likelihood num_mix=%d' %(str(phn),
+                                                                  num_mix))
+        plt.savefig('%s%s_fp_roc_discriminationLike_1stage_full_%d_%s.png' % (savedir,str(phn),
+
+                                                            num_mix,
+                                                                          save_tag))
+        plt.close('all')
+
+        plt.close('all')
+
+
+
 
 def get_tagged_all_detection_clusters(num_mix,save_tag,old_max_detect_tag,savedir,use_spectral=False):
     detection_array = np.load('%sdetection_array_%d_%s.npy' % (savedir,
-                                                            num_mix,save_tag))    
+                                                            num_mix,save_tag))
     max_detect_vals = np.load('%smax_detect_vals_%d_%s.npy' % (savedir,
                                                                num_mix,
                                                                old_max_detect_tag))
@@ -1752,7 +1862,7 @@ def get_tagged_detection_clusters(num_mix,thresh_percent,save_tag='',use_thresh=
     Loads:
     ======
     detection_array = np.load('%sdetection_array_%d_%s.npy' % (savedir,num_mix,
-                                                                  save_tag)) 
+                                                                  save_tag))
     max_detect_vals = np.load('%smax_detect_vals_%d_%s.npy' % (savedir,num_mix,old_max_detect_tag))
     detection_lengths = np.load('%sdetection_lengths_%d_%s.npy' % (savedir,num_mix,
                                                                   save_tag))
@@ -1762,7 +1872,7 @@ def get_tagged_detection_clusters(num_mix,thresh_percent,save_tag='',use_thresh=
     detection_template_ids = np.load('%sdetection_template_ids_%d_%s.npy' % (savedir,num_mix,
                                                     save_tag))
 
-    
+
 
     Saves:
     ======
@@ -1774,12 +1884,12 @@ def get_tagged_detection_clusters(num_mix,thresh_percent,save_tag='',use_thresh=
     if template_tag is None:
         template_tag=old_max_detect_tag
     detection_array = np.load('%sdetection_array_%d_%s.npy' % (savedir,num_mix,
-                                                                  save_tag))    
+                                                                  save_tag))
     if old_max_detect_tag is None:
         max_detect_vals = np.load('%smax_detect_vals_%d_%s.npy' % (savedir,num_mix,save_tag))
     else:
         max_detect_vals = np.load('%smax_detect_vals_%d_%s.npy' % (savedir,num_mix,old_max_detect_tag))
-        
+
     detection_lengths = np.load('%sdetection_lengths_%d_%s.npy' % (savedir,num_mix,
                                                                   save_tag))
 
@@ -1806,7 +1916,7 @@ def get_tagged_detection_clusters(num_mix,thresh_percent,save_tag='',use_thresh=
 
     detection_template_ids = np.load('%sdetection_template_ids_%d_%s.npy' % (savedir,num_mix,
                                                     save_tag))
-    
+
     detection_clusters = rf._get_detect_clusters_single_threshold(detect_thresh,
                                           detection_array,
                                           detection_lengths,
@@ -1856,7 +1966,7 @@ def cluster_true_pos_examples(num_mix,syllable_string,
                                             true_pos_ids,
                                             max_num_points_cluster)
 
- 
+
     template_out=get_templates(num_mix,template_tag=template_tag,savedir=savedir,
                       use_spectral=use_spectral)
     if use_spectral:
@@ -1871,7 +1981,7 @@ def cluster_true_pos_examples(num_mix,syllable_string,
 
     for mix_component in xrange(num_mix):
         print "mix_component=%d" % mix_component
-        
+
         true_pos_times_component = get_thresholded_subset_detect_times_component(mix_component,
         true_pos_thresh_list,
         true_pos_times)
@@ -1917,7 +2027,7 @@ def cluster_true_pos_examples(num_mix,syllable_string,
         if not np.all(Slengths == Ss.shape[1]):
             print "Something is wrong"
             import pdb; pdb.set_trace()
-        
+
         np.save('%s%s_true_positives_Ss_lengths_%d_%d_%d_%s.npy' % (savedir,syllable_string,
                                                              num_mix,mix_component,
                                                                   thresh_percent,
@@ -1935,7 +2045,7 @@ def cluster_true_pos_examples(num_mix,syllable_string,
                                                                   save_tag),
              Es)
 
-    
+
 
 
 
@@ -2047,7 +2157,7 @@ def get_false_pos_examples(num_mix,syllable_string,
     pickle.dump(thresholded_false_pos_times,out)
     out.close()
 
-    
+
 
     if num_use_file_idx is None or num_use_file_idx==-1:
         num_use_file_idx = len(thresholded_false_pos_times)
@@ -2106,7 +2216,7 @@ def cluster_false_pos_examples(num_mix,syllable_string,
                                                        thresh_percent,
                                                              save_tag),'rb')
 
-        
+
     Saves:
     ======
         out = open('%s%s_false_pos_times_%d_%d_%d_%s.pkl' % (savedir,syllable_string,num_mix,mix_component,
@@ -2139,13 +2249,13 @@ def cluster_false_pos_examples(num_mix,syllable_string,
                                                              num_mix,mix_component,
                                                                   thresh_percent,
                                                                   save_tag),
-             
+
              Ss)
         np.save('%s%s_false_positives_Es_lengths_%d_%d_%d_%s.npy' % (savedir,syllable_string,
                                                              num_mix,mix_component,
                                                                   thresh_percent,
                                                                   save_tag),
-             
+
              Es)
 
 
@@ -2176,7 +2286,7 @@ def cluster_false_pos_examples(num_mix,syllable_string,
         fpd.cluster_detect_ids[fpd.cluster_max_peak_loc]
         for fpd in reduce(lambda x,y: x+y,false_pos_times)))
 
-    
+
     # get the thresholds so that we limit the number of examples
     # that we train against with the SVM
     false_pos_thresh_list = get_thresh_list(num_mix,
@@ -2258,7 +2368,7 @@ def cluster_false_pos_examples(num_mix,syllable_string,
                                                              num_mix,mix_component,
                                                                   thresh_percent,
                                                                   save_tag),
-             
+
              Ss)
         Elengths,Es  = gtrd.recover_edgemaps(false_positives,example_mat)
         if not np.all(Elengths==Es.shape[1]):
@@ -2272,7 +2382,7 @@ def cluster_false_pos_examples(num_mix,syllable_string,
                                                              num_mix,mix_component,
                                                                   thresh_percent,
                                                                   save_tag),
-             
+
              Es)
 
 
@@ -2300,9 +2410,9 @@ def false_pos_examples_cascade_score(num_mix,syllable_string,
         to generate the ROC curves.  This is useful because we might
         have a template that has a tag associated with limited training
         data at the SVM level but not at the template estimation level
-        
+
     load_data_tag: str
-        This tag is used to pick the false positives to open and to 
+        This tag is used to pick the false positives to open and to
         use for processing, this is useful if the false positive set
         was generated with a template but we're doing the cascade
         with a separate function
@@ -2313,12 +2423,12 @@ def false_pos_examples_cascade_score(num_mix,syllable_string,
                 savedir,
                 k,save_tag)
         Has just all the scores, gets things ready for scoring
-    
+
     '%s%s_false_positive_cascade2_component_scores_%d_%s.npy' %(
                     savedir,
                     k,mix_component,save_tag)
         component scores separate
-    
+
     '%sfp_wave_%s_%d_%d_%f.wav' % (savedir,
                                                              k,
                                                              mix_component,
@@ -2361,25 +2471,25 @@ def false_pos_examples_cascade_score(num_mix,syllable_string,
     thresh_val = max_detect_vals[thresh_id]
 
     outfile = np.load('%s%s_second_layer_cascade_filters_%d_%s.npz' % (savedir,syllable_string,
-                                                          
+
                                                           num_mix,
                                                                template_tag))
     cascade_filters = tuple(outfile['arr_%d' % i] for i in xrange(len(outfile.files)))
     cascade_mix_components = np.load('%s%s_second_layer_cascade_mix_components_%d_%s.npy' % (savedir,syllable_string,
-                                                          
+
                                                           num_mix,
                                                                template_tag))
     cascade_constants = np.load('%s%s_second_layer_cascade_constant_terms_%d_%s.npy' % (savedir,syllable_string,
-                                                          
+
                                                           num_mix,
                                                                template_tag))
     cascade_names = np.load('%s%s_second_layer_cascade_names_%d_%s.npy' % (savedir,syllable_string,
-                                                          
+
                                                           num_mix,
                                                                template_tag))
-    
+
     cascade_identities = np.load('%s%s_second_layer_cascade_identities_%d_%s.npy' % (savedir,syllable_string,
-                                                          
+
                                                           num_mix,
                                                                template_tag))
 
@@ -2393,7 +2503,7 @@ def false_pos_examples_cascade_score(num_mix,syllable_string,
                                      utt_fps[0].file_index)
         S = gtrd.get_spectrogram(utt.s,sp)
         sflts = (utt.flts * utt.s.shape[0]/float(utt.flts[-1]) + .5).astype(int)
-        
+
         E = gtrd.get_edge_features(S.T,ep,verbose=False
                                        )
         if pp is not None:
@@ -2403,7 +2513,7 @@ def false_pos_examples_cascade_score(num_mix,syllable_string,
         if verbose:
             print "working on utterance %d with file id %s" % (utt_id,
                                                                utt_fps[0].file_index)
-        for fp_id, fp in enumerate(utt_fps):            
+        for fp_id, fp in enumerate(utt_fps):
         # compute cascade score:
             detect_time = fp.cluster_max_peak_loc+fp.cluster_start_end[0]
             mix_component = fp.cluster_detect_ids[fp.cluster_max_peak_loc]
@@ -2424,17 +2534,17 @@ def false_pos_examples_cascade_score(num_mix,syllable_string,
             for cascade_filter, cascade_constant, cascade_mix_component, cascade_id in itertools.izip(cascade_filters,cascade_constants,cascade_mix_components,cascade_identities):
                 if cascade_mix_component != mix_component: continue
                 else: pass
-                
+
                 if detect_length != cascade_filter.shape[0]:
                     import pdb; pdb.set_trace()
                 assert detect_length == cascade_filter.shape[0]
-                
+
                 if cascade_id not in false_pos_score_dict.keys():
                     false_pos_score_dict[cascade_id] = [[] for i in xrange(num_mix)]
 
                 if cascade_id not in false_pos_example_info_dict.keys():
                     false_pos_example_info_dict[cascade_id] = [[] for i in xrange(num_mix)]
-                
+
                 try:
                     false_pos_score_dict[cascade_id][cascade_mix_component].append(np.sum(fp_features * cascade_filter)+cascade_constant)
                     # saves the saved location of the file
@@ -2443,8 +2553,8 @@ def false_pos_examples_cascade_score(num_mix,syllable_string,
                                      utt_fps[0].file_index,
                                                                                            s_start_end,
                                                                                            (detect_time,detect_time+detect_length)))
-                                                                                           
-                    
+
+
                  #   if verbose:
                  #       print false_pos_score_dict[cascade_id][cascade_mix_component][-1]
                 except:
@@ -2466,7 +2576,7 @@ def false_pos_examples_cascade_score(num_mix,syllable_string,
                     savedir,
                     k,mix_component,save_tag),
                     component_scores)
-        
+
             if num_extract_top_false_positives > 0:
                 # the top scores
                 top_scores = np.argsort(component_scores)[-num_extract_top_false_positives:][::-1]
@@ -2517,7 +2627,7 @@ def false_pos_examples_cascade_score(num_mix,syllable_string,
                 Ss_fp_file_names)
                 np.save('%sfp_extracted_top_false_positive_fnames_Wav%s_%s.npy' % (savedir,k,save_tag),
                 Wav_fp_file_names)
-        
+
 
 
 def true_pos_examples_cascade_score(num_mix,syllable_string,
@@ -2543,9 +2653,9 @@ def true_pos_examples_cascade_score(num_mix,syllable_string,
         to generate the ROC curves.  This is useful because we might
         have a template that has a tag associated with limited training
         data at the SVM level but not at the template estimation level
-        
+
     load_data_tag: str
-        This tag is used to pick the false positives to open and to 
+        This tag is used to pick the false positives to open and to
         use for processing, this is useful if the false positive set
         was generated with a template but we're doing the cascade
         with a separate function
@@ -2574,25 +2684,25 @@ def true_pos_examples_cascade_score(num_mix,syllable_string,
     thresh_val = max_detect_vals[thresh_id]
 
     outfile = np.load('%s%s_second_layer_cascade_filters_%d_%s.npz' % (savedir,syllable_string,
-                                                          
+
                                                           num_mix,
                                                                template_tag))
     cascade_filters = tuple(outfile['arr_%d' % i] for i in xrange(len(outfile.files)))
     cascade_mix_components = np.load('%s%s_second_layer_cascade_mix_components_%d_%s.npy' % (savedir,syllable_string,
-                                                          
+
                                                           num_mix,
                                                                template_tag))
     cascade_constants = np.load('%s%s_second_layer_cascade_constant_terms_%d_%s.npy' % (savedir,syllable_string,
-                                                          
+
                                                           num_mix,
                                                                template_tag))
     cascade_names = np.load('%s%s_second_layer_cascade_names_%d_%s.npy' % (savedir,syllable_string,
-                                                          
+
                                                           num_mix,
                                                                template_tag))
-    
+
     cascade_identities = np.load('%s%s_second_layer_cascade_identities_%d_%s.npy' % (savedir,syllable_string,
-                                                          
+
                                                           num_mix,
                                                                template_tag))
 
@@ -2613,7 +2723,7 @@ def true_pos_examples_cascade_score(num_mix,syllable_string,
         if verbose:
             print "working on utterance %d with file id %s" % (utt_id,
                                                                utt_tps[0].file_index)
-        for tp_id, tp in enumerate(utt_tps):            
+        for tp_id, tp in enumerate(utt_tps):
         # compute cascade score:
             detect_time = tp.cluster_max_peak_loc+tp.cluster_start_end[0]
             mix_component = tp.cluster_detect_ids[tp.cluster_max_peak_loc]
@@ -2631,15 +2741,15 @@ def true_pos_examples_cascade_score(num_mix,syllable_string,
             for cascade_filter, cascade_constant, cascade_mix_component, cascade_id in itertools.izip(cascade_filters,cascade_constants,cascade_mix_components,cascade_identities):
                 if cascade_mix_component != mix_component: continue
                 else: pass
-                
+
                 assert detect_length == cascade_filter.shape[0]
-                
+
                 if cascade_id not in true_pos_score_dict.keys():
                     true_pos_score_dict[cascade_id] = [[] for i in xrange(num_mix)]
 
                 if cascade_id not in true_pos_lengths_dict.keys():
                     true_pos_lengths_dict[cascade_id] = [[] for i in xrange(num_mix)]
-                
+
                 try:
                     true_pos_score_dict[cascade_id][cascade_mix_component].append(np.sum(tp_features * cascade_filter)+cascade_constant)
                     true_pos_lengths_dict[cascade_id][cascade_mix_component].append(tp.true_label_times[1]-tp.true_label_times[0])
@@ -2650,7 +2760,7 @@ def true_pos_examples_cascade_score(num_mix,syllable_string,
 
                     import pdb; pdb.set_trace()
 
-    
+
     for k,v in true_pos_score_dict.items():
         np.save('%s%s_true_positive_cascade2_scores_%s.npy' %(
                 savedir,
@@ -2708,7 +2818,7 @@ def get_thresholded_subset_detect_times_component(mix_component,
                                                   thresh_list,
                                                   detect_times,
                                                   fraction_for_window=.3):
-    
+
     out_tuple = ()
     for utt in detect_times:
         out_fpds = ()
@@ -2786,7 +2896,7 @@ def get_false_neg_examples(num_mix,syllable_string,
                                                                          save_tag),
              lengths=lengths,
              waveforms=waveforms)
-    
+
     Slengths,Ss  = gtrd.recover_specs(false_negatives,example_mat)
     np.savez('%s%s_false_negatives_Ss_lengths_%d_%d_%s.npz' % (savedir,syllable_string,
                                                              num_mix,
@@ -2806,7 +2916,7 @@ def get_false_neg_examples(num_mix,syllable_string,
 def get_detection_clusters_by_label(num_mix,utterances_path,
                                     file_indices,thresh_percent,single_threshold=True,save_tag='',verbose=False, savedir='data/',
                                     return_example_types=False, old_max_detect_tag='train_2',template_tag=None,
-  
+
                                     detect_clusters=None,
                                     use_spectral=False):
     """
@@ -2817,7 +2927,7 @@ def get_detection_clusters_by_label(num_mix,utterances_path,
         out = open('%sdetection_clusters_single_thresh_%d_%d_%s.pkl' % (args.savedir,num_mix,
                                                                                 args.thresh_percent,
                                                                                 args.save_tag)
-        
+
 
     Loads:
     ======
@@ -2832,7 +2942,7 @@ def get_detection_clusters_by_label(num_mix,utterances_path,
         detection_lengths = np.load('%sdetection_lengths_%d_%s.npy' % (savedir,num_mix,
                                                                           save_tag))
         out = open('%sexample_start_end_times_%s.pkl' %(savedir,save_tag),'rb')
-        
+
         example_start_end_times = pickle.load(out)
 
 
@@ -2843,7 +2953,7 @@ def get_detection_clusters_by_label(num_mix,utterances_path,
         template_tag = old_max_detect_tag
     if verbose:
         print "save_tag=%s" % save_tag
-        
+
     if detect_clusters is not None:
         if verbose:
             print "Using detect_clusters no file loading"
@@ -2857,7 +2967,7 @@ def get_detection_clusters_by_label(num_mix,utterances_path,
             out = open('%sdetection_clusters_%s.pkl' %(savedir,save_tag),'rb')
         else:
             out = open('%sdetection_clusters.pkl'%savedir,'rb')
-            
+
         detection_clusters =cPickle.load(out)
         out.close()
 
@@ -2876,7 +2986,7 @@ def get_detection_clusters_by_label(num_mix,utterances_path,
 
     example_start_end_times = pickle.load(out)
     out.close()
-    
+
     template_out = get_templates(num_mix,template_tag=template_tag,savedir=savedir, use_spectral=use_spectral)
     if use_spectral:
 
@@ -2889,11 +2999,11 @@ def get_detection_clusters_by_label(num_mix,utterances_path,
     print "np.min(detection_template_ids)=%d, detection_template_ids.max()=%d" % (detection_template_ids.min(),detection_template_ids.max())
     window_start = -int(np.mean(tuple( t.shape[0] for t in templates))/3.+.5)
     window_end = -window_start
-    
 
-    
 
-    if single_threshold: 
+
+
+    if single_threshold:
         return rf.get_pos_false_pos_false_neg_detect_points(detection_clusters,
                                               detection_array,
                                               detection_template_ids,
@@ -2906,7 +3016,7 @@ def get_detection_clusters_by_label(num_mix,utterances_path,
                                                         return_example_types=return_example_types)
     else:
         detection_cluster_idx = int(len(detection_clusters) * thresh_percent/100.)
-    
+
         return rf.get_pos_false_pos_false_neg_detect_points(detection_clusters[detection_cluster_idx],
                                               detection_array,
                                               detection_template_ids,
@@ -3097,7 +3207,7 @@ def test_predictors_second_stage(num_mix,linear_filters,Es_clusters,
                        tp_scores_idx[i+1]] = scores[labels_clusters[i] >.5]
         fp_scores[fp_scores_idx[i]:
                        fp_scores_idx[i+1]] = scores[labels_clusters[i] <.5]
-    
+
     tp_scores = np.sort(tp_scores)
     fpr = np.array([
             np.sum(fp_scores >= tp_scores[k])
@@ -3155,7 +3265,7 @@ def test_predictors_second_stage_clustered(num_mix,linear_filters,
                        tp_scores_idx[i+1]] = scores[labels_clusters[i] >.5]
         fp_scores[fp_scores_idx[i]:
                        fp_scores_idx[i+1]] = scores[labels_clusters[i] <.5]
-    
+
     tp_scores = np.sort(tp_scores)
     fpr = np.array([
             np.sum(fp_scores >= tp_scores[k])
@@ -3209,11 +3319,11 @@ def get_second_layer_cascade_roc_curves(num_mix,savedir,syllable_string,
     if load_data_tag is None:
         load_data_tag = save_tag
     cascade_identities = np.load('%s%s_second_layer_cascade_identities_%d_%s.npy' % (savedir,syllable_string,
-                                                          
+
                                                           num_mix,
                                                                template_tag))
     identity_list = tuple(set(cascade_identities))
-    
+
     detection_lengths = np.load('%sdetection_lengths_%d_%s.npy' % (savedir,num_mix,
                                                load_data_tag))
     out = open('%s%s_false_neg_times_%d_%d_%s.pkl' % (savedir,syllable_string,num_mix,
@@ -3233,8 +3343,8 @@ def get_second_layer_cascade_roc_curves(num_mix,savedir,syllable_string,
     num_false_negs_components = np.zeros(num_mix)
     false_neg_lengths_components = tuple(
         reduce(lambda x,y: x+y, (
-                tuple(k.true_label_times[1]-k.true_label_times[0] 
-                                       for k in utt if k.max_peak_id==mix_component) 
+                tuple(k.true_label_times[1]-k.true_label_times[0]
+                                       for k in utt if k.max_peak_id==mix_component)
                                  for utt in false_neg_times))
         for mix_component in xrange(num_mix))
     false_neg_component_length_counts = ()
@@ -3247,9 +3357,9 @@ def get_second_layer_cascade_roc_curves(num_mix,savedir,syllable_string,
         else:
             false_neg_component_length_counts += (np.ones(0,dtype=int),)
 
-    
+
     num_time_points=float(detection_lengths.sum())
-    
+
 
     cascade_fpr_tpr = {}
 
@@ -3262,16 +3372,16 @@ def get_second_layer_cascade_roc_curves(num_mix,savedir,syllable_string,
         true_pos_cascade_scores = np.load('%s%s_true_positive_cascade2_scores_%s.npy' %(
                 savedir,
                 cascade_identity,
-                save_tag)    
+                save_tag)
                                       )
         true_pos_cascade_sort_idx = np.argsort(true_pos_cascade_scores)[::-1]
         true_pos_cascade_scores = true_pos_cascade_scores[true_pos_cascade_sort_idx]
         true_pos_cascade_lengths = (np.load('%s%s_true_positive_cascade2_lengths_%s.npy' %(
                 savedir,
                 cascade_identity,
-                save_tag)    
+                save_tag)
                                       )[true_pos_cascade_sort_idx]).astype(int)
-        
+
         true_pos_length_counts = np.bincount(true_pos_cascade_lengths,minlength=len(false_neg_length_counts))
         if len(true_pos_length_counts) > len(false_neg_length_counts):
             fn_length_counts = np.hstack((false_neg_length_counts,
@@ -3281,17 +3391,17 @@ def get_second_layer_cascade_roc_curves(num_mix,savedir,syllable_string,
             fn_length_counts = false_neg_length_counts.copy()
 
         true_pos_nonzero_lengths = np.nonzero(true_pos_length_counts)[0]
-        
+
 
 
         num_pos = float(len(true_pos_cascade_scores) + num_false_negs)
         pos_length_counts = fn_length_counts + true_pos_length_counts
         pos_nonzero_lengths = np.nonzero(pos_length_counts)[0]
-        
+
         if pos_length_counts.sum() != num_pos:
             print "A mistake has been made with the length calculation"
             import pdb; pdb.set_trace()
-        
+
         if verbose:
             print "num_pos=%g" % num_pos
         true_pos_rates = np.zeros(len(true_pos_cascade_scores))
@@ -3308,7 +3418,7 @@ def get_second_layer_cascade_roc_curves(num_mix,savedir,syllable_string,
                 except: import  pdb; pdb.set_trace()
 
             false_pos_rates[rank_id] = np.sum(false_pos_cascade_scores >= tp_score)/num_time_points /.005
-            
+
 
         np.save('%s%s_tpr_cascade2roc_%s.npy' % (savedir,
                                                    cascade_identity,
@@ -3320,7 +3430,7 @@ def get_second_layer_cascade_roc_curves(num_mix,savedir,syllable_string,
                 pos_nonzero_lengths=pos_nonzero_lengths,
                 pos_length_counts=pos_length_counts,
                 true_pos_rates_lengths=true_pos_rates_lengths)
-            
+
         np.save('%s%s_fpr_cascade2roc_%s.npy' % (savedir,
                                                    cascade_identity,
                                                       save_tag),
@@ -3328,7 +3438,7 @@ def get_second_layer_cascade_roc_curves(num_mix,savedir,syllable_string,
                 )
 
         # look at classification rates by length
-        
+
 
         # do the cascade computation by components
         for mix_component in xrange(num_mix):
@@ -3348,9 +3458,9 @@ def get_second_layer_cascade_roc_curves(num_mix,savedir,syllable_string,
             true_pos_cascade_component_lengths = np.load('%s%s_true_positive_cascade2_component_lengths_%d_%s.npy' %(
                 savedir,
                 cascade_identity,mix_component,
-                save_tag)    
+                save_tag)
                                       )[true_pos_cascade_component_sort_idx]
-            
+
             if len(true_pos_cascade_component_lengths) == 0:
                 continue
             if len(false_neg_component_length_counts[mix_component]) > 0:
@@ -3379,10 +3489,10 @@ def get_second_layer_cascade_roc_curves(num_mix,savedir,syllable_string,
                     fn_component_length_counts = false_neg_component_length_counts[mix_component].copy()
                 except:
                     import pdb; pdb.set_trace()
-                
+
             true_pos_nonzero_component_lengths = np.nonzero(true_pos_component_length_counts)[0]
 
-                
+
             num_pos_component = float(len(true_pos_cascade_component_scores) + num_false_negs_components[mix_component])
 
             pos_component_length_counts = fn_component_length_counts + true_pos_component_length_counts
@@ -3391,15 +3501,15 @@ def get_second_layer_cascade_roc_curves(num_mix,savedir,syllable_string,
             if pos_component_length_counts.sum() != num_pos_component:
                 print "A mistake has been made with the length calculation for component %d" % mix_component
                 import pdb; pdb.set_trace()
- 
+
 
             if verbose:
                 print "num_pos_component[%d]=%g" % (mix_component,num_pos_component)
-            
+
             true_pos_component_rates = np.zeros(len(true_pos_cascade_component_scores))
             true_pos_component_rates_lengths = np.zeros((len(pos_nonzero_component_lengths),
                                                len(true_pos_cascade_component_scores)))
- 
+
             false_pos_component_rates = np.zeros(len(true_pos_component_rates))
             for rank_id, tp_score in enumerate(true_pos_cascade_component_scores):
                 true_pos_component_rates[rank_id] = np.sum(true_pos_cascade_component_scores>=tp_score)/num_pos_component
@@ -3407,7 +3517,7 @@ def get_second_layer_cascade_roc_curves(num_mix,savedir,syllable_string,
                     true_pos_component_rates_lengths[pos_len_idx,rank_id] = np.sum(true_pos_cascade_component_scores[true_pos_cascade_component_lengths==nz_len]>=tp_score)/float(pos_component_length_counts[nz_len])
 
                 false_pos_component_rates[rank_id] = np.sum(false_pos_cascade_component_scores >= tp_score)/num_time_points /.005
-            
+
             np.save('%s%s_tpr_component_cascade2roc_%d_%s.npy' % (savedir,
                                                    cascade_identity,mix_component,
                                                       save_tag),
@@ -3424,9 +3534,9 @@ def get_second_layer_cascade_roc_curves(num_mix,savedir,syllable_string,
                                                       save_tag),
                 false_pos_component_rates
                 )
-            
-        
-        
+
+
+
         #import pdb; pdb.set_trace()
         if make_plots:
             use_idx = false_pos_rates <= 1.
@@ -3446,7 +3556,7 @@ def get_second_layer_cascade_roc_curves(num_mix,savedir,syllable_string,
                                                             cascade_identity,
                                             num_mix,save_tag))
             plt.close('all')
-            
+
     if make_plots:
         plt.close('all')
         for cascade_identity in identity_list:
@@ -3516,7 +3626,7 @@ def get_second_layer_cascade_roc_curves(num_mix,savedir,syllable_string,
                      cascade_fpr_tpr[cascade_identity][1],
                      label=cascade_identity)
             label_list.append(cascade_identity)
-            
+
         fpr=np.load('%sfpr_1stage_%d_%s.npy' % (savedir,num_mix,
                                     load_data_tag))
         tpr=np.load('%stpr_1stage_%d_%s.npy' % (savedir,num_mix,
@@ -3535,7 +3645,7 @@ def get_second_layer_cascade_roc_curves(num_mix,savedir,syllable_string,
                                                             syllable_string,
                                             num_mix,save_tag))
         plt.close('all')
-                
+
 
 def remove_redundant_centers(cluster_centers):
     """
@@ -3548,7 +3658,7 @@ def remove_redundant_centers(cluster_centers):
 def update_affinities_centers(affinities,length_list,cluster_centers):
     """
     Assign each datapoint to a cluster
-    
+
     Parameters:
     ===========
     affinities: np.ndarray[ndim=2]
@@ -3566,24 +3676,24 @@ def update_affinities_centers(affinities,length_list,cluster_centers):
 
     return centers
 
-        
+
 
 def cluster_lengths(pos_length_counts,pos_nonzero_lengths,num_clusters,
                     verbose=False):
     """
     Simple k-means algorithm to cluster lengths
     Returns the clustered lengths and their indices in pos_nonzero_lengths
-    
+
     """
     length_list = []
     for nz_len in pos_nonzero_lengths:
         length_list.extend(pos_length_counts[nz_len]*[nz_len])
-    
+
     length_list = np.array(length_list).astype(float)
     n = len(length_list)
     cluster_centers = length_list[((np.arange(num_clusters)+1.)/(num_clusters+1) *len(length_list)).astype(int)]
     cluster_centers,num_clusters = remove_redundant_centers(cluster_centers)
-    
+
     affinities = np.zeros((n,num_clusters))
     new_centers = update_affinities_centers(affinities,length_list,cluster_centers)
     new_centers,new_num_clusters = remove_redundant_centers(new_centers)
@@ -3594,11 +3704,11 @@ def cluster_lengths(pos_length_counts,pos_nonzero_lengths,num_clusters,
             print cluster_centers
         new_centers = update_affinities_centers(affinities,length_list,cluster_centers)
         new_centers,new_num_clusters = remove_redundant_centers(new_centers)
-    
+
     length_clusters = ()
     for cur_cluster in xrange(num_clusters):
         length_clusters += (length_list[affinities[:,cur_cluster].astype(bool)],)
-        
+
     length_sets = [np.array([],dtype=int) for i in xrange(num_clusters)]
     length_indices = [np.array([],dtype=int) for i in xrange(num_clusters)]
     for nz_idx, nz_len in enumerate(pos_nonzero_lengths):
@@ -3617,7 +3727,7 @@ def cluster_lengths(pos_length_counts,pos_nonzero_lengths,num_clusters,
     sorted_length_sets_indices = np.argsort(length_indices_starts)
     length_sets = tuple(length_sets[k] for k in sorted_length_sets_indices)
     length_indices = tuple(length_indices[k] for k in sorted_length_sets_indices)
-    
+
 
     return length_sets, length_indices, length_list
 
@@ -3626,12 +3736,12 @@ def plot_component_roc_curves(num_mix,savedir,save_tag,syllable_string,template_
     For each cascade component plot the performance of different mixture components also on lengths
     """
     cascade_identities = np.load('%s%s_second_layer_cascade_identities_%d_%s.npy' % (savedir,syllable_string,
-                                                          
+
                                                                                      num_mix,
                                                                                      template_tag))
     identity_list = tuple(set(cascade_identities))
 
-    SVM_pattern = re.compile('SVM')    
+    SVM_pattern = re.compile('SVM')
     for cascade_identity in identity_list:
 
         # only make SVM graphs since the other ones are worthless
@@ -3653,11 +3763,11 @@ def plot_component_roc_curves(num_mix,savedir,save_tag,syllable_string,template_
 
         length_sets, length_indices, length_list = cluster_lengths(pos_length_counts,pos_nonzero_lengths,10)
         use_bins = np.sort([np.sort(length_set)[0] for length_set in length_sets] + [length_list[-1]])
-        
+
 
         base_histogram = np.histogram(length_list,bins=use_bins)
         max_histogram_bin = base_histogram[0].max()
-        
+
         # want all histograms on the same axis and this guarantees
         # that we get that
 
@@ -3668,9 +3778,9 @@ def plot_component_roc_curves(num_mix,savedir,save_tag,syllable_string,template_
                     markers.append(m)
             except TypeError:
                 pass
-            
+
         plt.close('all')
-        
+
         num_clusters = len(length_sets)
         cur_marker = 1
         for cluster_id in xrange(num_clusters):
@@ -3700,9 +3810,9 @@ def plot_component_roc_curves(num_mix,savedir,save_tag,syllable_string,template_
                                             num_mix,save_tag))
         plt.close('all')
         # now we plot a histogram over the lengths
-        
+
         plt.hist(length_list,bins=use_bins)
-            
+
         plt.title('Positive example length distribution for %s num_mix=%d' % (cascade_identity,
                                                                                                    num_mix))
         plt.ylim([0,max_histogram_bin])
@@ -3718,14 +3828,14 @@ def plot_component_roc_curves(num_mix,savedir,save_tag,syllable_string,template_
             true_pos_rates = np.load('%s%s_tpr_component_cascade2roc_%d_%s.npy' % (savedir,
                                                    cascade_identity,mix_component,
                                                       save_tag))
-                
+
             outfile = np.load('%s%s_tpr_component_lengths_cascade2roc_%d_%s.npz' % (savedir,
                                                    cascade_identity,mix_component,
                                                       save_tag))
             pos_nonzero_lengths=outfile['pos_nonzero_lengths']
             pos_length_counts=outfile['pos_length_counts']
             true_pos_rates_lengths=outfile['true_pos_rates_lengths']
-            
+
             mix_num_pos += (pos_length_counts.sum(),)
             pos_mix_list += mix_num_pos[mix_component] * [mix_component]
 
@@ -3735,8 +3845,8 @@ def plot_component_roc_curves(num_mix,savedir,save_tag,syllable_string,template_
 
             # cluster the lengths so that we show the different scores by length
             length_sets, length_indices, length_list = cluster_lengths(pos_length_counts,pos_nonzero_lengths,3)
-            
-            
+
+
             plt.close('all')
 
             num_clusters = len(length_sets)
@@ -3766,9 +3876,9 @@ def plot_component_roc_curves(num_mix,savedir,save_tag,syllable_string,template_
             plt.close('all')
             # now we plot a histogram over the lengths
             length_sets, length_indices, length_list = cluster_lengths(pos_length_counts,pos_nonzero_lengths,5)
-            
+
             plt.hist(length_list,bins=use_bins)
-            
+
             plt.title('Positive example length distribution for %s num_mix=%d mix_component=%d' % (cascade_identity,
                                                                                                    num_mix,mix_component))
             plt.ylim([0,max_histogram_bin])
@@ -3783,10 +3893,10 @@ def plot_component_roc_curves(num_mix,savedir,save_tag,syllable_string,template_
         plt.savefig('%s%snum_pos_per_component_histogram_%s_%d_%s.png' % (savedir,syllable_string,cascade_identity,num_mix,save_tag))
         plt.close('all')
 
-        
 
 
-                                        
+
+
 
 def get_second_stage_roc_curves_clustered(num_mix,savedir,syllable_string,thresh_percent,
                                 save_tag,old_max_detect_tag,make_plots=False,verbose=False,num_binss=np.array([0,3,4,5,7,10,15,23])):
@@ -3807,8 +3917,8 @@ def get_second_stage_roc_curves_clustered(num_mix,savedir,syllable_string,thresh
     base_cs = tuple(outfile['arr_%d'%i] for i in xrange(num_mix))
     like2_lfs =()
     like2_cs =()
-    penalty_list=(('unreg', 1), 
-                                                 ('little_reg',.1), 
+    penalty_list=(('unreg', 1),
+                                                 ('little_reg',.1),
                                                  ('reg', 0.05),
                                                  ('reg_plus', 0.01),
                                                  ('reg_plus_plus',.001))
@@ -3837,7 +3947,7 @@ def get_second_stage_roc_curves_clustered(num_mix,savedir,syllable_string,thresh
                                                                         penalty,old_max_detect_tag))
             svm_lfs[penalty] += (outfile['w'].reshape(like2_lfs[-1].shape),)
             svm_bs[penalty] += (outfile['b'],)
-            
+
         for num_bins in num_binss:
             outfile = np.load('%s%s_lf_c_quantized_second_stage_%d_%d_%d_%s.npz' % (savedir,syllable_string,
                                                      mix_component,
@@ -3846,7 +3956,7 @@ def get_second_stage_roc_curves_clustered(num_mix,savedir,syllable_string,thresh
             quantized_lfs[num_bins] += (outfile['lf'],)
             quantized_cs[num_bins] += (outfile['c'],)
 
-    
+
     test_predictors_second_stage_clustered(num_mix,base_lfs,
                                            syllable_string,
                                            thresh_percent,
@@ -3901,12 +4011,12 @@ def get_second_stage_roc_curves_clustered(num_mix,savedir,syllable_string,thresh
                                  num_time_points,num_false_negs,savedir,
                                  '%s_like2_roc_fpr_tpr_%d_%s' % (syllable_string,num_mix,save_tag),
                                  make_plots=make_plots,verbose=verbose)
-        
-        
 
 
-    
-        
+
+
+
+
 
 def get_roc_curve(detector_neg_scores,detector_pos_scores,
                   num_mix,thresh_percent,syllable_string,
@@ -3973,15 +4083,15 @@ def run_all_linear_filters(num_mix,syllable_string,save_tag,thresh_percent,make_
              )
     labels_for_classification = tuple(
         outfile['arr_%d' % k] for k in xrange(num_mix))
-                           
+
     outfile = np.load('%s%s_lf_c_second_stage_%d_%d_%s.npz' % (savedir,syllable_string,
                                                      mix_component,
                                                       num_mix,save_tag))
     lf_second_stage = outfile['lf']
     c_second_stage = outfile['c']
 
-    
-    
+
+
     outfile = np.load('%s%s_lf_c_second_stage_%d_%d_%s.npz' % (savedir,syllable_string,
                                                      mix_component,
                                                       num_mix,save_tag))
@@ -4002,9 +4112,9 @@ def run_all_linear_filters(num_mix,syllable_string,save_tag,thresh_percent,make_
                                                                   thresh_percent,
                                                                   save_tag,
                                                                   ))
-    
-                              
-                               
+
+
+
 
 def get_clustered_examples_by_detect_times(detect_times_fname,
                                            Es_lengths_fname,
@@ -4064,8 +4174,8 @@ def get_clustered_examples_by_detect_times(detect_times_fname,
                                                templates,
                                                template_ids)
     return Es_false_pos_clusters, Ss_false_pos_clusters
-    
-    
+
+
 
 def run_fp_detector(num_mix,syllable_string,new_tag,thresh_percent=None,save_tag=None,make_plots=False,savedir='data/',
                     verbose=False):
@@ -4119,7 +4229,7 @@ def run_fp_detector(num_mix,syllable_string,new_tag,thresh_percent=None,save_tag
 
     detect_times_fname = '%s%s_false_pos_times_%d_%d_%s.pkl' % (savedir,syllable_string,num_mix,thresh_percent,save_tag)
     Es_lengths_fname = '%s%s_false_positives_Es_lengths_%d_%d_%s.npz' % (savedir,syllable_string,num_mix,thresh_percent,save_tag)
-    (Es_false_pos_clusters2, 
+    (Es_false_pos_clusters2,
      Ss_false_pos_clusters2) = get_clustered_examples_by_detect_times(detect_times_fname,
                                            Es_lengths_fname,
                                            Ss_lengths_fname,
@@ -4227,7 +4337,7 @@ def train_fp_detector(num_mix,syllable_string,new_tag,thresh_percent=None,save_t
             false_pos_times_fname ='%s%s_false_pos_times_%d.pkl' % (savedir,syllable_string,num_mix)
         else:
             false_pos_times_fname ='%s%s_false_pos_times_%d_%d_%s.pkl' % (savedir,syllable_string,num_mix,thresh_percent,save_tag)
-        (Es_false_pos_clusters, 
+        (Es_false_pos_clusters,
          Ss_false_pos_clusters)=get_clustered_examples_by_detect_times(
             false_pos_times_fname,
             '%s%s_false_positives_Es_lengths_%d_%d_%s.npz' % (savedir,syllable_string,num_mix,thresh_percent,save_tag),
@@ -4257,7 +4367,7 @@ def train_fp_detector(num_mix,syllable_string,new_tag,thresh_percent=None,save_t
     else:
         true_pos_times_fname = '%s%s_pos_times_%d_%d_%s.pkl' % (savedir,syllable_string,num_mix,thresh_percent,save_tag)
 
-    (Es_true_pos_clusters, 
+    (Es_true_pos_clusters,
      Ss_true_pos_clusters)=get_clustered_examples_by_detect_times(
         true_pos_times_fname,
         '%s%s_true_positives_Es_lengths_%d_%d_%s.npz' % (savedir,syllable_string,num_mix,thresh_percent,save_tag),
@@ -4315,7 +4425,7 @@ def train_fp_detector_clustered(num_mix,
                                 use_spectral=False,
                                 use_percent=1.,
                                 use_percent_random_seed=0):
-    
+
     templates_out = get_templates(num_mix,template_tag=template_tag,savedir=savedir,use_spectral=use_spectral)
     if use_spectral:
         templates, sigmas = templates_out
@@ -4324,7 +4434,7 @@ def train_fp_detector_clustered(num_mix,
     for mix_component in xrange(num_mix):
         if verbose:
             print "Working on mixture component: %d" % mix_component
-        
+
 
         try:
             Es_false_pos_cluster =np.load( '%s%s_false_positives_Es_lengths_%d_%d_%d_%s.npy' % (savedir,syllable_string,num_mix,mix_component,thresh_percent,save_tag))
@@ -4350,15 +4460,15 @@ def train_fp_detector_clustered(num_mix,
             Ss_true_pos_cluster = Ss_true_pos_cluster[tp_subsampled_cluster_ids]
 
 
-        
+
         if not use_spectral and Es_false_pos_cluster.shape[1:] != templates[mix_component].shape:
             import pdb; pdb.set_trace()
-        
+
         if verbose:
             print "num_mix=%d" % num_mix
             print 'Cluster sizes are for false positives %d' % Es_false_pos_cluster.shape[1]
             print 'Temlate-length=%d' % len(templates[mix_component])
-        
+
 
 
         if make_plots:
@@ -4416,7 +4526,7 @@ def get_baseline_second_stage_detection(true_pos_cluster,false_pos_cluster,
     lf,c = et.construct_linear_filter_structured_alternative(
         template,
         false_pos_template,
-        
+
         bgd=None,min_prob=.01)
     np.savez('%s%s_lf_c_second_stage_%d_%d_%s.npz' % (savedir,syllable_string,
                                                      mix_component,
@@ -4430,7 +4540,7 @@ def get_baseline_second_stage_detection(true_pos_cluster,false_pos_cluster,
     false_responses = np.sort((false_pos_cluster[num_false_pos_component/2:]*lf+ c).sum(-1).sum(-1).sum(-1))
     roc_curve = np.array([
                 np.sum(false_responses >= true_response)/float(len(false_responses))
-                for true_response in true_responses]) 
+                for true_response in true_responses])
     np.save('%s%s_fpr_detector_rocLike_%d_%d_%s.npy' % (savedir,syllable_string,
                                                      mix_component,
                                                      num_mix,save_tag),roc_curve)
@@ -4458,11 +4568,11 @@ def quantize_template(template,num_bins,bin_vals=None,bin_lims=None):
         bin_vals =(bin_lims[1:] +bin_lims[:-1])/2.
 
     for bin_id, bin_val in enumerate(bin_vals):
-        template[ (template >= bin_lims[bin_id]) 
+        template[ (template >= bin_lims[bin_id])
                   * (template < bin_lims[bin_id+1])] = bin_val
     return template
 
-    
+
 
 def get_like_ratio_quantized_second_stage_detection(true_pos_cluster,false_pos_cluster,
                                         template, num_mix,mix_component,
@@ -4491,7 +4601,7 @@ def get_like_ratio_quantized_second_stage_detection(true_pos_cluster,false_pos_c
         lf,c = et.construct_linear_filter_structured_alternative(
             tp_quantized,
             fp_quantized,
-        
+
             bgd=None,min_prob=.01)
         np.savez('%s%s_lf_c_quantized_second_stage_%d_%d_%d_%s.npz' % (savedir,syllable_string,
                                                      mix_component,
@@ -4503,7 +4613,7 @@ def get_like_ratio_quantized_second_stage_detection(true_pos_cluster,false_pos_c
         false_responses = np.sort((false_pos_cluster[num_false_pos_component/2:]*lf+ c).sum(-1).sum(-1).sum(-1))
         roc_curve = np.array([
                 np.sum(false_responses >= true_response)/float(len(false_responses))
-                for true_response in true_responses]) 
+                for true_response in true_responses])
         np.save('%s%s_fpr_detector_rocLike_%d_%d_%d_%s.npy' % (savedir,syllable_string,
                                                                mix_component,
                                                                num_mix,num_bins,save_tag),roc_curve)
@@ -4528,8 +4638,8 @@ def get_like_ratio_quantized_second_stage_detection(true_pos_cluster,false_pos_c
 def get_svm_second_stage_detection(true_pos_cluster,false_pos_cluster,
                                         template, num_mix,mix_component,
                                         syllable_string,save_tag,savedir='data/',
-                                   penalty_list=(('unreg', 1), 
-                                                 ('little_reg',.1), 
+                                   penalty_list=(('unreg', 1),
+                                                 ('little_reg',.1),
                                                  ('reg', 0.05),
                                                  ('reg_plus', 0.01),
                                                  ('reg_plus_plus',.001)),
@@ -4576,7 +4686,7 @@ def get_svm_second_stage_detection(true_pos_cluster,false_pos_cluster,
                                                                name,save_tag),
                  w=w,
                  b=b)
-        
+
         testing_raw_outs = (testing_data_X * w + b).sum(1)
         val_thresholds = np.sort(testing_raw_outs[testing_data_Y==1])
         roc_curve = np.zeros(len(val_thresholds))
@@ -4614,7 +4724,7 @@ def get_test_clusters_for_2nd_stage(num_mix,data_path,
     detection_clusters=cPickle.load(out)
     out.close()
 
-    
+
     # need to find max point of clusters (perhaps this should
     # happen during the cluster identification phase)
     detection_array = np.load('%sdetection_array_%d_%s.npy' % (savedir,num_mix,
@@ -4647,8 +4757,8 @@ def get_test_clusters_for_2nd_stage(num_mix,data_path,
     clustered_Ss = np.empty(num_mix,dtype=object)
     clustered_labels = np.empty(num_mix,dtype=object)
     clustered_waveforms = np.empty(num_mix,dtype=object)
-        
-    
+
+
     cluster_max_peak_loc = rf.get_max_peak(cluster_vals)
 
     if make_plots:
@@ -4693,8 +4803,8 @@ def main2(syllable,threshval,
                           leehon_mapping,save_tag="train_2",
                           waveform_offset=10)
     print "Finished save_syllable_features_to_data_dir"
-    (Ss, 
-     Slengths, 
+    (Ss,
+     Slengths,
      Es,
      Elengths) =get_processed_examples(syllable,
                            train_path,
@@ -4801,11 +4911,11 @@ def main2(syllable,threshval,
 
     perform_second_stage_detection_testing(num_mix,syllable_string,'test',thresh_percent,
                                            make_plots=False,verbose=False)
-    
+
     save_syllable_features_to_data_dir(syllable,
                                        test_path,
                                        test_file_indices,
-                          
+
                                        sp,ep,
                                        leehon_mapping,tag_data_with_syllable_string=False,
                                        save_tag="test",
@@ -4853,9 +4963,9 @@ def get_max_peak_loc_val(detection_row,example_starts_ends,
         val = detection_row[loc]
         peakiness = get_peakiness(detection_row,loc)
         peaks.append((start_time-loc,val,peakiness))
-    
+
     return peaks
-            
+
 def get_peakiness(detection_row,loc):
     """
     Get peakiness
@@ -4885,9 +4995,9 @@ def analyze_peak_locs_values(num_mix,
         if len(example_starts_ends) == 0: pass
         all_peaks.extend(get_max_peak_loc_val(detection_array[fl_id,:detection_lengths[fl_id]],example_starts_ends,
                                               time_bound=time_bound))
-        
+
     return all_peaks
-    
+
 def visualize_peaks(fname,all_peaks,
                     savedir):
     plt.close('all')
@@ -4908,7 +5018,9 @@ def main(args):
      root_path,
      test_path,train_path,
      train_example_lengths, train_file_indices,train_classify_lengths,
+
      test_example_lengths, test_file_indices,test_classify_lengths,
+
      penalty_list) = get_params(
         sample_rate=args.sample_rate,
         num_window_samples=args.num_window_samples,
@@ -4963,7 +5075,7 @@ def main(args):
         jobs = []
         for phn in use_phns:
             if phn in rejected_phones: continue
-            
+
             p = multiprocessing.Process(target=save_all_leehon_phones(train_path,
                                    train_file_indices,
                                    leehon_mapping, phn,
@@ -4995,8 +5107,8 @@ def main(args):
         savedir=args.savedir
 
     if args.visualize_processed_examples is not None:
-        (Ss, 
-         Slengths, 
+        (Ss,
+         Slengths,
          Es,
          Elengths) =get_processed_examples(args.detect_object,
                                            train_path,
@@ -5011,8 +5123,8 @@ def main(args):
         visualize_processed_examples(Es,Elengths,Ss,Slengths,syllable_string,
                                      savedir=args.savedir,plot_prefix=args.visualize_processed_examples,pp=pp)
     if args.estimate_templates:
-        (Ss, 
-         Slengths, 
+        (Ss,
+         Slengths,
          Es,
          Elengths) =get_processed_examples(args.detect_object,
                                            train_path,
@@ -5041,8 +5153,8 @@ def main(args):
                                do_truncation=(not args.no_template_truncation))
 
     if args.estimate_templates_limited_data is not None:
-        (Ss, 
-         Slengths, 
+        (Ss,
+         Slengths,
          Es,
          Elengths) =get_processed_examples(args.detect_object,
                                            train_path,
@@ -5074,8 +5186,8 @@ def main(args):
 
 
     if args.estimate_spectral_templates:
-        (Ss, 
-         Slengths, 
+        (Ss,
+         Slengths,
          Es,
          Elengths) =get_processed_examples(args.detect_object,
                                            train_path,
@@ -5155,7 +5267,7 @@ def main(args):
                         load_data_tag=args.load_data_tag))
                 jobs.append(p)
                 p.start
-        
+
     if args.save_detection_setup == "test":
         print args.num_mix
         if len(args.num_mix_parallel) > 0:
@@ -5183,7 +5295,7 @@ def main(args):
                 jobs.append(p)
                 p.start
 
-                
+
     elif args.save_detection_setup == "train":
         print args.num_mix
         if len(args.num_mix_parallel) > 0:
@@ -5234,6 +5346,26 @@ def main(args):
                 visualize_detection_setup(args.num_mix,test_example_lengths,
                          test_path,train_file_indices,sp,args.visualize_detection_setup,
                         args.savedir,args.save_tag)
+    if args.get_fpr_tpr_classify == 'train':
+        leehon_mapping, rejected_phones, use_phns = get_leehon39_dict()
+        jobs = []
+        for num_mix in args.num_mix_parallel:
+            p=multiprocessing.Process(target=
+            get_fpr_tpr_classify(num_mix,
+                                 args.detect_object,
+                                 leehon_mapping,
+                                 rejected_phones,
+                                 use_phns,
+                                 data_type='train',
+                                 save_tag=args.save_tag,
+                                 savedir=args.savedir,
+                                 get_plots=True,
+                                 use_spectral=args.do_spectral_detection,
+                                 template_tag=args.template_tag)
+                                 )
+            jobs.append(p)
+            p.start
+
     if args.get_fpr_tpr_tagged:
         print "Finished save_detection_setup"
         if len(args.num_mix_parallel) > 0:
@@ -5300,7 +5432,7 @@ def main(args):
             print "doing parallel"
             jobs = []
             for num_mix in args.num_mix_parallel:
-                
+
                 out = open('%sdetection_clusters_single_thresh_%d_%d_%s.pkl' % (args.savedir,num_mix,
                                                                                 args.thresh_percent,
                                                                                 args.save_tag)
@@ -5332,7 +5464,7 @@ def main(args):
                             all_lengths[k]=fp.cluster_detect_lengths[k_id]
 
                 print num_mix, len(template_lengths)
-                
+
                 for k in xrange(num_mix):
                     try:
                         print 'Template_length[%d]=%d, false_pos_template_length[%d]=%d' %(k,template_lengths[k],k,all_lengths[k])
@@ -5384,7 +5516,7 @@ def main(args):
             print "doing parallel"
             jobs = []
             for num_mix in args.num_mix_parallel:
-                
+
                 out = open('%sdetection_clusters_single_thresh_%d_%d_%s.pkl' % (args.savedir,num_mix,
                                                                                 args.thresh_percent,
                                                                                 args.save_tag)
@@ -5743,7 +5875,7 @@ def main(args):
         visualize_peaks(args.visualize_peaks,
                         all_peaks,
                         args.savedir)
-    
+
     if args.plot_component_roc_curves:
         if len(args.num_mix_parallel)> 0:
             for num_mix in args.num_mix_parallel:
@@ -5760,7 +5892,7 @@ def get_final_test_rocs(num_mix,syllable_string,thresh_percent,savedir,save_tag,
                                            old_max_detect_tag=old_max_detect_tag)
     get_second_stage_roc_curves(num_mix,savedir,syllable_string,thresh_percent,
                                 save_tag,old_max_detect_tag,make_plots=make_plots,verbose=verbose)
-    
+
 
 def get_test_outputs(num_mix,syllable_string,sp,ep,
                      thresh_percent,savedir,save_tag,pp=None):
@@ -5939,7 +6071,7 @@ def plot_detection_outs(plot_name,num_mix,sp,ep,data_path,file_indices,
                                             e_id)
             cur_plot+=1
             plt.close('all')
-            
+
 
 def get_phone_xticks_locs_labels(start_idx,end_idx,flts,phns):
     middle_phns =np.arange(len(flts))[flts >= start_idx]
@@ -5952,7 +6084,7 @@ def get_phone_xticks_locs_labels(start_idx,end_idx,flts,phns):
     else:
         end_phn_idx =np.arange(len(flts))[flts >  end_idx].min()
     return flts[start_phn_idx:end_phn_idx]-start_idx, phns[start_phn_idx:end_phn_idx]
-    
+
 if __name__=="__main__":
     parser = argparse.ArgumentParser(description='''
 Program to run various experiments in detecting
@@ -6100,6 +6232,9 @@ syllables and tracking their performance
     parser.add_argument('--get_fpr_tpr_tagged',action="store_true",
                         help="whether get_fpr_tpr_tagged to run the plot_detection_outs runs with no arguments"
                         )
+    parser.add_argument('--get_fpr_tpr_classify',default='',type=str,
+                        help="whether get_fpr_tpr_classify to run the plot_detection_outs runs with no arguments, the argument should be train or test"
+                        )
     parser.add_argument('--num_mix_parallel',default=[],nargs='*',
                         type=int,metavar='N',
                         help="possibly empty sequence of integers that say run this program for different mixture numbers concurrently")
@@ -6149,7 +6284,7 @@ syllables and tracking their performance
                         help='include this flag and a string to take all the stored examples and create plots of them with the string as a prefix for the plot name')
     parser.add_argument('--visualize_templates',action='store_true',
                         help='include this flag and a string to take all the stored templates and create plots of them with the string as a prefix for the plot name')
-    parser.add_argument('--num_use_file_idx',default=-1,type=int,    
+    parser.add_argument('--num_use_file_idx',default=-1,type=int,
                         help='An integer, specifies the number of utterances to use in save_detection_setup so that way errors can be identified quickly, default is -1, which means that all files are used')
     parser.add_argument('--visualize_detection_setup',type=str,default='',
                         help='A string, empty means nothing is done, if the string is non-empty saves a file using the string as a prefix for the name where the file is a picture of the detector output and the spectrogram')
@@ -6171,8 +6306,8 @@ syllables and tracking their performance
                         help="does a clustering of the true positive examples for me to work with")
     parser.add_argument("--max_num_points_cluster",default=2000,type=int,
                         help="Maximum number of points in true_pos, false_pos, and false_neg clusters")
-    parser.add_argument('--penalty_list',default=['unreg', '1.0', 
-                                                 'little_reg','0.1', 
+    parser.add_argument('--penalty_list',default=['unreg', '1.0',
+                                                 'little_reg','0.1',
                                                  'reg', '0.05',
                                                  'reg_plus', '0.01',
                                                  'reg_plus_plus','0.001'],
