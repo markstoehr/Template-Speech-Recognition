@@ -211,7 +211,7 @@ def get_params(sample_rate=16000,
 # need to access the files where we perform the estimation
 #
 
-def get_leehon39_dict():
+def get_leehon39_dict(no_sil=False):
     """
     Output:
     ======
@@ -265,11 +265,15 @@ def get_leehon39_dict():
         }
 
     rejected_phns = ['q']
+    if no_sil:
+        rejected_phns.append('sil')
+        rejected_phns.extend(leehon_groups['sil'])
+        a = leehon_groups.pop('sil',None)
     leehon_mapping = dict(reduce(lambda x,y: x+y,
                                  (tuple( (v_elem,k)
                                         for v_elem in v)
                                  for k,v in leehon_groups.items())))
-    return leehon_mapping, rejected_phns,leehon_groups.keys() 
+    return leehon_mapping, rejected_phns,leehon_groups.keys()
 
 def get_leehon_mapping():
     """
@@ -5347,7 +5351,7 @@ def main(args):
                          test_path,train_file_indices,sp,args.visualize_detection_setup,
                         args.savedir,args.save_tag)
     if args.get_fpr_tpr_classify == 'train':
-        leehon_mapping, rejected_phones, use_phns = get_leehon39_dict()
+        leehon_mapping, rejected_phones, use_phns = get_leehon39_dict(no_sil=args.no_sil)
         jobs = []
         for num_mix in args.num_mix_parallel:
             p=multiprocessing.Process(target=
@@ -6339,6 +6343,8 @@ syllables and tracking their performance
                         help="block length to use in estimation of the blocks for getting the magnitude feature quantization")
     parser.add_argument('--only_svm',action='store_true',
                         help='only use svm for second stage')
+    parser.add_argument('--no_sil',action='store_true',
+                        help='add silence to the rejected phone list')
     syllable=('aa','r')
     threshval = 100
     make_plots =True
