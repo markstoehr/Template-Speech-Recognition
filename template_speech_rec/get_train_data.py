@@ -694,11 +694,9 @@ def _compute_classification_E(E,phns,E_flts,
                               utt_id,
                          classify_array,
                          classify_template_ids,
-                         classify_lengths,
+                         classify_template_lengths,
                          classify_locs,
                          linear_filters_cs,
-
-                         syllable,
                          phn_mapping=None,
                          verbose=False
                         ):
@@ -712,7 +710,7 @@ def _compute_classification_E(E,phns,E_flts,
 
     we also save the lengths to detect_lengths
     """
-    window_starts, window_ends = get_classify_windows(phns,flts)
+    window_starts, window_ends = get_classify_windows(phns,E_flts)
     
     detection_scores  = (compute_likelihood_linear_filter.detect(
                             E.astype(np.uint8),
@@ -725,7 +723,9 @@ def _compute_classification_E(E,phns,E_flts,
         w_start, w_end = window_start_end
         classify_locs[utt_id,phn_id] = w_start + np.argmax(detection_scores[w_start:w_end])
         classify_template_ids[utt_id,phn_id] = filter_id
-        classify_lengths[utt_id,phn_id] = len(linear_filters_cs[0][0])
+
+        classify_template_lengths[utt_id,phn_id] = len(linear_filters_cs[0][0])
+
         classify_array[utt_id,phn_id] =  detection_scores[classify_locs[utt_id,phn_id]]
                                                           
                     
@@ -744,7 +744,7 @@ def _compute_classification_E(E,phns,E_flts,
                 if classify_array[utt_id,phn_id] <  detection_scores[cur_filter_classify_time]:
                     classify_locs[utt_id,phn_id] = cur_filter_classify_time
                     classify_template_ids[utt_id,phn_id] = filter_id
-                    classify_lengths[utt_id,phn_id] = len(cur_filt)
+                    classify_template_lengths[utt_id,phn_id] = len(cur_filt)
                     classify_array[utt_id,phn_id] =  detection_scores[classify_locs[utt_id,phn_id]]
 
 
@@ -1159,7 +1159,6 @@ def get_detection_scores_mixture_named_params(data_path,file_indices,
 
 def get_classify_scores(data_path,file_indices,
                         classify_array,
-                        syllable,
                         linear_filters_cs,S_config=None,
                                               E_config=None,
                         verbose = False,
@@ -1186,7 +1185,7 @@ def get_classify_scores(data_path,file_indices,
     
 
     classify_locs = np.zeros(classify_array.shape,dtype=int)
-    classify_lengths = np.zeros(classify_array.shape[0],dtype=int)
+    classify_template_lengths = np.zeros(classify_array.shape,dtype=int)
     for utt_id,data_file_idx in enumerate(file_indices[:num_examples]):
         if verbose:
             if ((utt_id % verbose) == 0 ):
@@ -1208,7 +1207,7 @@ def get_classify_scores(data_path,file_indices,
                                  detection_template_ids,
                                  detection_lengths,
                                  linear_filters_cs,
-                                 syllable,
+                                 (),
                                  example_start_end_times,
                                  phn_mapping=phn_mapping,
                                  verbose=verbose
@@ -1226,10 +1225,9 @@ def get_classify_scores(data_path,file_indices,
                                       utt_id,
                                  classify_array,
                                  classify_template_ids,
-                                 classify_lengths,
+                                 classify_template_lengths,
                                  classify_locs,
                                  linear_filters_cs,
-                                 syllable,
                                  phn_mapping=phn_mapping,
                                  verbose=verbose
                                  )
@@ -1238,7 +1236,7 @@ def get_classify_scores(data_path,file_indices,
         
     return (classify_array,
                 classify_locs,
-                classify_lengths,
+                classify_template_lengths,
                 classify_template_ids)
 
 
