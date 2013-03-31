@@ -780,10 +780,22 @@ def get_isolated_classify_windows(E,phns,flts,bgd,linear_filters_cs):
     # we get from the very start of where we can check
     # and make sure that the maximum filter isn't greater than the max_filter
     # length
+    # phn_segment_ends correspond to the end of the segment into the utterance that we count
+
+    phn_segment_ends = ( flts[1:] + (flts[1:]-flts[:-1])/3.).astype(np.int16)
+
+    # we stack background onto the end of the E_window
+    # so that we don't get too much of the following phone
+    # in the phone being analyzed
     E_windows = tuple(
-        E[window_start:window_end+max_filter_length].astype(np.float32)
-        for window_start, window_end in itertools.izip(window_starts,
-                                                       window_ends))
+        np.vstack((
+            E[window_start:phn_segment_end].astype(np.float32),
+            np.tile(bgd,
+                    (max(0,window_end+max_filter_length - phn_segment_end),)
+                    +tuple(np.ones(len(bgd.shape))))))
+        for window_start, window_end, phn_segment_end in itertools.izip(window_starts,
+                                                       window_ends,
+                                                       phn_segment_ends))
     # we return both the windows in terms of features
     # and we return the start locations of the windows
     return E_windows, window_starts, window_ends
