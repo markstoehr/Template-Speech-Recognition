@@ -753,7 +753,83 @@ def _compute_classification_E(E,phns,E_flts,
     if np.any(np.isnan(classify_array)) == True:
         import pdb; pdb.set_trace()
 
+def get_isolated_classify_windows(E,phns,flts,bgd,linear_filters_cs):
+    """
+    Compute the windows over which we get the classification scores
+    """
+    # get the maximum filter length
+    max_filter_length = max( len(lfc[0]) for lfc in linear_filters_cs)
+    # prepend the beginning of E with background for padding purposes
+    E = np.vstack((np.tile(bgd ,(flts[1]-flts[0],)+tuple(np.ones(len(bgd.shape)))).astype(np.float32),E.astype(np.float32),
+                   np.tile(bgd,(flts[-2]+max_filter_length-flts[-1],)
+                           +tuple(np.ones(len(bgd.shape)))).astype(np.float32)))
+    # append to the end of E with enough padding for maximum filter length
+    flts += flts[1]-flts[0]
+    window_starts = (flts[:-1] + (flts[:-1] - flts[1:])/3.).astype(np.int16)
+    window_ends = (flts[-1],flts[:-1] + (flts[1:]-flts[:-1])/3.).astype(np.int16)
+    # we get from the very start of where we can check
+    # and make sure that the maximum filter isn't greater than the max_filter
+    # length
+    E_windows = tuple(
+        E[window_start:window_end+max_filter_length].astype(np.float32)
+        for window_start, window_end in itertools.izip(window_starts,
+                                                       window_ends))
+    return E_windows
 
+
+def _compute_isolated_classification_E(E,phns,E_flts,
+                              utt_id,
+                         classify_array,
+                         classify_template_ids,
+                         classify_template_lengths,
+                         classify_locs,
+                         linear_filters_cs,
+                                       bgd,
+                         phn_mapping=None,
+                         verbose=False
+                        ):
+    """
+    Detection array will have detection scores saved to it
+    and we will make entries of detection_array that are trailing
+    be some minimum value: min_val, which is initially None
+    and if it is None then it is set to
+         - 2* np.abs(detection_array[next_id,:next_length]).max()
+         and then it is set to that threshold the rest of the time
+
+    we also save the lengths to detect_lengths
+    """
+    E_windows = get_isolated_classify_windows(E,phns,E_flts,bgd,linear_filters_cs)
+    for phn_id, E_window in enumerate(E_windows):
+        
+        detection_scores  = (compute_likelihood_linear_filter.detect_float(
+                            E_window,
+                            linear_filters_cs[0][0])
+                             + linear_filters_cs[0][1])
+        filter_id = 0
+
+        classify_locs[utt_id,phn_id] = w_start + np.argmax(detection_scores[w_start:w_end])
+        classify_template_ids[utt_id,phn_id] = filter_id
+
+        classify_template_lengths[utt_id,phn_id] = len(linear_filters_cs[0][0])
+
+        classify_array[utt_id,phn_id] =  detection_scores[classify_locs[utt_id,phn_id]]
+        for cur_filt,cur_c in linear_filters_cs[1:]:
+            filter_id += 1
+            detection_scores = compute_likelihood_linear_filter.detect_float(E_window,
+                                                                                             cur_filt) + cur_c
+                cur_filter_classify_time = w_start + np.argmax(detection_scores[w_start:w_end])
+                if classify_array[utt_id,phn_id] <  detection_scores[cur_filter_classify_time]:
+                    classify_locs[utt_id,phn_id] = cur_filter_classify_time
+                    classify_template_ids[utt_id,phn_id] = filter_id
+                    classify_template_lengths[utt_id,phn_id] = len(cur_filt)
+                    classify_array[utt_id,phn_id] =  detection_scores[classify_locs[utt_id,phn_id]]
+
+
+
+    if np.any(np.isnan(classify_array)) == True:
+        import pdb; pdb.set_trace()
+
+    
 
 
 def _compute_detection_E(E,phns,E_flts,
@@ -1161,7 +1237,9 @@ def get_detection_scores_mixture_named_params(data_path,file_indices,
 
 def get_classify_scores(data_path,file_indices,
                         classify_array,
-                        linear_filters_cs,S_config=None,
+                        linear_filters_cs,
+                        bgd,
+                        S_config=None,
                                               E_config=None,
                         verbose = False,
                          num_examples =-1,
@@ -1223,13 +1301,14 @@ def get_classify_scores(data_path,file_indices,
                 E_flts = S_flts.copy()
                 E_flts[-1] = len(E)
 
-            _compute_classification_E(E,utterance.phns,E_flts,
+            _compute_isolated_classification_E(E,utterance.phns,E_flts,
                                       utt_id,
                                  classify_array,
                                  classify_template_ids,
                                  classify_template_lengths,
                                  classify_locs,
                                  linear_filters_cs,
+                                               bgd,
                                  phn_mapping=phn_mapping,
                                  verbose=verbose
                                  )
