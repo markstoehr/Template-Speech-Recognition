@@ -365,13 +365,13 @@ def save_all_leehon_phones(utterances_path,file_indices,leehon_mapping,phn,
     Slengths,Ss  = gtrd.recover_specs(phn_features,example_mat,bgd=avg_spec_bgd,bgd_std=avg_bgd_sigma)
     Ss = Ss.astype(np.float32)
 
-    np.savez('%s%s_Ss_lengths_%s.npz' % (savedir,
+    np.savez('%sSs_lengths_%s_%s.npz' % (savedir,
                                              phn,
                                              save_tag),Ss=Ss,Slengths=Slengths,example_mat=example_mat)
 
     Elengths,Es  = gtrd.recover_edgemaps(phn_features,example_mat,bgd=bgd)
     Es = Es.astype(np.uint8)
-    np.savez('%s%s_Es_lengths_%s.npz'% (savedir,
+    np.savez('%sEs_lengths_%s_%s.npz'% (savedir,
                                         phn,
                                         save_tag) ,Es=Es,Elengths=Elengths,example_mat=example_mat)
 
@@ -1437,8 +1437,8 @@ def save_detection_setup(num_mix,train_example_lengths,
 
 
 def get_classification_scores(num_mix,data_classify_lengths,
-                              data_path,file_indices,syllable,sp,
-                              ep,leehon_mapping,
+                              data_path,file_indices,sp,
+                              ep,
                               pp=None,
                               save_tag='',template_tag=None,savedir='data/',verbose=False,num_use_file_idx=-1, use_svm_based=False,syllable_string=None,
                               svm_name=None,use_svm_filter=None,
@@ -1527,18 +1527,16 @@ def get_classification_scores(num_mix,data_classify_lengths,
 
     (classify_array,
      classify_locs,
-     classify_lengths,
+     classify_template_lengths,
      classify_template_ids)=gtrd.get_classify_scores(
              data_path,
              file_indices[:num_use_file_idx],
              classify_array,
-             syllable,
              linear_filters_cs,S_config=sp,
              E_config=ep,
              verbose = verbose,
              num_examples =-1,
              return_detection_template_ids=True,
-             phn_mapping=leehon_mapping,
              P_config=pp,
              use_noise_file=use_noise_file,
              noise_db=noise_db,
@@ -1547,8 +1545,8 @@ def get_classification_scores(num_mix,data_classify_lengths,
                                                 save_tag),classify_array)
     np.save('%sclassify_template_ids_%d_%s.npy' % (savedir,num_mix,
                                                 save_tag),classify_template_ids)
-    np.save('%sclassify_lengths_%d_%s.npy' % (savedir,num_mix,
-                                                save_tag),classify_lengths)
+    np.save('%sclassify_template_lengths_%d_%s.npy' % (savedir,num_mix,
+                                                save_tag),classify_template_lengths)
     np.save('%sclassify_locs_%d_%s.npy' % (savedir,num_mix,
                                                 save_tag),classify_locs)
 
@@ -5112,6 +5110,49 @@ def main(args):
                            args.save_tag)
 
     print "Finished estimate_templates"
+
+    if args.get_classification_scores == "train":
+        print args.num_mix
+        if len(args.num_mix_parallel) > 0:
+            print "doing parallel classification"
+            jobs = []
+            for num_mix in args.num_mix_parallel:
+                p = multiprocessing.Process(target=
+                                            get_classification_scores(
+                        num_mix,
+                        train_classify_lengths,
+                        train_path,
+                        train_file_indices,
+                        sp,ep,pp=pp,save_tag=args.save_tag,
+                        template_tag=args.template_tag,
+                        savedir=args.savedir,
+                        num_use_file_idx=args.num_use_file_idx,
+                        use_noise_file=args.use_noise_file,
+                        noise_db=args.noise_db,
+                        load_data_tag=args.load_data_tag))
+                jobs.append(p)
+                p.start
+    if args.get_classification_scores == "test":
+        print args.num_mix
+        if len(args.num_mix_parallel) > 0:
+            print "doing parallel classification"
+            jobs = []
+            for num_mix in args.num_mix_parallel:
+                p = multiprocessing.Process(target=
+                                            get_classification_scores(
+                        num_mix,
+                        test_classify_lengths,
+                        test_path,
+                        test_file_indices,
+                        sp,ep,pp=pp,save_tag=args.save_tag,
+                        template_tag=args.template_tag,
+                        savedir=args.savedir,
+                        num_use_file_idx=args.num_use_file_idx,
+                        use_noise_file=args.use_noise_file,
+                        noise_db=args.noise_db,
+                        load_data_tag=args.load_data_tag))
+                jobs.append(p)
+                p.start
         
     if args.save_detection_setup == "test":
         print args.num_mix
@@ -6043,6 +6084,9 @@ syllables and tracking their performance
     parser.add_argument('--save_detection_setup',default='',
                         type=str,metavar='str',
                         help="Says whether to store the detection array and run save_detection_setup: values are either 'train' or 'test', this affects which set of the data is used")
+    parser.add_argument('--get_classification_scores',default='',
+                        type=str,metavar='str',
+                        help="Gets the classification scores for the train or the test set depending on whether the keyword argument is `train` or `test`")
     parser.add_argument('--estimate_templates',action='store_true',
                         help="Whether to run estimate_templates and save those templates or not")
     parser.add_argument('--estimate_templates_limited_data',type=float,default=None,
