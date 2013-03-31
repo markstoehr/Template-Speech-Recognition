@@ -1732,7 +1732,7 @@ def get_fpr_tpr_tagged(num_mix,syllable_string,
             np.save('%sdetected_examples.npy',roc_out[2])
 
 
-def get_fpr_tpr_classify(num_mix,
+def get_fpr_tpr_classify(num_mix,data_classify_lengths,
                          phn,mapping,reject_phns,use_phns,data_type='train',
                          save_tag='',savedir='data/',
                          get_plots=False,
@@ -1777,7 +1777,6 @@ def get_fpr_tpr_classify(num_mix,
                                                                       save_tag))
 
     classify_labels = np.load('%s%s_classify_labels.npy' % (savedir,data_type))
-    classify_lengths = np.load('%s%s_classify_lengths.npy' % (savedir,data_type))
 
 
     template_out=get_templates(num_mix,template_tag=template_tag,savedir=savedir,
@@ -1792,7 +1791,7 @@ def get_fpr_tpr_classify(num_mix,
      sorted_negative_scores,
      sorted_negative_locs,
      sorted_use_phns,
-     sorted_negative_counts) = rf.get_true_positive_classify_scores(phn,classify_array,classify_labels,classify_lengths,use_phns,mapping)
+     sorted_negative_counts) = rf.get_true_positive_classify_scores(phn,classify_array,classify_labels,data_classify_lengths,use_phns,mapping)
     np.savez('%ssorted_scoring_arrays_%d_%s.npz' % (savedir,num_mix,
                                                 save_tag),
                                                 sorted_positive_scores=sorted_positive_scores,
@@ -1804,7 +1803,7 @@ def get_fpr_tpr_classify(num_mix,
 
     fpr,tpr  = rf.get_classify_roc_curve(sorted_positive_scores,
                                          sorted_negative_scores,
-                                         classify_lengths)
+                                         data_classify_lengths)
 
     np.save('%sfpr_classify_stage1_%d_%s.npy' % (savedir,num_mix,
                                     save_tag),
@@ -1827,6 +1826,160 @@ def get_fpr_tpr_classify(num_mix,
         plt.close('all')
 
         plt.close('all')
+
+
+def get_max_classification_results(num_mix,save_tag_suffix,template_tag,
+                                   data_type,
+                                  use_phns,rejected_phns,mapping,
+                                  data_classify_lengths):
+    """
+    Finds the best phone at each point
+
+    Parameters:
+    ===========
+    data_type: str
+        Should be 'train' or 'test' depending on which labels one is interested in
+    save_tag_suffix: str
+        along the lines of 'train_edges_no_smoothing' where every phn
+        result file is saved as ${phn}_train_edges_no_smoothing, this
+        is the suffix of the tags where the results are saved
+    """
+    classify_labels = np.load('%s%s_classify_labels.npy' % (savedir,data_type))    
+    max_classify_array=-np.inf * np.ones((data_classify_lengths.shape[0],
+                                 data_classify_lengths.max()),
+                                dtype=np.float32)
+    # indicates which phone was the maxima at each utterance
+    argmax_classify_array=np.zeros((data_classify_lengths.shape[0],
+                                 data_classify_lengths.max()),
+                                dtype='|S4')
+    max_classify_template_lengths = np.zeros(max_classify_array.shape,dtype=np.uint16)
+    max_classify_template_ids = np.zeros(max_classify_array.shape,dtype=np.uint16)
+    max_classify_locs = np.zeros(max_classify_array.shape,dtype=np.uint16)
+
+    # these copy array keep track of statistics about the ground truth
+    # labeled, this assists
+    true_max_classify_array=-np.inf * np.ones((data_classify_lengths.shape[0],
+                                 data_classify_lengths.max()),
+                                dtype=np.float32)
+    true_max_classify_template_lengths = np.zeros(max_classify_array.shape,dtype=np.uint16)
+    true_max_classify_template_ids = np.zeros(max_classify_array.shape,dtype=np.uint16)
+    true_max_classify_locs = np.zeros(max_classify_array.shape,dtype=np.uint16)
+
+    # use_phn_index_dict = dict( (k,v) for v,k in enumerate(use_phns))
+    # argmax_classify_array_ints = -1 *np.ones(argmax_classify_array.shape,
+    #                                       dtype=np.int16)
+    # classify_labels_ints = argmax_classify_array_ints.copy()
+    # for utt_id, utt_phns in enumerate(argmax_classify_array_ints.shape[0]):
+    #     for phn_id, phn in enumerate(utt_phns):
+    #         if phn in use_phn_index_dict:
+    #             argmax_classify_array_ints[utt_id,phn_id] = (
+    #                 use_phn_index_dict[phn])
+    #         true_phn = classify_labels
+    #         if true_phn in use_phn_index_dict:
+    #             classify_labels_ints[utt_id,phn_id] = (
+    #                 use_phn_index_dict[true_phn])
+                
+    
+    # run through the maximization, also fill in the ground truth arrays
+    for use_phn_id, use_phn in enumerate(use_phns):
+        save_tag = '%s_%s' % (use_phn,save_tag_suffix)
+        classify_array = np.load('%sclassify_array_%d_%s.npy' % (savedir,num_mix,
+                                                             save_tag))[:,:data_classify_lengths.max()]
+        classify_template_lengths = np.load('%sclassify_template_lengths_%d_%s.npy' % (savedir,num_mix,
+                                                                      save_tag))[:,:data_classify_lengths.max()]
+        classify_template_ids = np.load('%sclassify_template_ids_%d_%s.npy' % (savedir,num_mix,
+                                                                      save_tag))[:,:data_classify_lengths.max()]
+        classify_locs = np.load('%sclassify_locs_%d_%s.npy' % (savedir,num_mix,
+                                                                      save_tag))[:,:data_classify_lengths.max()]
+
+        # peform the maximization
+        improved_entries = classify_array > max_classify_array
+        max_classify_array[improved_entries] = classify_array[improved_entries]
+        if not np.all((max_classify_array - classify_array)[improved_entries] == 0):
+            import pdb; pdb.set_trace()
+        argmax_classify_array[improved_entries] = use_phn
+        max_classify_template_lengths[improved_entries] = classify_template_lengths[improved_entries]
+        max_classify_template_ids[improved_entries] = classify_template_ids[improved_entries]
+        max_classify_locs[improved_entries] = classify_locs[improved_entries]
+
+        # record the ground truth statistics
+        true_entries = classify_labels == use_phn
+        true_max_classify_array[true_entries] = classify_array[true_entries]
+        true_max_classify_template_lengths[true_entries] = classify_template_lengths[true_entries]
+        true_max_classify_template_ids[true_entries] = classify_template_ids[true_entries]
+        true_max_classify_locs[true_entries] = classify_locs[true_entries]
+
+    np.savez('%smax_classify_results_%d_%s.npz' % (savedir,
+                                               num_mix,
+                                               save_tag_suffix),
+             max_classify_array=max_classify_array,
+             max_classify_template_ids=max_classify_template_ids,
+             max_classify_template_lengths=max_classify_template_lengths,
+             max_classify_locs=max_classify_locs,
+             argmax_classify_array=argmax_classify_array)
+
+    np.savez('%strue_max_classify_results_%d_%s.npz' % (savedir,
+                                               num_mix,
+                                               save_tag_suffix),
+             true_max_classify_array=true_max_classify_array,
+             true_max_classify_template_ids=true_max_classify_template_ids,
+             true_max_classify_template_lengths=true_max_classify_template_lengths,
+             true_max_classify_locs=true_max_classify_locs)
+
+
+def get_classify_confusion_matrix(num_mix,save_tag,savedir,data_type,
+                                  use_phns,top_confusions=5000):
+    """
+    Compute the confusion matrix
+
+    Parameters:
+    ===========
+    data_type: str
+        Should be 'train' or 'test' depending on which labels one is interested in
+    """
+    classify_labels = np.load('%s%s_classify_labels.npy' % (savedir,data_type))
+    outfile = np.load('%smax_classify_results_%d_%s.npz' % (savedir,
+                                               num_mix,
+                                               save_tag))
+    argmax_classify_array = outfile['argmax_classify_array']
+    max_classify_template_ids = outfile['max_classify_template_ids']
+    outfile = np.load('%strue_max_classify_results_%d_%s.npz' % (savedir,
+                                               num_mix,
+                                               save_tag))
+    true_max_classify_array = outfile['true_max_classify_array']
+    true_max_classify_template_ids = outfile['true_max_classify_template_ids']
+    num_use_phns = len(use_phns)
+    # confusion_matrix[i,j] is the number of times phn i was the max but phn j was the true label
+    # it is inherently asymmetric because there are two types of errors
+    confusion_matrix = np.zeros((num_use_phns,num_use_phns),dtype=np.uint16)
+    confusion_matrix_by_id = np.zeros((num_use_phns*num_mix,
+                                       num_use_phns*num_mix),dtype=np.uint16)
+    for use_phns_id_classified, use_phn_classified in enumerate(use_phns):
+        true_labels_for_classified = classify_labels[argmax_classify_array == use_phn_classified]
+        for use_phns_id_truth, use_phn_truth in enumerate(use_phns):
+            truth_for_classified_mistakes = true_labels_for_classified == use_phn_truth
+            confusion_matrix[use_phns_id_classified,
+                             use_phns_id_truth] = np.sum(
+                truth_for_classified_mistakes)
+            for mix_component_classified in xrange(num_mix):
+                truth_for_classified_mistakes_mix_component =np.logical_and(truth_for_classified_mistakes,
+                                                                            max_classify_template_ids == mix_component_classified)
+                for mix_component_truth in xrange(num_mix):
+                    confusion_matrix_by_id[use_phns_id_classified*num_mix
+                                           +mix_component_classified,
+                                           use_phns_id_truth*num_mix
+                                           +mix_component_truth] = np.sum(
+                        np.logical_and(truth_for_classified_mistakes_mix_component,
+                                       true_max_classify_template_ids == mix_component_truth))
+                                       
+    
+    np.savez('%sclassify_confusion_mat_use_phns_%d_%s.npz' % (savedir,
+                                               num_mix,
+                                               save_tag),
+             confusion_matrix=confusion_matrix,
+             confusion_matrix_by_id=confusion_matrix_by_id,
+             use_phns=use_phns)
+
 
 
 
@@ -5355,7 +5508,7 @@ def main(args):
         jobs = []
         for num_mix in args.num_mix_parallel:
             p=multiprocessing.Process(target=
-            get_fpr_tpr_classify(num_mix,
+            get_fpr_tpr_classify(num_mix,train_classify_lengths,
                                  args.detect_object,
                                  leehon_mapping,
                                  rejected_phones,
@@ -5363,7 +5516,7 @@ def main(args):
                                  data_type='train',
                                  save_tag=args.save_tag,
                                  savedir=args.savedir,
-                                 get_plots=True,
+                                 get_plots=args.make_plots,
                                  use_spectral=args.do_spectral_detection,
                                  template_tag=args.template_tag)
                                  )
