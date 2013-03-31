@@ -651,7 +651,7 @@ def _save_detection_results_mixture(s,phns,flts,
 def compute_detection_E(E,phns,E_flts,
                         detection_array,
                         cascade,
-                         syllable,                        
+                         syllable,
                          phn_mapping=None,
                          verbose=False):
     """
@@ -711,13 +711,13 @@ def _compute_classification_E(E,phns,E_flts,
     we also save the lengths to detect_lengths
     """
     window_starts, window_ends = get_classify_windows(phns,E_flts)
-    
+
     detection_scores  = (compute_likelihood_linear_filter.detect(
                             E.astype(np.uint8),
                             linear_filters_cs[0][0])
                        + linear_filters_cs[0][1])
     filter_id = 0
-    
+
     for phn_id, window_start_end in enumerate(itertools.izip(window_starts,
                                                              window_ends)):
         w_start, w_end = window_start_end
@@ -727,8 +727,8 @@ def _compute_classification_E(E,phns,E_flts,
         classify_template_lengths[utt_id,phn_id] = len(linear_filters_cs[0][0])
 
         classify_array[utt_id,phn_id] =  detection_scores[classify_locs[utt_id,phn_id]]
-                                                          
-                    
+
+
 
     if len(linear_filters_cs) > 1:
         for cur_filt,cur_c in linear_filters_cs[1:]:
@@ -740,6 +740,8 @@ def _compute_classification_E(E,phns,E_flts,
             for phn_id, window_start_end in enumerate(itertools.izip(window_starts,
                                                              window_ends)):
                 w_start, w_end = window_start_end
+                if len(detection_scores[w_start:w_end]) < 1:
+                    import pdb; pdb.set_trace()
                 cur_filter_classify_time = w_start + np.argmax(detection_scores[w_start:w_end])
                 if classify_array[utt_id,phn_id] <  detection_scores[cur_filter_classify_time]:
                     classify_locs[utt_id,phn_id] = cur_filter_classify_time
@@ -751,7 +753,7 @@ def _compute_classification_E(E,phns,E_flts,
     if np.any(np.isnan(classify_array)) == True:
         import pdb; pdb.set_trace()
 
-    
+
 
 
 def _compute_detection_E(E,phns,E_flts,
@@ -835,7 +837,7 @@ def _compute_detection_E(E,phns,E_flts,
         example_start_end_times.append([])
 
     detect_lengths.append(detect_length)
-    
+
     if len(detect_lengths) % 100==0:
         print "E length = %d, detect_length = %d" % (E.shape[0],detect_length)
 
@@ -854,7 +856,7 @@ def _compute_detection_S(S,phns,S_flts,
     """
     Detection code for when we are using spectral templates
     as a baseline for the edge features
-    
+
     Detection array will have detection scores saved to it
     and we will make entries of detection_array that are trailing
     be some minimum value: min_val, which is initially None
@@ -1127,7 +1129,7 @@ def get_detection_scores_mixture_named_params(data_path,file_indices,
                 E = get_part_features(E,P_config,verbose=False)
                 E_flts = S_flts.copy()
                 E_flts[-1] = len(E)
-                
+
             _compute_detection_E(E,utterance.phns,E_flts,
                                  detection_array,
                                  detection_template_ids,
@@ -1142,7 +1144,7 @@ def get_detection_scores_mixture_named_params(data_path,file_indices,
 
         if len(linear_filters_cs) ==1:
             detection_lengths2.append(len(S)-linear_filters_cs[0][0].shape[0])
-        
+
     if len(linear_filters_cs) == 1:
         detection_lengths = np.array(detection_lengths2)
     else:
@@ -1175,14 +1177,14 @@ def get_classify_scores(data_path,file_indices,
                                               noise_db=0,
                                               use_spectral=False):
 
-    
+
     if num_examples == -1:
         num_examples = len(file_indices)
 
     detection_lengths2 = []
 
     classify_template_ids = np.zeros(classify_array.shape,dtype=int)
-    
+
 
     classify_locs = np.zeros(classify_array.shape,dtype=int)
     classify_template_lengths = np.zeros(classify_array.shape,dtype=int)
@@ -1220,7 +1222,7 @@ def get_classify_scores(data_path,file_indices,
                 E = get_part_features(E,P_config,verbose=False)
                 E_flts = S_flts.copy()
                 E_flts[-1] = len(E)
-                
+
             _compute_classification_E(E,utterance.phns,E_flts,
                                       utt_id,
                                  classify_array,
@@ -1233,7 +1235,7 @@ def get_classify_scores(data_path,file_indices,
                                  )
 
 
-        
+
     return (classify_array,
                 classify_locs,
                 classify_template_lengths,
@@ -1360,7 +1362,7 @@ def makeUtterance(
     if use_noise_file is not None:
         noise = np.load(use_noise_file)
         s = match_noise_to_file(noise,s,noise_db)
-        
+
     return Utterance(
         utterance_directory=utterance_directory,
         file_idx=file_idx,
@@ -1368,7 +1370,7 @@ def makeUtterance(
         phns = np.load(utterance_directory+file_idx+'phns.npy'),
         flts = np.load(utterance_directory+file_idx+'feature_label_transitions.npy'))
 
-        
+
 
 
 def makeTimeMap(old_start,old_end,new_start,new_end):
@@ -1424,7 +1426,7 @@ def get_example_over_interval(E,start_idx,end_idx,bgd=None):
                           np.zeros(end_idx-len_E,E.shape[1:])))
     else:
         return E[start_idx:end_idx]
-                         
+
 
 def get_example_with_offset(F,offset,start_idx,end_idx,default_val=0):
     if len(F.shape) > 1:
@@ -1433,7 +1435,7 @@ def get_example_with_offset(F,offset,start_idx,end_idx,default_val=0):
                 (default_val * np.ones((-min(start_idx-offset,0),)+F.shape[1:],dtype=F.dtype),
                  F[start_idx:end_idx],
                  default_val * np.ones((-min(end_idx-offset,0),) + F.shape[1:],dtype=F.dtype)))
-        else: 
+        else:
             return np.vstack(
                 (default_val * np.ones((-min(start_idx-offset,0),)+F.shape[1:],dtype=F.dtype),
                  F[start_idx:end_idx],
@@ -1484,8 +1486,8 @@ def get_syllable_features(utterance_directory,data_idx,syllable,
     if S_config is not None:
         S = get_spectrogram(utterance.s,S_config,
                             mel_smoothing_kernel=mel_smoothing_kernel)
-        
-        
+
+
         if avg_bgd_spec is not None:
             avg_bgd_spec.add_frames(S,time_axis=0)
         S_flts = (sflts * S.shape[0] /float(sflts[-1]) + .5).astype(int)
@@ -1520,7 +1522,7 @@ def get_syllable_features(utterance_directory,data_idx,syllable,
     syllable_starts = phns_syllable_matches(use_phns,syllable)
     syllable_length = len(syllable)
 
-    
+
 
     if (waveform_offset is None or waveform_offset == 0) and (S is not None and P is not None):
         return [ SyllableFeatures(
@@ -1629,7 +1631,7 @@ def get_syllable_features_cluster(utterance_directory,data_idx,cluster_list,
     utterance = makeUtterance(utterance_directory,data_idx)
     sflts = (utterance.flts * utterance.s.shape[0]/float(utterance.flts[-1]) + .5).astype(int)
     # get the spectrogram
-    
+
     if S_config is not None:
         S = get_spectrogram(utterance.s,S_config)
         cluster_end = max( c[1] for c in cluster_list)
@@ -1640,13 +1642,13 @@ def get_syllable_features_cluster(utterance_directory,data_idx,cluster_list,
                 avg_bgd.add_frames(E,time_axis=0)
             # both are the same
             E_flts = S_flts
-    
+
             if detect_length is not None:
                 E_row_shape = E[0].shape
                 E = np.vstack((E,np.zeros((detect_length,)+E_row_shape)))
                 S = np.vstack((S,np.tile(S[-5:].mean(0),(detect_length,1))))
-            
-                
+
+
             if P_config is not None:
                 P = get_part_features(E,P_config)
                 P_flts=E_flts.copy()
@@ -1670,7 +1672,7 @@ def get_syllable_features_cluster(utterance_directory,data_idx,cluster_list,
 
     # we then get the example phones removed from the signals
 
-            
+
 
     s_cluster_list = tuple(
         tuple( int(v * sflts[-1]/float(S.shape[0]) + .5)
@@ -1699,7 +1701,7 @@ def get_syllable_features_cluster(utterance_directory,data_idx,cluster_list,
         for s_cluster,cluster in itertools.izip(s_cluster_list,cluster_list):
             if cluster[1] > P.shape[0]:
                 print "one cluster is too big: %d" % (cluster[1]-P.shape[0])
-                
+
 
         return tuple( SyllableFeatures(
                 s = get_example_with_offset(utterance.s,
@@ -2068,7 +2070,7 @@ def makeEdgemapParameters(block_length,
     """
     Wrapper function to construct EdgemapParameters
     named tuple
-    
+
     Parameters:
     ===========
     block_length: int
@@ -2117,7 +2119,7 @@ def makePartsParameters(use_parts,
                         parts_mask=None):
     if parts_mask is None:
         parts_mask = np.ones(logParts.shape[1:-1],dtype=np.uint8)
-        
+
     pp2= PartsParameters(use_parts=use_parts,
                            parts_path=parts_path,
                            bernsteinEdgeThreshold=bernsteinEdgeThreshold,
