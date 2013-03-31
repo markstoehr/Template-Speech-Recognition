@@ -7,7 +7,7 @@ def extend_example_to_max(syllable_example,clipped_bgd,max_length):
     else:
         return np.vstack((syllable_example,
                           (np.random.rand(max_length-syllable_example.shape[0],
-                                          1,1) > np.tile(clipped_bgd,
+                                          1,1) <= np.tile(clipped_bgd,
                                   (max_length-syllable_example.shape[0],1,1))).astype(np.uint8))).astype(np.uint8)
 
 
@@ -39,7 +39,7 @@ def pad_examples_bgd_samples(examples,lengths,bgd_probs):
             out[idx] = np.vstack((example[:length],
                        (np.random.rand(diff,
                                       examples.shape[2],
-                                       examples.shape[3]) > np.tile(bgd_probs,(diff,1,1))).astype(np.uint8)))
+                                       examples.shape[3]) <= np.tile(bgd_probs,(diff,1,1))).astype(np.uint8)))
         else:
             out[idx][:] = example
     return out
