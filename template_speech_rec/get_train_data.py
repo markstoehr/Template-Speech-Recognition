@@ -515,6 +515,27 @@ def get_classify_lengths(data_files_indices,data_path,
             np.load(data_path+data_file_idx+'phns.npy').shape[0]
             for data_file_idx in data_files_indices])
 
+def get_classify_labels(data_files_indices,data_path,classify_lengths,
+                           abst_threshold=np.array([.025,.025,.015,.015,
+                                                     .02,.02,.02,.02]),
+                           spread_length=3,
+                           fft_length=512,
+                           num_window_step_samples=80,
+                           freq_cutoff=3000,
+                           sample_rate=16000,
+                           num_window_samples=320,
+                           kernel_length=7):
+    classify_labels = np.empty((len(classify_lengths),
+                                classify_lengths.max()),
+                                dtype='|S4')
+    for utt_id, data_file_idx in enumerate(data_files_indices):
+        phns = np.load(data_path+data_file_idx+'phns.npy')
+        classify_labels[utt_id][:classify_lengths[utt_id]] = (
+            phns[:])
+        if not np.all(classify_labels[utt_id][:classify_lengths[utt_id]] == phns[:]):
+            import pdb; pdb.set_trace()
+    return classify_labels
+
 
 def _save_detection_results(s,phns,flts,
                             detection_array,
