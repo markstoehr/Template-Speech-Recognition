@@ -52,6 +52,8 @@ def get_params(sample_rate=16000,
                magnitude_block_length=0,
                magnitude_and_edge_features=False,
                magnitude_features=False,
+               mag_smooth_freq=0,
+               mag_downsample_freq=0,
                use_parts=False,
                parts_path="/home/mark/Template-Speech-Recognition/"
                          + "Development/102012/"
@@ -198,7 +200,9 @@ def get_params(sample_rate=16000,
                                         threshold=threshold,
                                        magnitude_features=magnitude_features,
                                        magnitude_block_length=magnitude_block_length,
-                                       magnitude_and_edge_features=magnitude_and_edge_features),
+                                       magnitude_and_edge_features=magnitude_and_edge_features,
+                                       mag_smooth_freq=mag_smooth_freq,
+                                       mag_downsample_freq=mag_downsample_freq),
             pp,
             root_path,
             test_path,train_path,
@@ -385,7 +389,7 @@ def save_all_leehon_phones(utterances_path,file_indices,leehon_mapping,phn,
     np.savez('%sSs_lengths_%s_%s.npz' % (savedir,
                                              phn,
                                              save_tag),Ss=Ss,Slengths=Slengths,example_mat=example_mat)
-
+    
     Elengths,Es  = gtrd.recover_edgemaps(phn_features,example_mat,bgd=bgd)
     Es = Es.astype(np.uint8)
     np.savez('%sEs_lengths_%s_%s.npz'% (savedir,
@@ -5599,7 +5603,10 @@ def main(args):
         block_length=args.block_length,
         spread_length=args.spread_length,
         threshold=args.edge_threshold_quantile,
+        magnitude_and_edge_features=args.magnitude_and_edge_features,
         magnitude_features=args.magnitude_features,
+        mag_smooth_freq=args.mag_smooth_freq,
+        mag_downsample_freq=args.mag_downsample_freq,
         use_parts=args.use_parts,
         parts_path=args.parts_path,
         parts_S_path=args.parts_S_path,
@@ -5630,6 +5637,8 @@ def main(args):
     if args.save_all_leehon_phones:
         leehon_mapping, rejected_phones, use_phns = get_leehon39_dict()
         jobs = []
+        for phn in rejected_phones:
+            leehon_mapping[phn] = ''
         for phn in use_phns:
             if phn in rejected_phones: continue
 
@@ -5645,6 +5654,7 @@ def main(args):
                                    num_use_file_idx= args.num_use_file_idx))
             jobs.append(p)
             p.start
+    
 
     if args.save_syllable_features_to_data_dir:
         save_syllable_features_to_data_dir(args.detect_object,
@@ -6977,6 +6987,10 @@ syllables and tracking their performance
                         help="whether to use magnitude features rather than the edgemap features for base consideration")
     parser.add_argument('--magnitude_and_edge_features',action='store_true',
                         help="whether to use both magnitude and edge features together")
+    parser.add_argument('--mag_smooth_freq',default=0,type=int,
+                        help="number of frequency bands to smooth over in order to get a magnitude estimate")
+    parser.add_argument('--mag_downsample_freq',default=0,type=int,
+                        help="number of frequency bands to downsample over in order to get a magnitude estimate")
     parser.add_argument('--magnitude_block_length',default=0,type=int,
                         help="block length to use in estimation of the blocks for getting the magnitude feature quantization")
     parser.add_argument('--only_svm',action='store_true',
