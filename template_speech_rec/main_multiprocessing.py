@@ -2291,19 +2291,23 @@ def retrain_on_classified_examples(num_mix,save_tag_suffix,phn,new_template_tag,
         data_Y = np.hstack((
                 np.ones(len(pos_examples)),
                 np.zeros(len(neg_examples))))
-        clf = svm.SVC(kernel='linear', C=1)
-        clf.fit(training_data_X, training_data_Y)
-        w = clf.coef_[0]
-        b = clf.intercept_[0]
+        try:
+            clf = svm.SVC(kernel='linear', C=1)
+            clf.fit(data_X, data_Y)
+            w = clf.coef_[0]
+            b = clf.intercept_[0]
         
-        svm_ws += (w.reshape(pos_examples.shape[1:]),)
-        print svm_ws[-1].shape
-        svm_bs += (b,)
+            svm_ws += (w.reshape(pos_examples.shape[1:]),)
+            print svm_ws[-1].shape
+            svm_bs += (b,)
         
-        raw_predictions = (data_X * w + b).sum(1)
-        pos_scores += ( raw_predictions[data_Y==1],)
-        neg_scores += ( raw_predictions[data_Y==0],)
-    
+            raw_predictions = (data_X * w + b).sum(1)
+            pos_scores += ( raw_predictions[data_Y==1],)
+            neg_scores += ( raw_predictions[data_Y==0],)
+        except:
+            import pdb; pdb.set_trace()
+           
+
     np.savez('%ssvm_stage1_ws_%d_%s_%s.npz'
                  % (savedir,
                     num_mix,
