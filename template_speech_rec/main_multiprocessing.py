@@ -1829,9 +1829,9 @@ def get_fpr_tpr_classify(num_mix,data_classify_lengths,
 
 
 def get_max_classification_results(num_mix,save_tag_suffix,
-                                   data_type,
+                                   data_type,savedir,
                                   use_phns,rejected_phns,mapping,
-                                  data_classify_lengths):
+                                  data_classify_lengths,verbose=False):
     """
     Finds the best phone at each point
 
@@ -1844,7 +1844,7 @@ def get_max_classification_results(num_mix,save_tag_suffix,
         result file is saved as ${phn}_train_edges_no_smoothing, this
         is the suffix of the tags where the results are saved
     """
-    classify_labels = np.load('%s%s_classify_labels.npy' % (savedir,data_type))    
+    classify_labels = np.load('%s%s_classify_labels.npy' % (savedir,data_type))
     max_classify_array=-np.inf * np.ones((data_classify_lengths.shape[0],
                                  data_classify_lengths.max()),
                                 dtype=np.float32)
@@ -1878,11 +1878,13 @@ def get_max_classification_results(num_mix,save_tag_suffix,
     #         if true_phn in use_phn_index_dict:
     #             classify_labels_ints[utt_id,phn_id] = (
     #                 use_phn_index_dict[true_phn])
-                
-    
+
+
     # run through the maximization, also fill in the ground truth arrays
     for use_phn_id, use_phn in enumerate(use_phns):
         save_tag = '%s_%s' % (use_phn,save_tag_suffix)
+        if verbose:
+            print save_tag
         classify_array = np.load('%sclassify_array_%d_%s.npy' % (savedir,num_mix,
                                                              save_tag))[:,:data_classify_lengths.max()]
         classify_template_lengths = np.load('%sclassify_template_lengths_%d_%s.npy' % (savedir,num_mix,
@@ -1928,7 +1930,7 @@ def get_max_classification_results(num_mix,save_tag_suffix,
 
 
 def get_classify_confusion_matrix(num_mix,save_tag,savedir,data_type,
-                                  use_phns,top_confusions=5000):
+                                  use_phns,top_confusions=5000,verbose=False):
     """
     Compute the confusion matrix
 
@@ -1955,15 +1957,23 @@ def get_classify_confusion_matrix(num_mix,save_tag,savedir,data_type,
     confusion_matrix_by_id = np.zeros((num_use_phns*num_mix,
                                        num_use_phns*num_mix),dtype=np.uint16)
     for use_phns_id_classified, use_phn_classified in enumerate(use_phns):
-        true_labels_for_classified = classify_labels[argmax_classify_array == use_phn_classified]
+        if verbose:
+            print use_phns_id_classified, use_phn_classified
+            
+        classified_mask = argmax_classify_array == use_phn_classified
+        true_labels_for_classified = classify_labels[classified_mask]
         for use_phns_id_truth, use_phn_truth in enumerate(use_phns):
-            truth_for_classified_mistakes = true_labels_for_classified == use_phn_truth
+            truth_for_classified_mistakes = np.logical_and(classified_mask,classify_labels == use_phn_truth)
             confusion_matrix[use_phns_id_classified,
                              use_phns_id_truth] = np.sum(
                 truth_for_classified_mistakes)
             for mix_component_classified in xrange(num_mix):
-                truth_for_classified_mistakes_mix_component =np.logical_and(truth_for_classified_mistakes,
+                try:
+                    truth_for_classified_mistakes_mix_component =np.logical_and(truth_for_classified_mistakes,
                                                                             max_classify_template_ids == mix_component_classified)
+                except:
+                    import pdb; pdb.set_trace()
+
                 for mix_component_truth in xrange(num_mix):
                     confusion_matrix_by_id[use_phns_id_classified*num_mix
                                            +mix_component_classified,
@@ -1971,8 +1981,8 @@ def get_classify_confusion_matrix(num_mix,save_tag,savedir,data_type,
                                            +mix_component_truth] = np.sum(
                         np.logical_and(truth_for_classified_mistakes_mix_component,
                                        true_max_classify_template_ids == mix_component_truth))
-                                       
-    
+
+
     np.savez('%sclassify_confusion_mat_use_phns_%d_%s.npz' % (savedir,
                                                num_mix,
                                                save_tag),
@@ -1997,7 +2007,7 @@ def get_mistake_scores_metadata(num_mix,phn,save_tag,savedir,
     true_max_classify_array = outfile['true_max_classify_array']
     true_max_classify_template_ids = outfile['true_max_classify_template_ids']
     num_use_phns = len(use_phns)
-    
+
     # get the false positives
     mistake_mask = np.logical_and(argmax_classify_array == phn,
                               classify_labels != phn)
@@ -2010,7 +2020,7 @@ def get_mistake_scores_metadata(num_mix,phn,save_tag,savedir,
 
         # get the length
         num_mistakes_by_component[mix_component] =  component_mistake_mask.sum()
-        
+
         if num_mistakes_by_component[mix_component] == 0: continue
         mistake_lengths[mix_component] = max_classify_template_lengths[component_mistake_mask][0]
         mistake_scores, mistake_metadata = get_mistakes.get_example_scores_metadata(component_mistake_mask,
@@ -2018,7 +2028,7 @@ def get_mistake_scores_metadata(num_mix,phn,save_tag,savedir,
                                                                      max_classify_array,
                                                                      classify_lengths,
                                                                      num_mistakes_by_component[mix_component])
-        
+
         sorted_mistake_ids = np.argsort(mistake_scores)[::-1]
         np.savez('%s%s_stage1_mistake_scores_metadata_%d_%d_%s' %(
                 savedir,
@@ -5581,12 +5591,26 @@ def main(args):
                                         get_max_classification_results(
                     num_mix,
                     args.save_tag_suffix,
-                    "train",
-                    use_phns,rejected_phns,mapping,
-                    train_classify_lengths))
+                    "train",args.savedir,
+                    use_phns,rejected_phones,leehon_mapping,
+                    train_classify_lengths,verbose=args.v))
             jobs.append(p)
             p.start
-                    
+
+    if args.get_classify_confusion_matrix == 'train':
+        leehon_mapping, rejected_phones, use_phns = get_leehon39_dict(no_sil=args.no_sil)
+        jobs = []
+        for num_mix in args.num_mix_parallel:
+            p = multiprocessing.Process(target=
+                                        get_classify_confusion_matrix(
+                    num_mix,
+                    args.save_tag,args.savedir,
+                    "train",
+                    use_phns,
+                    verbose=args.v))
+            jobs.append(p)
+            p.start
+
     if args.get_fpr_tpr_tagged:
         print "Finished save_detection_setup"
         if len(args.num_mix_parallel) > 0:
@@ -6459,6 +6483,9 @@ syllables and tracking their performance
     parser.add_argument('--get_max_classification_results',default='',
                         type=str,
                         help="whether to run the max_classification_results function and the string should be 'train' or 'test' to indicate which data set to use")
+    parser.add_argument('--get_classify_confusion_matrix',default='',
+                        type=str,
+                        help="whether to run the get_classify_confusion_matrix function and the string should be 'train' or 'test' to indicate which data set to use")
     parser.add_argument('--save_tag_suffix',type=str,default='train_edges',
                         help="used for get_max_classification_results as the suffix for the save tag where the prefix is the phn of interest.  Default is 'train_edges'")
     parser.add_argument('--num_mix_parallel',default=[],nargs='*',
