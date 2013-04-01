@@ -2016,6 +2016,7 @@ def get_classify_scores_metadata(num_mix,phn,save_tag,savedir,
     true_max_classify_locs = outfile['true_max_classify_locs'].astype(np.uint16)
 
     true_max_classify_template_ids = outfile['true_max_classify_template_ids']
+    true_max_classify_template_lengths = outfile['true_max_classify_template_lengths']
     num_use_phns = len(use_phns)
 
     # get the false positives
