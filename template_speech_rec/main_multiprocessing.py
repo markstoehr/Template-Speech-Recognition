@@ -2128,10 +2128,10 @@ def get_classify_scores_metadata(num_mix,phn,save_tag,savedir,
 
 
 
-def retrain_on_classified_examples(num_mix,save_tag_suffix,phn,new_template_tag,data_path,file_idx,sp,ep,pp,
+def retrain_on_classified_examples(num_mix,save_tag_suffix,phn,new_template_tag,data_path,file_idx,sp,ep,pp,load_data_tag,
                               savedir,
                                    verbose=False):
-    
+    bgd = np.load('%sbgd_%s.npy' %(savedir,load_data_tag))
     outfile = np.load('%sclassify_confusion_mat_use_phns_%d_%s.npz' % (savedir,
                                                num_mix,
                                                save_tag_suffix))
@@ -2147,14 +2147,17 @@ def retrain_on_classified_examples(num_mix,save_tag_suffix,phn,new_template_tag,
     num_positives = confusion_matrix[:,phn_id].sum()
     num_negatives = confusion_matrix[phn_id,:].sum()-confusion_matrix[phn_id,phn_id]
 
-
+    templates = get_templates(num_mix,template_tag='%s_%s' % (phn,save_tag_suffix),savedir=savedir)
 
 
     
     new_templates = ()
     svm_ws = ()
     svm_bs = ()
+    pos_scores = ()
+    neg_scores = ()
     for mix_component in xrange(num_mix):
+        print mix_component
         outfile = np.load('%sstage1_success_scores_metadata_%d_%d_%s_%s.npz' %(
             savedir,
 
@@ -2198,9 +2201,9 @@ def retrain_on_classified_examples(num_mix,save_tag_suffix,phn,new_template_tag,
         use_file_set = np.array(tuple(use_file_set))
 
         component_length = int(success_length)
-        import pdb; pdb.set_trace()
-        assert component_length == int(false_neg_length)
-        assert component_length == int(mistake_length)
+
+        if ( component_length != int(false_neg_length)) or (component_length != int(mistake_length)):
+            import pdb; pdb.set_trace()
 
 
         num_positives = len(success_metadata)+len(false_neg_metadata)
@@ -2221,37 +2224,60 @@ def retrain_on_classified_examples(num_mix,save_tag_suffix,phn,new_template_tag,
         for cnter, file_index_index in enumerate(use_file_set):
             if cnter % 100 == 0:
                 print "cnter = %d" % cnter
-            utterance = makeUtterance(data_path,file_idx[file_index_index])
-            S = get_spectrogram(utterance.s,sp)
+            utterance = gtrd.makeUtterance(data_path,file_idx[file_index_index])
+            S = gtrd.get_spectrogram(utterance.s,sp)
             S_flts = utterance.flts
-            E = get_edge_features(S.T,ep,verbose=False)
+            E = gtrd.get_edge_features(S.T,ep,verbose=False)
             E_flts = S_flts
             if pp is not None:
                 # E is now the part features
-                E = get_part_features(E,pp,verbose=False)
+                E = gtrd.get_part_features(E,pp,verbose=False)
                 E_flts = S_flts.copy()
                 E_flts[-1] = len(E)
+
+
+            
+            max_phn_length_third = int(np.ceil(np.max(E_flts[1:]-E_flts[:-1])/3.))
+            # prepend the beginning of E with background for padding purposes
+            E = np.vstack((
+        np.tile(bgd ,
+                (component_length+max_phn_length_third,)
+                +tuple(
+                    np.ones(
+                        len(
+                            bgd.shape)
+                            )
+                            )
+                            ).astype(np.float32),
+                E.astype(np.float32),
+                   np.tile(bgd,(max(0,E_flts[-2]+max_phn_length_third+component_length-E_flts[-1]),)
+                           +tuple(np.ones(len(bgd.shape)))).astype(np.float32)))
+
             
             # get the positives
             for success in success_metadata[success_metadata[:,0]==file_index_index]:
+
                 pos_examples[cur_pos_example_id,
                              :component_length] = E[success[-1]:
                                                         success[-1]+component_length]
-                pos_lengths[cur_pos_example_id] = component_length
+
                 cur_pos_example_id += 1
 
             for false_neg in false_neg_metadata[false_neg_metadata[:,0]==file_index_index]:
                 pos_examples[cur_pos_example_id,
                              :component_length] = E[false_neg[-1]:
                                                         false_neg[-1]+component_length]
-                pos_lengths[cur_pos_example_id] = component_length
+
                 cur_pos_example_id += 1
 
             for mistake in mistake_metadata[mistake_metadata[:,0]==file_index_index]:
-                neg_examples[cur_pos_example_id,
+                try:
+                    neg_examples[cur_neg_example_id,
                              :component_length] = E[mistake[-1]:
                                                         mistake[-1]+component_length]
-                neg_lengths[cur_neg_example_id] = component_length
+                except:
+                    import pdb; pdb.set_trace()
+
                 cur_neg_example_id += 1
         
         # save the new template
@@ -2262,7 +2288,7 @@ def retrain_on_classified_examples(num_mix,save_tag_suffix,phn,new_template_tag,
                             neg_examples.reshape(num_negatives,
                                                  np.prod(neg_examples.shape[1:]))))
 
-        data_Y = np.vstack((
+        data_Y = np.hstack((
                 np.ones(len(pos_examples)),
                 np.zeros(len(neg_examples))))
         clf = svm.SVC(kernel='linear', C=1)
@@ -2271,10 +2297,47 @@ def retrain_on_classified_examples(num_mix,save_tag_suffix,phn,new_template_tag,
         b = clf.intercept_[0]
         
         svm_ws += (w.reshape(pos_examples.shape[1:]),)
+        print svm_ws[-1].shape
         svm_bs += (b,)
         
         raw_predictions = (data_X * w + b).sum(1)
-        import pdb; pdb.set_trace()
+        pos_scores += ( raw_predictions[data_Y==1],)
+        neg_scores += ( raw_predictions[data_Y==0],)
+    
+    np.savez('%ssvm_stage1_ws_%d_%s_%s.npz'
+                 % (savedir,
+                    num_mix,
+                    phn,
+                    save_tag_suffix),
+                 *(svm_ws))
+    np.save('%ssvm_stage1_bs_%d_%s_%s.npy'
+                 % (savedir,
+                    num_mix,
+                    phn,
+                    save_tag_suffix),
+                 np.array(svm_bs))
+    np.savez('%ssvm_stage1_pos_scores_%d_%s_%s.npz'
+                 % (savedir,
+                    num_mix,
+                    phn,
+                    save_tag_suffix),
+                 *(pos_scores))
+
+    np.savez('%ssvm_stage1_neg_scores_%d_%s_%s.npz'
+                 % (savedir,
+                    num_mix,
+                    phn,
+                    save_tag_suffix),
+                 *(neg_scores))
+
+    np.savez('%s%d_templates_%s_%s.npz'
+                 % (savedir,
+                    num_mix,
+                    phn,
+                    new_template_tag),
+                 *(templates))
+
+
     
         
 
@@ -5874,6 +5937,7 @@ def main(args):
                     sp,
                     ep,
                     pp,
+                    args.load_data_tag,
                     args.savedir,
                    
                     verbose=args.v))
