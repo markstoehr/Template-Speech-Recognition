@@ -5634,6 +5634,26 @@ def main(args):
         leehon_mapping, use_phns = get_leehon_mapping()
     else:
         leehon_mapping =None
+    if args.save_leehon_phn != '':
+        leehon_mapping, rejected_phones, use_phns = get_leehon39_dict()
+        jobs = []
+        for phn in rejected_phones:
+            leehon_mapping[phn] = ''
+
+
+        p = multiprocessing.Process(target=save_all_leehon_phones(train_path,
+                                   train_file_indices,
+                                   leehon_mapping, args.save_leehon_phn,
+                                   sp,ep,pp,
+                                   args.save_tag,
+                                   args.savedir,
+                                   args.mel_smoothing_kernel,
+                                   args.offset,
+                                   10,
+                                   num_use_file_idx= args.num_use_file_idx))
+        jobs.append(p)
+        p.start
+
     if args.save_all_leehon_phones:
         leehon_mapping, rejected_phones, use_phns = get_leehon39_dict()
         jobs = []
@@ -6826,6 +6846,9 @@ syllables and tracking their performance
     parser.add_argument('--save_all_leehon_phones',
                         action='store_true',
                         help="Get the features for the lee-hon phones")
+    parser.add_argument('--save_leehon_phn',
+                        type=str,default=''
+                        help="Save the data for a particular leehon phn")
     parser.add_argument('--make_plots',action='store_true',
                         help="Ubiquitous argument for whether or not to make plots in whatever functions are called. Defaults to False.")
     parser.add_argument('-v',action='store_true',
