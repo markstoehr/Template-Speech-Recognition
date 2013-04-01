@@ -1659,6 +1659,7 @@ def get_syllable_features(utterance_directory,data_idx,syllable,
         S_flts = (sflts * S.shape[0] /float(sflts[-1]) + .5).astype(int)
         if E_config is not None:
             E = get_edge_features(S.T,E_config,verbose=E_verbose)
+
             # both are the same
             E_flts = S_flts
 
@@ -1684,7 +1685,10 @@ def get_syllable_features(utterance_directory,data_idx,syllable,
     # we then get the example phones removed from the signals
     use_phns = utterance.phns.copy()
     if phn_mapping is not None:
-        use_phns[:] = np.array([phn_mapping[p] for p in use_phns])
+        try:
+            use_phns[:] = np.array([phn_mapping[p] for p in use_phns])
+        except: 
+            import pdb; pdb.set_trace()
     syllable_starts = phns_syllable_matches(use_phns,syllable)
     syllable_length = len(syllable)
 
@@ -1969,6 +1973,7 @@ def get_syllable_features_directory(utterances_path,file_indices,syllable,
                               mel_smoothing_kernel=mel_smoothing_kernel,
                               avg_bgd_spec=avg_bgd_spec)
         for data_idx in file_indices)
+
     if return_avg_bgd and avg_bgd_spec:
         return return_tuple, avg_bgd, avg_bgd_spec
     elif return_avg_bgd:
@@ -1989,6 +1994,7 @@ def recover_edgemaps(syllable_features,example_mat,bgd=None):
         if len(e) > 0: break
     E_shape = e[0].E.shape[1:]
     Es = np.zeros((len(example_mat),max_length)+E_shape,dtype=np.uint8)
+
     lengths = np.zeros(len(example_mat))
     jdx=0
     for idx,i in enumerate(example_mat):
@@ -2004,8 +2010,8 @@ def recover_edgemaps(syllable_features,example_mat,bgd=None):
                 Es[idx][lengths[idx]:] = (np.random.rand(
                     *((max_length - lengths[idx],)+E_shape))
                                           <= np.tile(bgd,
-                                                    (max_length-lengths[idx],
-                                                     1,1))).astype(np.uint8)
+                                                    (max_length-lengths[idx],)
+                                                     +np.ones(len(bgd.shape)-1))).astype(np.uint8)
         else:
             lengths[idx] = len(syllable_features[i][jdx].E)
             Es[idx][:lengths[idx]] = syllable_features[i][jdx].E.astype(np.uint8)[:lengths[idx]]
@@ -2013,8 +2019,8 @@ def recover_edgemaps(syllable_features,example_mat,bgd=None):
                 Es[idx][lengths[idx]:] = (np.random.rand(
                     *((max_length - lengths[idx],)+E_shape))
                                           <= np.tile(bgd,
-                                                    (max_length-lengths[idx],
-                                                     1,1))).astype(np.uint8)
+                                                    (max_length-lengths[idx],)
+                                                     +np.ones(len(bgd.shape)-1))).astype(np.uint8)
 
     return lengths, Es
 
@@ -2225,14 +2231,19 @@ EdgemapParameters = collections.namedtuple("EdgemapParameters",
                                             +" threshold"
                                             +" magnitude_features"
                                             +" magnitude_block_length"
-                                            +" magnitude_and_edge_features"))
+                                            +" magnitude_and_edge_features"
+                                            +" mag_smooth_freq"
+                                            +" mag_downsample_freq"))
 
 def makeEdgemapParameters(block_length,
                           spread_length,
                           threshold,
                           magnitude_features=False,
                           magnitude_block_length=0,
-                          magnitude_and_edge_features=False):
+                          magnitude_and_edge_features=False,
+                          mag_smooth_freq=0,
+                          mag_downsample_freq=0
+                          ):
     """
     Wrapper function to construct EdgemapParameters
     named tuple
@@ -2256,7 +2267,10 @@ def makeEdgemapParameters(block_length,
                             threshold=threshold,
                             magnitude_features=magnitude_features,
                             magnitude_block_length=magnitude_block_length,
-                            magnitude_and_edge_features=magnitude_and_edge_features)
+                            magnitude_and_edge_features=magnitude_and_edge_features,
+                            mag_smooth_freq=mag_smooth_freq,
+                            mag_downsample_freq=mag_downsample_freq
+                            )
     return emp
 
 PartsParameters = collections.namedtuple("PartsParameters",
@@ -2305,15 +2319,17 @@ def makePartsParameters(use_parts,
 def get_edge_features(S,parameters,verbose=False):
     if parameters.magnitude_features:
         E = esp.magnitude_features(S,
-                           parameters.block_length,
+                           parameters.magnitude_block_length,
                            parameters.spread_length,
                            parameters.threshold)
         return E.reshape(E.shape[0],E.shape[1],1)
     elif parameters.magnitude_and_edge_features:
-        E2 = esp.magnitude_features(S,
-                           parameters.block_length,
-                           parameters.spread_length,
-                           parameters.threshold)
+        E2 = esp.magnitude_features(S.copy(),
+                                    parameters.magnitude_block_length,
+                                    parameters.spread_length,
+                                    parameters.threshold,
+                                    parameters.mag_smooth_freq,
+                                    parameters.mag_downsample_freq)
         E, edge_feature_row_breaks,\
             edge_orientations = esp._edge_map_no_threshold(S)
         esp._edge_map_threshold_segments(E,
@@ -2323,8 +2339,8 @@ def get_edge_features(S,parameters,verbose=False):
                                      edge_orientations = edge_orientations,
                                      edge_feature_row_breaks = edge_feature_row_breaks,
                                      verbose=verbose)
-        E = reorg_part_for_fast_filtering(E)
-        return np.dstack((E,E2))
+
+        return np.hstack((E.T,E2))
     else:
         E, edge_feature_row_breaks,\
             edge_orientations = esp._edge_map_no_threshold(S)
