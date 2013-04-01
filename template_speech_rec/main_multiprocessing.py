@@ -1998,13 +1998,16 @@ def get_mistake_scores_metadata(num_mix,phn,save_tag,savedir,
     outfile = np.load('%smax_classify_results_%d_%s.npz' % (savedir,
                                                num_mix,
                                                save_tag))
-    argmax_classify_array = outfile['argmax_classify_array']
+    argmax_classify_array = outfile['argmax_classify_array'].astype(np.float32)
     max_classify_template_ids = outfile['max_classify_template_ids']
     max_classify_template_lengths = outfile['max_classify_template_lengths']
+    max_classify_locs = outfile['max_classify_locs'].astype(np.uint16)
     outfile = np.load('%strue_max_classify_results_%d_%s.npz' % (savedir,
                                                num_mix,
                                                save_tag))
-    true_max_classify_array = outfile['true_max_classify_array']
+    true_max_classify_array = outfile['true_max_classify_array'].astype(np.float32)
+    true_max_classify_locs = outfile['true_max_classify_locs'].astype(np.uint16)
+
     true_max_classify_template_ids = outfile['true_max_classify_template_ids']
     num_use_phns = len(use_phns)
 
@@ -2016,7 +2019,7 @@ def get_mistake_scores_metadata(num_mix,phn,save_tag,savedir,
     mistake_lengths = np.zeros(num_mix)
     for mix_component in xrange(num_mix):
         component_mistake_mask = (np.logical_and(mistake_mask,
-                                                 max_classify_template_ids==mix_component))
+                                                 max_classify_template_ids==mix_component)).astype(np.uint8)
 
         # get the length
         num_mistakes_by_component[mix_component] =  component_mistake_mask.sum()
@@ -2038,7 +2041,74 @@ def get_mistake_scores_metadata(num_mix,phn,save_tag,savedir,
                 save_tag),
                  mistake_scores=mistake_scores,
                  mistake_metadata=mistake_metadata,
-                 mistake_length=mistake_lengths[mix_component])
+                 mistake_lengths=mistake_lengths[mix_component])
+
+    # get the false negatives
+    false_neg_mask = np.logical_and(argmax_classify_array != phn,
+                              classify_labels == phn)
+    num_false_negs = np.int(false_neg_mask.sum())
+    num_false_negs_by_component = np.zeros(num_mix)
+    false_neg_lengths = np.zeros(num_mix)
+    for mix_component in xrange(num_mix):
+        component_false_neg_mask = (np.logical_and(false_neg_mask,
+                                                 max_classify_template_ids==mix_component)).astype(np.uint8)
+
+        # get the length
+        num_false_negs_by_component[mix_component] =  component_false_neg_mask.sum()
+
+        if num_false_negs_by_component[mix_component] == 0: continue
+        false_neg_lengths[mix_component] = max_classify_template_lengths[component_false_neg_mask][0]
+        false_neg_scores, false_neg_metadata = get_mistakes.get_example_scores_metadata(component_false_neg_mask,
+                                                                     true_max_classify_locs,
+                                                                     true_max_classify_array,
+                                                                     classify_lengths,
+                                                                     num_false_negs_by_component[mix_component])
+
+        sorted_false_neg_ids = np.argsort(false_neg_scores)[::-1]
+        np.savez('%s%s_stage1_false_neg_scores_metadata_%d_%d_%s' %(
+                savedir,
+                phn,
+                num_mix,
+                mix_component,
+                save_tag),
+                 false_neg_scores=false_neg_scores,
+                 false_neg_metadata=false_neg_metadata,
+                 false_neg_lengths=false_neg_lengths[mix_component])
+
+
+
+
+    # get the true positives
+    success_mask = np.logical_and(argmax_classify_array == phn,
+                              classify_labels == phn)
+    num_successes = np.int(success_mask.sum())
+    num_successes_by_component = np.zeros(num_mix)
+    success_lengths = np.zeros(num_mix)
+    for mix_component in xrange(num_mix):
+        component_success_mask = (np.logical_and(success_mask,
+                                                 max_classify_template_ids==mix_component)).astype(np.uint8)
+
+        # get the length
+        num_successes_by_component[mix_component] =  component_success_mask.sum()
+
+        if num_successes_by_component[mix_component] == 0: continue
+        success_lengths[mix_component] = max_classify_template_lengths[component_success_mask][0]
+        success_scores, success_metadata = get_mistakes.get_example_scores_metadata(component_success_mask,
+                                                                     max_classify_locs,
+                                                                     max_classify_array,
+                                                                     classify_lengths,
+                                                                     num_successes_by_component[mix_component])
+
+        sorted_success_ids = np.argsort(success_scores)[::-1]
+        np.savez('%s%s_stage1_success_scores_metadata_%d_%d_%s' %(
+                savedir,
+                phn,
+                num_mix,
+                mix_component,
+                save_tag),
+                 success_scores=success_scores,
+                 success_metadata=success_metadata,
+                 success_lengths=success_lengths[mix_component])
 
 
 
