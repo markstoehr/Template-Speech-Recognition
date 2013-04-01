@@ -16,7 +16,7 @@ from scipy import linalg
 from scipy.fftpack import fft,dct
 from scipy.signal.windows import hanning
 from scipy.signal import convolve
-from scipy.ndimage.filters import generic_filter, correlate,correlate1d
+from scipy.ndimage.filters import generic_filter, correlate,correlate1d, median_filter
 
 dctm13_40 = np.array([[  1.58113883e-01,   1.58113883e-01,   1.58113883e-01,
           1.58113883e-01,   1.58113883e-01,   1.58113883e-01,
@@ -595,7 +595,9 @@ class Pattern_Examples:
             break
 
 
-def magnitude_features(S,block_length,spread_radius,threshold_quantile):
+def magnitude_features(S,block_length,spread_radius,threshold_quantile,
+                       mag_smooth_freq,
+                       mag_downsample_freq):
     """
     Construct a binary map from a spectrogram where values are binarized
     via an adaptive threshold.
@@ -631,6 +633,10 @@ def magnitude_features(S,block_length,spread_radius,threshold_quantile):
         Dimension 0 corresponds to the time dimension and dimension 1
         to the frequency dimension.  These are the binary magnitude features
     """
+    if mag_smooth_freq > 0:
+        S = median_filter(S,(mag_smooth_freq,1))
+    if mag_downsample_freq > 0:
+        S = S[::mag_downsample_freq]
     num_features, num_frames = S.shape
     block_quarter = block_length/4
     S = S.T
