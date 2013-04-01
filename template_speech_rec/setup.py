@@ -35,7 +35,8 @@ setup(name='amitgroup',
     ext_modules = [
         cython_extension("compute_likelihood_linear_filter"),
         cython_extension("code_parts"),
-        cython_extension("spread_waliji_patches"),
+        cython_extension("spread_waliji_patches"),        
+        cython_extension("get_mistakes"),
         
     ]
 )
