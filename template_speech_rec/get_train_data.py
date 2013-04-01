@@ -822,7 +822,7 @@ def get_isolated_classify_windows(E,phns,flts,bgd,linear_filters_cs):
         import pdb; pdb.set_trace()
     # we return both the windows in terms of features
     # and we return the start locations of the windows
-    return E_windows, window_starts, window_ends
+    return E_windows, window_starts, window_ends, flts[0]
 
 
 def _compute_isolated_classification_E(E,phns,E_flts,
@@ -834,7 +834,10 @@ def _compute_isolated_classification_E(E,phns,E_flts,
                          linear_filters_cs,
                                        bgd,
                          phn_mapping=None,
-                         verbose=False
+                         verbose=False,
+                                       svm_classifiers=None,
+                                       svm_constants=None,
+                                       svm_classify_array=None
                         ):
     """
     Detection array will have detection scores saved to it
@@ -849,7 +852,7 @@ def _compute_isolated_classification_E(E,phns,E_flts,
     if utt_id % 200 ==0:
         print phns, E_flts, utt_id
 
-    E_windows, window_starts, window_ends = get_isolated_classify_windows(E,phns,E_flts,bgd,linear_filters_cs)
+    E_windows, window_starts, window_ends, flt_front_pad = get_isolated_classify_windows(E,phns,E_flts,bgd,linear_filters_cs)
     for phn_id, E_window_p_starts_p_ends in enumerate(itertools.izip(
             E_windows,window_starts,
             window_ends)):
@@ -862,29 +865,37 @@ def _compute_isolated_classification_E(E,phns,E_flts,
                              + linear_filters_cs[0][1])
         filter_id = 0
 
-        classify_locs[utt_id,phn_id] = w_start + np.argmax(detection_scores[:w_end-w_start])
+        classify_locs[utt_id,phn_id] = w_start + np.argmax(detection_scores[:w_end-w_start]) -flt_front_pad
         classify_template_ids[utt_id,phn_id] = filter_id
 
         classify_template_lengths[utt_id,phn_id] = len(linear_filters_cs[0][0])
 
-        classify_array[utt_id,phn_id] =  detection_scores[classify_locs[utt_id,phn_id]-w_start]
+        classify_array[utt_id,phn_id] =  detection_scores[classify_locs[utt_id,phn_id]-w_start+flt_front_pad]
         for cur_filt,cur_c in linear_filters_cs[1:]:
             filter_id += 1
 
             detection_scores = compute_likelihood_linear_filter.detect_float(E_window,
                                                                                              cur_filt) + cur_c
-            cur_filter_classify_time = w_start + np.argmax(detection_scores[:w_end-w_start])
+            cur_filter_classify_time = w_start + np.argmax(detection_scores[:w_end-w_start]) - flt_front_pad
 
             if classify_array[utt_id,phn_id] <  detection_scores[cur_filter_classify_time-w_start]:
                 classify_locs[utt_id,phn_id] = cur_filter_classify_time
                 classify_template_ids[utt_id,phn_id] = filter_id
 
                 classify_template_lengths[utt_id,phn_id] = len(cur_filt)
-                classify_array[utt_id,phn_id] =  detection_scores[classify_locs[utt_id,phn_id]-w_start]
+                classify_array[utt_id,phn_id] =  detection_scores[classify_locs[utt_id,phn_id]-w_start+flt_front_pad]
 
 
+        # now we run the phone through the svm filter for the best mixture
+        # component
+        if (svm_classifiers is not None) and (svm_classify_array is not None):
+            svm_classify_array[utt_id,phn_id] = (E_window[
+                classify_locs[utt_id,phn_id] - w_start+flt_front_pad:
+                    classify_locs[utt_id,phn_id] - w_start
+                +flt_front_pad
+                + classify_template_lengths[utt_id,phn_id]] * svm_classifiers[classify_template_ids[utt_id,phn_id]]).sum() + svm_constants[classify_template_ids[utt_id,phn_id]]
 
-
+    import pdb; pdb.set_trace()
     if np.any(np.isnan(classify_array)) == True:
         import pdb; pdb.set_trace()
 
@@ -1312,8 +1323,15 @@ def get_classify_scores(data_path,file_indices,
                                               P_config=None,
                                               use_noise_file=None,
                                               noise_db=0,
-                                              use_spectral=False):
+                                              use_spectral=False,
+                        svm_classifiers=None,
+                        svm_constants=None):
 
+
+    if svm_classifiers is None:
+        svm_classify_array = None
+    else:
+        svm_classify_array = classify_array.copy().astype(np.float32)
 
     if num_examples == -1:
         num_examples = len(file_indices)
@@ -1369,15 +1387,25 @@ def get_classify_scores(data_path,file_indices,
                                  linear_filters_cs,
                                                bgd,
                                  phn_mapping=phn_mapping,
-                                 verbose=verbose
+                                 verbose=verbose,
+                                               svm_classifiers=svm_classifiers,
+                                               svm_constants=svm_constants,
+                                               svm_classify_array=svm_classify_array
                                  )
 
 
-
-    return (classify_array,
+    if svm_classifiers is None:
+        return (classify_array,
                 classify_locs,
                 classify_template_lengths,
                 classify_template_ids)
+    else:
+        return (classify_array,
+                svm_classify_array,
+                classify_locs,
+                classify_template_lengths,
+                classify_template_ids)
+        
 
 
 
