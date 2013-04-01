@@ -5551,6 +5551,7 @@ def main(args):
                 p.start
     if args.get_classification_scores == "test":
         print args.num_mix
+
         if len(args.num_mix_parallel) > 0:
             print "doing parallel classification"
             jobs = []
