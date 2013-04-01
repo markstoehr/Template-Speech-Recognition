@@ -1320,11 +1320,11 @@ def get_classify_scores(data_path,file_indices,
 
     detection_lengths2 = []
 
-    classify_template_ids = np.zeros(classify_array.shape,dtype=int)
+    classify_template_ids = np.zeros(classify_array.shape,dtype=np.uint16)
 
 
-    classify_locs = np.zeros(classify_array.shape,dtype=int)
-    classify_template_lengths = np.zeros(classify_array.shape,dtype=int)
+    classify_locs = np.zeros(classify_array.shape,dtype=np.uint16)
+    classify_template_lengths = np.zeros(classify_array.shape,dtype=np.uint16)
     for utt_id,data_file_idx in enumerate(file_indices[:num_examples]):
         if verbose:
             if ((utt_id % verbose) == 0 ):
