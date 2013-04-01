@@ -780,10 +780,11 @@ def get_isolated_classify_windows(E,phns,flts,bgd,linear_filters_cs):
     """
     # get the maximum filter length
     max_filter_length = max( len(lfc[0]) for lfc in linear_filters_cs)
+    max_phn_length_third = int(np.ceil(np.max(flts[1:]-flts[:-1])/3.))
     # prepend the beginning of E with background for padding purposes
     E = np.vstack((
         np.tile(bgd ,
-                (flts[1]-flts[0],)
+                (max_filter_length+max_phn_length_third,)
                 +tuple(
                     np.ones(
                         len(
@@ -792,10 +793,10 @@ def get_isolated_classify_windows(E,phns,flts,bgd,linear_filters_cs):
                             )
                             ).astype(np.float32),
                 E.astype(np.float32),
-                   np.tile(bgd,(max(0,flts[-2]+max_filter_length-flts[-1]),)
+                   np.tile(bgd,(max(0,flts[-2]+max_phn_length_third+max_filter_length-flts[-1]),)
                            +tuple(np.ones(len(bgd.shape)))).astype(np.float32)))
     # append to the end of E with enough padding for maximum filter length
-    flts += flts[1]-flts[0]
+    flts += max_filter_length+max_phn_length_third
     window_starts = (flts[:-1] + (flts[:-1] - flts[1:])/3.).astype(np.int16)
     window_ends = (flts[:-1] + (flts[1:]-flts[:-1])/3.).astype(np.int16)
     # we get from the very start of where we can check
@@ -817,6 +818,8 @@ def get_isolated_classify_windows(E,phns,flts,bgd,linear_filters_cs):
         for window_start, window_end, phn_segment_end in itertools.izip(window_starts,
                                                        window_ends,
                                                        phn_segment_ends))
+    if np.any(window_starts <0):
+        import pdb; pdb.set_trace()
     # we return both the windows in terms of features
     # and we return the start locations of the windows
     return E_windows, window_starts, window_ends
@@ -845,11 +848,14 @@ def _compute_isolated_classification_E(E,phns,E_flts,
     """
     if utt_id % 200 ==0:
         print phns, E_flts, utt_id
+
     E_windows, window_starts, window_ends = get_isolated_classify_windows(E,phns,E_flts,bgd,linear_filters_cs)
     for phn_id, E_window_p_starts_p_ends in enumerate(itertools.izip(
             E_windows,window_starts,
             window_ends)):
+
         E_window, w_start, w_end = E_window_p_starts_p_ends
+
         detection_scores  = (compute_likelihood_linear_filter.detect_float(
                             E_window,
                             linear_filters_cs[0][0])
@@ -864,14 +870,18 @@ def _compute_isolated_classification_E(E,phns,E_flts,
         classify_array[utt_id,phn_id] =  detection_scores[classify_locs[utt_id,phn_id]-w_start]
         for cur_filt,cur_c in linear_filters_cs[1:]:
             filter_id += 1
+
             detection_scores = compute_likelihood_linear_filter.detect_float(E_window,
                                                                                              cur_filt) + cur_c
             cur_filter_classify_time = w_start + np.argmax(detection_scores[:w_end-w_start])
+
             if classify_array[utt_id,phn_id] <  detection_scores[cur_filter_classify_time-w_start]:
                 classify_locs[utt_id,phn_id] = cur_filter_classify_time
                 classify_template_ids[utt_id,phn_id] = filter_id
+
                 classify_template_lengths[utt_id,phn_id] = len(cur_filt)
                 classify_array[utt_id,phn_id] =  detection_scores[classify_locs[utt_id,phn_id]-w_start]
+
 
 
 
