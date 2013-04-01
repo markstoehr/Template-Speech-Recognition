@@ -2068,7 +2068,7 @@ def get_classify_scores_metadata(num_mix,phn,save_tag,savedir,
         num_false_negs_by_component[mix_component] =  component_false_neg_mask.sum()
 
         if num_false_negs_by_component[mix_component] == 0: continue
-        false_neg_lengths[mix_component] = max_classify_template_lengths[component_false_neg_mask][0]
+        false_neg_lengths[mix_component] = true_max_classify_template_lengths[component_false_neg_mask][0]
         component_false_neg_mask = component_false_neg_mask.astype(np.uint8)
         # get the length
 
@@ -2127,8 +2127,155 @@ def get_classify_scores_metadata(num_mix,phn,save_tag,savedir,
 
 
 
+def retrain_on_classified_examples(num_mix,save_tag_suffix,phn,new_template_tag,data_path,file_idx,sp,ep,pp,
+                              savedir,
+                                   verbose=False):
+    
+    outfile = np.load('%sclassify_confusion_mat_use_phns_%d_%s.npz' % (savedir,
+                                               num_mix,
+                                               save_tag_suffix))
 
 
+    confusion_matrix = outfile['confusion_matrix']
+    use_phns = outfile['use_phns']
+    if phn not in use_phns:
+        print "phone not used in classification"
+        return
+    
+    phn_id = list(use_phns).index(phn)
+    num_positives = confusion_matrix[:,phn_id].sum()
+    num_negatives = confusion_matrix[phn_id,:].sum()-confusion_matrix[phn_id,phn_id]
+
+
+
+
+    
+    new_templates = ()
+    svm_ws = ()
+    svm_bs = ()
+    for mix_component in xrange(num_mix):
+        outfile = np.load('%sstage1_success_scores_metadata_%d_%d_%s_%s.npz' %(
+            savedir,
+
+            num_mix,
+            mix_component, phn,
+            save_tag_suffix))
+        print '%sstage1_success_scores_metadata_%d_%d_%s_%s.npz' %(
+            savedir,
+
+            num_mix,
+            mix_component, phn,
+            save_tag_suffix)
+        success_metadata = outfile['success_metadata']
+        success_length = outfile['success_lengths']
+
+        use_file_set = set(success_metadata[:,0])
+
+        outfile = np.load('%sstage1_mistake_scores_metadata_%d_%d_%s_%s.npz' %(
+            savedir,
+
+            num_mix,
+            mix_component, phn,
+            save_tag_suffix))
+        
+        mistake_metadata = outfile['mistake_metadata']
+        mistake_length = outfile['mistake_lengths']
+
+        use_file_set.update(mistake_metadata[:,0])
+
+        outfile = np.load('%sstage1_false_neg_scores_metadata_%d_%d_%s_%s.npz' %(
+            savedir,
+
+            num_mix,
+            mix_component, phn,
+            save_tag_suffix))
+        
+        false_neg_metadata = outfile['false_neg_metadata']
+        false_neg_length = outfile['false_neg_lengths']
+
+        use_file_set.update(false_neg_metadata[:,0])
+        use_file_set = np.array(tuple(use_file_set))
+
+        component_length = int(success_length)
+        import pdb; pdb.set_trace()
+        assert component_length == int(false_neg_length)
+        assert component_length == int(mistake_length)
+
+
+        num_positives = len(success_metadata)+len(false_neg_metadata)
+        pos_examples = np.zeros((num_positives,
+                                 component_length,)
+                                 + templates[0].shape[1:],
+                                 dtype=np.uint8)
+
+        num_negatives = len(mistake_metadata)
+        neg_examples = np.zeros((num_negatives,
+                                 component_length,)
+                                 + templates[0].shape[1:],
+                                dtype=np.uint8)
+        cur_pos_example_id = 0
+        cur_neg_example_id = 0
+
+
+        for cnter, file_index_index in enumerate(use_file_set):
+            if cnter % 100 == 0:
+                print "cnter = %d" % cnter
+            utterance = makeUtterance(data_path,file_idx[file_index_index])
+            S = get_spectrogram(utterance.s,sp)
+            S_flts = utterance.flts
+            E = get_edge_features(S.T,ep,verbose=False)
+            E_flts = S_flts
+            if pp is not None:
+                # E is now the part features
+                E = get_part_features(E,pp,verbose=False)
+                E_flts = S_flts.copy()
+                E_flts[-1] = len(E)
+            
+            # get the positives
+            for success in success_metadata[success_metadata[:,0]==file_index_index]:
+                pos_examples[cur_pos_example_id,
+                             :component_length] = E[success[-1]:
+                                                        success[-1]+component_length]
+                pos_lengths[cur_pos_example_id] = component_length
+                cur_pos_example_id += 1
+
+            for false_neg in false_neg_metadata[false_neg_metadata[:,0]==file_index_index]:
+                pos_examples[cur_pos_example_id,
+                             :component_length] = E[false_neg[-1]:
+                                                        false_neg[-1]+component_length]
+                pos_lengths[cur_pos_example_id] = component_length
+                cur_pos_example_id += 1
+
+            for mistake in mistake_metadata[mistake_metadata[:,0]==file_index_index]:
+                neg_examples[cur_pos_example_id,
+                             :component_length] = E[mistake[-1]:
+                                                        mistake[-1]+component_length]
+                neg_lengths[cur_neg_example_id] = component_length
+                cur_neg_example_id += 1
+        
+        # save the new template
+        new_templates += (np.clip(pos_examples.mean(0),.01,.99),)
+        # train the svm
+        data_X = np.vstack((pos_examples.reshape(num_positives,
+                                                 np.prod(pos_examples.shape[1:])),
+                            neg_examples.reshape(num_negatives,
+                                                 np.prod(neg_examples.shape[1:]))))
+
+        data_Y = np.vstack((
+                np.ones(len(pos_examples)),
+                np.zeros(len(neg_examples))))
+        clf = svm.SVC(kernel='linear', C=1)
+        clf.fit(training_data_X, training_data_Y)
+        w = clf.coef_[0]
+        b = clf.intercept_[0]
+        
+        svm_ws += (w.reshape(pos_examples.shape[1:]),)
+        svm_bs += (b,)
+        
+        raw_predictions = (data_X * w + b).sum(1)
+        import pdb; pdb.set_trace()
+    
+        
 
 def get_tagged_all_detection_clusters(num_mix,save_tag,old_max_detect_tag,savedir,use_spectral=False):
     detection_array = np.load('%sdetection_array_%d_%s.npy' % (savedir,
@@ -5711,6 +5858,27 @@ def main(args):
             jobs.append(p)
             p.start
 
+    if args.retrain_on_classified_examples == 'train':
+        leehon_mapping, rejected_phones, use_phns = get_leehon39_dict(no_sil=args.no_sil)
+        jobs = []
+        for num_mix in args.num_mix_parallel:
+            p = multiprocessing.Process(target=
+                                        retrain_on_classified_examples(
+                    num_mix,
+                    args.save_tag_suffix,
+                    args.detect_object[0],
+                    args.template_tag,
+                    train_path,
+                    train_file_indices,
+                    sp,
+                    ep,
+                    pp,
+                    args.savedir,
+                   
+                    verbose=args.v))
+            jobs.append(p)
+            p.start
+
     if args.get_fpr_tpr_tagged:
         print "Finished save_detection_setup"
         if len(args.num_mix_parallel) > 0:
@@ -6589,6 +6757,9 @@ syllables and tracking their performance
     parser.add_argument('--get_classify_scores_metadata',default='',
                         type=str,
                         help="whether to run the get_classify_scores_metadata function and the string should be 'train' or 'test' to indicate which data set to use.  This function also takes in a phn and it gives the set of false positives, true positives, and false negatives")
+    parser.add_argument('--retrain_on_classified_examples',default='',
+                        type=str,
+                        help="whether to run the retrain_on_classified_examples function and the string should be 'train' or 'test' to indicate which data set to use.  This function loads metadata about the successful stage 1 classifications and the unsuccessful and uses this to retrain the templats and make a discriminative cascade")
 
     parser.add_argument('--save_tag_suffix',type=str,default='train_edges',
                         help="used for get_max_classification_results as the suffix for the save tag where the prefix is the phn of interest.  Default is 'train_edges'")
