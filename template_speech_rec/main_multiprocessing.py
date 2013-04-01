@@ -8,6 +8,7 @@ import template_speech_rec.bernoulli_mixture as bm
 import template_speech_rec.roc_functions as rf
 import template_speech_rec.code_parts as cp
 import template_speech_rec.spread_waliji_patches as swp
+import template_speech_rec.get_mistakes as get_mistakes
 import matplotlib.pyplot as plt
 import parts, gmm_em
 import pickle,collections,cPickle,os,itertools,re
@@ -1959,7 +1960,7 @@ def get_classify_confusion_matrix(num_mix,save_tag,savedir,data_type,
     for use_phns_id_classified, use_phn_classified in enumerate(use_phns):
         if verbose:
             print use_phns_id_classified, use_phn_classified
-            
+
         classified_mask = argmax_classify_array == use_phn_classified
         true_labels_for_classified = classify_labels[classified_mask]
         for use_phns_id_truth, use_phn_truth in enumerate(use_phns):
@@ -1991,14 +1992,20 @@ def get_classify_confusion_matrix(num_mix,save_tag,savedir,data_type,
              use_phns=use_phns)
 
 
-def get_mistake_scores_metadata(num_mix,phn,save_tag,savedir,
-                                      template_tag,use_phns,data_type,classify_lengths,
-                                      top_mistakes=5000):
+def get_classify_scores_metadata(num_mix,phn,save_tag,savedir,
+                                      data_type,use_phns,classify_lengths,
+                                      verbose=False):
+    if verbose:
+        print "doing get_classify_scores_metadata for %s" % phn
     classify_labels = np.load('%s%s_classify_labels.npy' % (savedir,data_type))
+
+    classify_lengths = classify_lengths.astype(np.uint16)
+
     outfile = np.load('%smax_classify_results_%d_%s.npz' % (savedir,
                                                num_mix,
                                                save_tag))
-    argmax_classify_array = outfile['argmax_classify_array'].astype(np.float32)
+    argmax_classify_array = outfile['argmax_classify_array']
+    max_classify_array=outfile['max_classify_array'].astype(np.float32)
     max_classify_template_ids = outfile['max_classify_template_ids']
     max_classify_template_lengths = outfile['max_classify_template_lengths']
     max_classify_locs = outfile['max_classify_locs'].astype(np.uint16)
@@ -2017,15 +2024,21 @@ def get_mistake_scores_metadata(num_mix,phn,save_tag,savedir,
     num_mistakes = np.int(mistake_mask.sum())
     num_mistakes_by_component = np.zeros(num_mix)
     mistake_lengths = np.zeros(num_mix)
+
     for mix_component in xrange(num_mix):
         component_mistake_mask = (np.logical_and(mistake_mask,
-                                                 max_classify_template_ids==mix_component)).astype(np.uint8)
-
-        # get the length
+                                                 max_classify_template_ids==mix_component))
         num_mistakes_by_component[mix_component] =  component_mistake_mask.sum()
 
         if num_mistakes_by_component[mix_component] == 0: continue
+
         mistake_lengths[mix_component] = max_classify_template_lengths[component_mistake_mask][0]
+        component_mistake_mask=component_mistake_mask.astype(np.uint8)
+
+        # get the length
+
+
+
         mistake_scores, mistake_metadata = get_mistakes.get_example_scores_metadata(component_mistake_mask,
                                                                      max_classify_locs,
                                                                      max_classify_array,
@@ -2033,11 +2046,11 @@ def get_mistake_scores_metadata(num_mix,phn,save_tag,savedir,
                                                                      num_mistakes_by_component[mix_component])
 
         sorted_mistake_ids = np.argsort(mistake_scores)[::-1]
-        np.savez('%s%s_stage1_mistake_scores_metadata_%d_%d_%s' %(
+        np.savez('%sstage1_mistake_scores_metadata_%d_%d_%s_%s' %(
                 savedir,
-                phn,
+
                 num_mix,
-                mix_component,
+                mix_component,phn,
                 save_tag),
                  mistake_scores=mistake_scores,
                  mistake_metadata=mistake_metadata,
@@ -2051,13 +2064,14 @@ def get_mistake_scores_metadata(num_mix,phn,save_tag,savedir,
     false_neg_lengths = np.zeros(num_mix)
     for mix_component in xrange(num_mix):
         component_false_neg_mask = (np.logical_and(false_neg_mask,
-                                                 max_classify_template_ids==mix_component)).astype(np.uint8)
-
-        # get the length
+                                                 max_classify_template_ids==mix_component))
         num_false_negs_by_component[mix_component] =  component_false_neg_mask.sum()
 
         if num_false_negs_by_component[mix_component] == 0: continue
         false_neg_lengths[mix_component] = max_classify_template_lengths[component_false_neg_mask][0]
+        component_false_neg_mask = component_false_neg_mask.astype(np.uint8)
+        # get the length
+
         false_neg_scores, false_neg_metadata = get_mistakes.get_example_scores_metadata(component_false_neg_mask,
                                                                      true_max_classify_locs,
                                                                      true_max_classify_array,
@@ -2065,11 +2079,11 @@ def get_mistake_scores_metadata(num_mix,phn,save_tag,savedir,
                                                                      num_false_negs_by_component[mix_component])
 
         sorted_false_neg_ids = np.argsort(false_neg_scores)[::-1]
-        np.savez('%s%s_stage1_false_neg_scores_metadata_%d_%d_%s' %(
+        np.savez('%sstage1_false_neg_scores_metadata_%d_%d_%s_%s' %(
                 savedir,
-                phn,
+
                 num_mix,
-                mix_component,
+                mix_component,phn,
                 save_tag),
                  false_neg_scores=false_neg_scores,
                  false_neg_metadata=false_neg_metadata,
@@ -2086,13 +2100,14 @@ def get_mistake_scores_metadata(num_mix,phn,save_tag,savedir,
     success_lengths = np.zeros(num_mix)
     for mix_component in xrange(num_mix):
         component_success_mask = (np.logical_and(success_mask,
-                                                 max_classify_template_ids==mix_component)).astype(np.uint8)
-
-        # get the length
+                                                 max_classify_template_ids==mix_component))
         num_successes_by_component[mix_component] =  component_success_mask.sum()
 
         if num_successes_by_component[mix_component] == 0: continue
         success_lengths[mix_component] = max_classify_template_lengths[component_success_mask][0]
+        component_success_mask=component_success_mask.astype(np.uint8)
+        # get the length
+
         success_scores, success_metadata = get_mistakes.get_example_scores_metadata(component_success_mask,
                                                                      max_classify_locs,
                                                                      max_classify_array,
@@ -2100,11 +2115,11 @@ def get_mistake_scores_metadata(num_mix,phn,save_tag,savedir,
                                                                      num_successes_by_component[mix_component])
 
         sorted_success_ids = np.argsort(success_scores)[::-1]
-        np.savez('%s%s_stage1_success_scores_metadata_%d_%d_%s' %(
+        np.savez('%sstage1_success_scores_metadata_%d_%d_%s_%s' %(
                 savedir,
-                phn,
+
                 num_mix,
-                mix_component,
+                mix_component, phn,
                 save_tag),
                  success_scores=success_scores,
                  success_metadata=success_metadata,
@@ -5681,6 +5696,20 @@ def main(args):
             jobs.append(p)
             p.start
 
+    if args.get_classify_scores_metadata == 'train':
+        leehon_mapping, rejected_phones, use_phns = get_leehon39_dict(no_sil=args.no_sil)
+        jobs = []
+        for num_mix in args.num_mix_parallel:
+            p = multiprocessing.Process(target=
+                                        get_classify_scores_metadata(
+                    num_mix,args.detect_object[0],
+                    args.save_tag,args.savedir,
+                    "train",
+                    use_phns, train_classify_lengths,
+                    verbose=args.v))
+            jobs.append(p)
+            p.start
+
     if args.get_fpr_tpr_tagged:
         print "Finished save_detection_setup"
         if len(args.num_mix_parallel) > 0:
@@ -6556,6 +6585,10 @@ syllables and tracking their performance
     parser.add_argument('--get_classify_confusion_matrix',default='',
                         type=str,
                         help="whether to run the get_classify_confusion_matrix function and the string should be 'train' or 'test' to indicate which data set to use")
+    parser.add_argument('--get_classify_scores_metadata',default='',
+                        type=str,
+                        help="whether to run the get_classify_scores_metadata function and the string should be 'train' or 'test' to indicate which data set to use.  This function also takes in a phn and it gives the set of false positives, true positives, and false negatives")
+
     parser.add_argument('--save_tag_suffix',type=str,default='train_edges',
                         help="used for get_max_classification_results as the suffix for the save tag where the prefix is the phn of interest.  Default is 'train_edges'")
     parser.add_argument('--num_mix_parallel',default=[],nargs='*',
