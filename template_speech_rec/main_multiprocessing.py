@@ -1828,7 +1828,7 @@ def get_fpr_tpr_classify(num_mix,data_classify_lengths,
         plt.close('all')
 
 
-def get_max_classification_results(num_mix,save_tag_suffix,template_tag,
+def get_max_classification_results(num_mix,save_tag_suffix,
                                    data_type,
                                   use_phns,rejected_phns,mapping,
                                   data_classify_lengths):
@@ -1979,6 +1979,57 @@ def get_classify_confusion_matrix(num_mix,save_tag,savedir,data_type,
              confusion_matrix=confusion_matrix,
              confusion_matrix_by_id=confusion_matrix_by_id,
              use_phns=use_phns)
+
+
+def get_mistake_scores_metadata(num_mix,phn,save_tag,savedir,
+                                      template_tag,use_phns,data_type,classify_lengths,
+                                      top_mistakes=5000):
+    classify_labels = np.load('%s%s_classify_labels.npy' % (savedir,data_type))
+    outfile = np.load('%smax_classify_results_%d_%s.npz' % (savedir,
+                                               num_mix,
+                                               save_tag))
+    argmax_classify_array = outfile['argmax_classify_array']
+    max_classify_template_ids = outfile['max_classify_template_ids']
+    max_classify_template_lengths = outfile['max_classify_template_lengths']
+    outfile = np.load('%strue_max_classify_results_%d_%s.npz' % (savedir,
+                                               num_mix,
+                                               save_tag))
+    true_max_classify_array = outfile['true_max_classify_array']
+    true_max_classify_template_ids = outfile['true_max_classify_template_ids']
+    num_use_phns = len(use_phns)
+    
+    # get the false positives
+    mistake_mask = np.logical_and(argmax_classify_array == phn,
+                              classify_labels != phn)
+    num_mistakes = np.int(mistake_mask.sum())
+    num_mistakes_by_component = np.zeros(num_mix)
+    mistake_lengths = np.zeros(num_mix)
+    for mix_component in xrange(num_mix):
+        component_mistake_mask = (np.logical_and(mistake_mask,
+                                                 max_classify_template_ids==mix_component))
+
+        # get the length
+        num_mistakes_by_component[mix_component] =  component_mistake_mask.sum()
+        
+        if num_mistakes_by_component[mix_component] == 0: continue
+        mistake_lengths[mix_component] = max_classify_template_lengths[component_mistake_mask][0]
+        mistake_scores, mistake_metadata = get_mistakes.get_example_scores_metadata(component_mistake_mask,
+                                                                     max_classify_locs,
+                                                                     max_classify_array,
+                                                                     classify_lengths,
+                                                                     num_mistakes_by_component[mix_component])
+        
+        sorted_mistake_ids = np.argsort(mistake_scores)[::-1]
+        np.savez('%s%s_stage1_mistake_scores_metadata_%d_%d_%s' %(
+                savedir,
+                phn,
+                num_mix,
+                mix_component,
+                save_tag),
+                 mistake_scores=mistake_scores,
+                 mistake_metadata=mistake_metadata,
+                 mistake_length=mistake_lengths[mix_component])
+
 
 
 
@@ -5522,7 +5573,20 @@ def main(args):
                                  )
             jobs.append(p)
             p.start
-
+    if args.get_max_classification_results == 'train':
+        leehon_mapping, rejected_phones, use_phns = get_leehon39_dict(no_sil=args.no_sil)
+        jobs = []
+        for num_mix in args.num_mix_parallel:
+            p = multiprocessing.Process(target=
+                                        get_max_classification_results(
+                    num_mix,
+                    args.save_tag_suffix,
+                    "train",
+                    use_phns,rejected_phns,mapping,
+                    train_classify_lengths))
+            jobs.append(p)
+            p.start
+                    
     if args.get_fpr_tpr_tagged:
         print "Finished save_detection_setup"
         if len(args.num_mix_parallel) > 0:
@@ -6392,6 +6456,11 @@ syllables and tracking their performance
     parser.add_argument('--get_fpr_tpr_classify',default='',type=str,
                         help="whether get_fpr_tpr_classify to run the plot_detection_outs runs with no arguments, the argument should be train or test"
                         )
+    parser.add_argument('--get_max_classification_results',default='',
+                        type=str,
+                        help="whether to run the max_classification_results function and the string should be 'train' or 'test' to indicate which data set to use")
+    parser.add_argument('--save_tag_suffix',type=str,default='train_edges',
+                        help="used for get_max_classification_results as the suffix for the save tag where the prefix is the phn of interest.  Default is 'train_edges'")
     parser.add_argument('--num_mix_parallel',default=[],nargs='*',
                         type=int,metavar='N',
                         help="possibly empty sequence of integers that say run this program for different mixture numbers concurrently")
