@@ -2065,7 +2065,7 @@ def get_classify_scores_metadata(num_mix,phn,save_tag,savedir,
     false_neg_lengths = np.zeros(num_mix)
     for mix_component in xrange(num_mix):
         component_false_neg_mask = (np.logical_and(false_neg_mask,
-                                                 max_classify_template_ids==mix_component))
+                                                 true_max_classify_template_ids==mix_component))
         num_false_negs_by_component[mix_component] =  component_false_neg_mask.sum()
 
         if num_false_negs_by_component[mix_component] == 0: continue
