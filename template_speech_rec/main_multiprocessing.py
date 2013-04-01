@@ -6847,7 +6847,7 @@ syllables and tracking their performance
                         action='store_true',
                         help="Get the features for the lee-hon phones")
     parser.add_argument('--save_leehon_phn',
-                        type=str,default=''
+                        type=str,default='',
                         help="Save the data for a particular leehon phn")
     parser.add_argument('--make_plots',action='store_true',
                         help="Ubiquitous argument for whether or not to make plots in whatever functions are called. Defaults to False.")
