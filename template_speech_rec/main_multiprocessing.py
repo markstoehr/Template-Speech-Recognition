@@ -905,6 +905,7 @@ def get_templates(num_mix,template_tag=None,savedir='data/',
 
     else:
         if num_mix > 1:
+            print 'Hi! template loading: %s%d_templates_%s.npz' % (savedir,num_mix,template_tag)
             outfile = np.load('%s%d_templates_%s.npz' % (savedir,num_mix,template_tag))
             print 'template loading: %s%d_templates_%s.npz' % (savedir,num_mix,template_tag)
             templates = tuple( np.clip(outfile['arr_%d'%i],
@@ -1458,7 +1459,7 @@ def get_classification_scores(num_mix,data_classify_lengths,
                               ep,
                               pp=None,
                               save_tag='',template_tag=None,savedir='data/',verbose=False,num_use_file_idx=-1, use_svm_based=False,syllable_string=None,
-                              svm_name=None,use_svm_filter=None,
+                              svm_tag=None,use_svm_filter=None,
                               use_noise_file=None,
                          noise_db=0,
                          use_spectral=False,
@@ -1498,18 +1499,37 @@ def get_classification_scores(num_mix,data_classify_lengths,
 
     try:
 
-        out =get_templates(num_mix,template_tag=template_tag,savedir=savedir,
-                             use_svm_based=use_svm_based,
-                             svm_name=svm_name,syllable_string=syllable_string,
-                             use_spectral=use_spectral)
+        out =get_templates(num_mix,template_tag=template_tag,savedir=savedir)
     except:
         print "It seems that the templates could not be loaded for"
         print "template_tag=%s\tnum_mix=%d" % (template_tag,num_mix)
         return
+
     if use_spectral:
         templates, sigmas = out
     else:
         templates = out
+
+    if svm_tag is not None:
+        svm_constants = np.load('data/svm_stage1_bs_8_ae_train_edges_no_smoothing.npy')
+        outfile = np.load('data/svm_stage1_ws_8_ae_train_edges_no_smoothing.npz')
+        # keep things in float32 so that way storage of the data
+        # is not a problem
+        svm_classifiers = tuple(outfile['arr_%d' %i].astype(np.float32) for i in xrange(len(outfile.files)))
+
+        assert len(svm_classifiers) == num_mix
+        if not np.all(np.array(tuple(svm_classifiers[i].shape == templates[i].shape
+                                     for i in xrange(num_mix)))):
+            import pdb; pdb.set_trace()
+
+
+
+
+    else:
+        svm_classifiers=None
+
+
+
     classify_array = np.zeros((data_classify_lengths.shape[0],
                             data_classify_lengths.max() + 2),dtype=np.float32)
     if use_svm_filter is None:
@@ -1542,10 +1562,7 @@ def get_classification_scores(num_mix,data_classify_lengths,
     if num_use_file_idx == -1:
         num_use_file_idx = len(file_indices)
 
-    (classify_array,
-     classify_locs,
-     classify_template_lengths,
-     classify_template_ids)=gtrd.get_classify_scores(
+    classify_scores_out=gtrd.get_classify_scores(
              data_path,
              file_indices[:num_use_file_idx],
              classify_array,
@@ -1559,9 +1576,31 @@ def get_classification_scores(num_mix,data_classify_lengths,
              P_config=pp,
              use_noise_file=use_noise_file,
              noise_db=noise_db,
-             use_spectral=use_spectral)
+             use_spectral=use_spectral,
+             svm_classifiers=svm_classifiers,
+             svm_constants=svm_constants
+             )
+    
+    if svm_tag is None:
+        (classify_array,
+         classify_locs,
+         classify_template_lengths,
+         classify_template_ids) = classify_scores_out
+    else:
+        (classify_array,
+         svm_classify_array,
+         classify_locs,
+         classify_template_lengths,
+         classify_template_ids) = classify_scores_out
+
+    
+
     np.save('%sclassify_array_%d_%s.npy' % (savedir,num_mix,
                                                 save_tag),classify_array)
+    if svm_tag is not None:
+        np.save('%ssvm_classify_array_%d_%s.npy' % (savedir,num_mix,
+                                                save_tag),svm_classify_array)
+
     np.save('%sclassify_template_ids_%d_%s.npy' % (savedir,num_mix,
                                                 save_tag),classify_template_ids)
     np.save('%sclassify_template_lengths_%d_%s.npy' % (savedir,num_mix,
@@ -5759,9 +5798,11 @@ def main(args):
                         template_tag=args.template_tag,
                         savedir=args.savedir,
                         num_use_file_idx=args.num_use_file_idx,
+                        svm_tag=args.svm_tag,
                         use_noise_file=args.use_noise_file,
                         noise_db=args.noise_db,
-                        load_data_tag=args.load_data_tag))
+                        load_data_tag=args.load_data_tag
+                        ))
                 jobs.append(p)
                 p.start
     if args.get_classification_scores == "test":
@@ -6803,6 +6844,10 @@ syllables and tracking their performance
     parser.add_argument('--get_classification_scores',default='',
                         type=str,metavar='str',
                         help="Gets the classification scores for the train or the test set depending on whether the keyword argument is `train` or `test`")
+    parser.add_argument('--svm_tag',default='',
+                        type=str,metavar='str',
+                        help="the saved tag suffix for the svm classifiers trained, this is included so that the classification scores automatically runs the svm when classification is performed so that the data points don't have to be loaded twice in order to run the cascade")
+    
     parser.add_argument('--estimate_templates',action='store_true',
                         help="Whether to run estimate_templates and save those templates or not")
     parser.add_argument('--estimate_templates_limited_data',type=float,default=None,
