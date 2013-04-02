@@ -1659,7 +1659,7 @@ def get_syllable_features(utterance_directory,data_idx,syllable,
         S_flts = (sflts * S.shape[0] /float(sflts[-1]) + .5).astype(int)
         if E_config is not None:
             E = get_edge_features(S.T,E_config,verbose=E_verbose)
-
+            
             # both are the same
             E_flts = S_flts
 
@@ -1678,6 +1678,11 @@ def get_syllable_features(utterance_directory,data_idx,syllable,
         else:
             E = None
             P = None
+            
+        if S_config.auxiliary_data:
+            S = S[:,:-3]
+            
+
     else:
         S = None
         E = None
@@ -1691,7 +1696,6 @@ def get_syllable_features(utterance_directory,data_idx,syllable,
             import pdb; pdb.set_trace()
     syllable_starts = phns_syllable_matches(use_phns,syllable)
     syllable_length = len(syllable)
-
 
 
     if (waveform_offset is None or waveform_offset == 0) and (S is not None and P is not None):
@@ -1830,10 +1834,13 @@ def get_syllable_features_cluster(utterance_directory,data_idx,cluster_list,
                 P=None
             else:
                 P=None
-
         else:
             E = None
             P=None
+
+        if S_config.auxiliary_data:
+            S = S[:,:-3]
+
 
     else:
         S = None
@@ -1962,8 +1969,11 @@ def get_syllable_features_directory(utterances_path,file_indices,syllable,
     avg_bgd = AverageBackground()
 
     avg_bgd_spec=AverageBackground()
-    return_tuple = tuple(
-        get_syllable_features(utterances_path,data_idx,syllable,
+    return_tuple = ()
+    for file_id, data_idx in enumerate(file_indices):
+        if file_id % 100 == 0:
+            print file_id, data_idx
+        return_tuple += (get_syllable_features(utterances_path,data_idx,syllable,
                               S_config=S_config,E_config=E_config,offset = offset,
                               E_verbose=E_verbose,avg_bgd=avg_bgd,
                               waveform_offset=waveform_offset,
@@ -1971,9 +1981,9 @@ def get_syllable_features_directory(utterances_path,file_indices,syllable,
                               P_config=P_config,
                               verbose=verbose,
                               mel_smoothing_kernel=mel_smoothing_kernel,
-                              avg_bgd_spec=avg_bgd_spec)
-        for data_idx in file_indices)
-
+                              avg_bgd_spec=avg_bgd_spec),
+                         )
+    print "done with directory"
     if return_avg_bgd and avg_bgd_spec:
         return return_tuple, avg_bgd, avg_bgd_spec
     elif return_avg_bgd:
@@ -2135,7 +2145,8 @@ SpectrogramParameters = collections.namedtuple("SpectrogramParameters",
                                                 +" include_double_deltas"
                                                 +" delta_window"
                                                 +" no_use_dpss"
-                                                +" do_freq_smoothing"))
+                                                +" do_freq_smoothing"
+                                                +" auxiliary_data"))
 
 def makeSpectrogramParameters(sample_rate=16000,
                               num_window_samples=320,
@@ -2155,7 +2166,8 @@ def makeSpectrogramParameters(sample_rate=16000,
                               include_double_deltas=False,
                               delta_window=9,
                               no_use_dpss=False,
-                              do_freq_smoothing=True):
+                              do_freq_smoothing=True,
+                              auxiliary_data=False):
     """
     wrapper Function so that named tuple can have
     optional arguments
@@ -2182,9 +2194,11 @@ def makeSpectrogramParameters(sample_rate=16000,
                                  include_double_deltas=include_double_deltas,
                                  delta_window=delta_window,
                                  no_use_dpss=no_use_dpss,
-                                 do_freq_smoothing=do_freq_smoothing)
+                                 do_freq_smoothing=do_freq_smoothing,
+                                 auxiliary_data=auxiliary_data)
 
-def get_spectrogram(waveform,spectrogram_parameters,mel_smoothing_kernel=-1):
+def get_spectrogram(waveform,spectrogram_parameters,mel_smoothing_kernel=-1,
+                    no_auxiliary_data=False):
     if spectrogram_parameters.use_mel:
         return esp.get_mel_spec(waveform,
                             spectrogram_parameters.sample_rate,
@@ -2214,6 +2228,11 @@ def get_spectrogram(waveform,spectrogram_parameters,mel_smoothing_kernel=-1):
                               no_use_dpss=spectrogram_parameters.no_use_dpss
                                 ).T
     else:
+        # put in a manual override that supresses the auxiliary data
+        if no_auxiliary_data:
+            auxiliary_data_param = False
+        else:
+            auxiliary_data_param = spectrogram_parameters.auxiliary_data
         return esp.get_spectrogram_features(waveform,
                                      spectrogram_parameters.sample_rate,
                                      spectrogram_parameters.num_window_samples,
@@ -2222,8 +2241,9 @@ def get_spectrogram(waveform,spectrogram_parameters,mel_smoothing_kernel=-1):
                                      spectrogram_parameters.freq_cutoff,
                                      spectrogram_parameters.kernel_length,
                                             no_use_dpss=spectrogram_parameters.no_use_dpss,
-                                            do_freq_smoothing=spectrogram_parameters.do_freq_smoothing
-                                 ).T
+                                            do_freq_smoothing=spectrogram_parameters.do_freq_smoothing,
+                                            auxiliary_data=auxiliary_data_param
+                                 )
 
 EdgemapParameters = collections.namedtuple("EdgemapParameters",
                                            ("block_length"
@@ -2231,18 +2251,24 @@ EdgemapParameters = collections.namedtuple("EdgemapParameters",
                                             +" threshold"
                                             +" magnitude_features"
                                             +" magnitude_block_length"
+                                            +" magnitude_threshold"
                                             +" magnitude_and_edge_features"
                                             +" mag_smooth_freq"
-                                            +" mag_downsample_freq"))
+                                            +" mag_downsample_freq"
+                                            +" auxiliary_data"
+                                            +" auxiliary_threshold"))
 
 def makeEdgemapParameters(block_length,
                           spread_length,
                           threshold,
                           magnitude_features=False,
                           magnitude_block_length=0,
+                          magnitude_threshold=.5,
                           magnitude_and_edge_features=False,
                           mag_smooth_freq=0,
-                          mag_downsample_freq=0
+                          mag_downsample_freq=0,
+                          auxiliary_data=False,
+                          auxiliary_threshold=.5
                           ):
     """
     Wrapper function to construct EdgemapParameters
@@ -2267,9 +2293,12 @@ def makeEdgemapParameters(block_length,
                             threshold=threshold,
                             magnitude_features=magnitude_features,
                             magnitude_block_length=magnitude_block_length,
+                            magnitude_threshold=magnitude_threshold,
                             magnitude_and_edge_features=magnitude_and_edge_features,
                             mag_smooth_freq=mag_smooth_freq,
-                            mag_downsample_freq=mag_downsample_freq
+                            mag_downsample_freq=mag_downsample_freq,
+                            auxiliary_data=auxiliary_data,
+                            auxiliary_threshold=auxiliary_threshold
                             )
     return emp
 
@@ -2317,19 +2346,24 @@ def makePartsParameters(use_parts,
 
 
 def get_edge_features(S,parameters,verbose=False):
+    if parameters.auxiliary_data:
+        A = S[-3:]
+        S = S[:-3]
     if parameters.magnitude_features:
         E = esp.magnitude_features(S,
                            parameters.magnitude_block_length,
                            parameters.spread_length,
+                                   parameters.magnitude_threshold,
                            parameters.threshold)
         return E.reshape(E.shape[0],E.shape[1],1)
     elif parameters.magnitude_and_edge_features:
         E2 = esp.magnitude_features(S.copy(),
                                     parameters.magnitude_block_length,
                                     parameters.spread_length,
-                                    parameters.threshold,
+                                    parameters.magnitude_threshold,
                                     parameters.mag_smooth_freq,
                                     parameters.mag_downsample_freq)
+        
         E, edge_feature_row_breaks,\
             edge_orientations = esp._edge_map_no_threshold(S)
         esp._edge_map_threshold_segments(E,
@@ -2339,8 +2373,15 @@ def get_edge_features(S,parameters,verbose=False):
                                      edge_orientations = edge_orientations,
                                      edge_feature_row_breaks = edge_feature_row_breaks,
                                      verbose=verbose)
-
-        return np.hstack((E.T,E2))
+        if not parameters.auxiliary_data:
+            return np.hstack((E.T,E2))
+        else:
+            ABinary = esp.magnitude_features(A,
+                                             parameters.magnitude_block_length,
+                                             1,
+                                             parameters.auxiliary_threshold,
+                                             0,0)
+            return np.hstack((E.T,E2,ABinary))
     else:
         E, edge_feature_row_breaks,\
             edge_orientations = esp._edge_map_no_threshold(S)
