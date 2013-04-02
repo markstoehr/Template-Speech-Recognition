@@ -662,9 +662,10 @@ def magnitude_features(S,block_length,spread_radius,threshold_quantile,
         
     
     # now we spread the detected points in all directions
-    weight_filter = np.ones((2*spread_radius+1,2*spread_radius+1)) * 1./spread_radius
-    weight_filter[spread_radius,spread_radius]=1
-    E = (correlate(E,weight_filter,mode='constant') >= 1).astype(np.uint8)
+    if spread_radius > 0:
+        weight_filter = np.ones((2*spread_radius+1,2*spread_radius+1)) * 1./spread_radius
+        weight_filter[spread_radius,spread_radius]=1
+        E = (correlate(E,weight_filter,mode='constant') >= 1).astype(np.uint8)
     return E
 
 
