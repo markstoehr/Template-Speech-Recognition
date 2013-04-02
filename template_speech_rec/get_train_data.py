@@ -1654,8 +1654,6 @@ def get_syllable_features(utterance_directory,data_idx,syllable,
                             mel_smoothing_kernel=mel_smoothing_kernel)
 
 
-        if avg_bgd_spec is not None:
-            avg_bgd_spec.add_frames(S,time_axis=0)
         S_flts = (sflts * S.shape[0] /float(sflts[-1]) + .5).astype(int)
         if E_config is not None:
             E = get_edge_features(S.T,E_config,verbose=E_verbose)
@@ -1681,8 +1679,12 @@ def get_syllable_features(utterance_directory,data_idx,syllable,
             
         if S_config.auxiliary_data:
             S = S[:,:-3]
-            
+        
+        # make sure to add background features after the spectrogram has been modified
+        if avg_bgd_spec is not None:
+            avg_bgd_spec.add_frames(S,time_axis=0)
 
+            
     else:
         S = None
         E = None
@@ -2067,10 +2069,13 @@ def recover_specs(syllable_features,example_mat,
             Ss[idx][:lengths[idx]] = syllable_features[i][jdx].S
             if bgd is not None and lengths[idx] < max_length:
 
-                Ss[idx][lengths[idx]:] = (
-                    np.random.randn(*((max_length-lengths[idx],)
-                                    + S_shape)) * bgd_std + np.tile(bgd,
-                                                 (max_length-lengths[idx],1)))
+                try:
+                    Ss[idx][lengths[idx]:] = (
+                        np.random.randn(*((max_length-lengths[idx],)
+                                          + S_shape)) * bgd_std + np.tile(bgd,
+                                                                          (max_length-lengths[idx],1)))
+                except:
+                    import pdb; pdb.set_trace()
 
     return lengths, Ss
 
