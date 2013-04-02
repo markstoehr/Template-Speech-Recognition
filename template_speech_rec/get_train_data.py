@@ -2257,6 +2257,7 @@ EdgemapParameters = collections.namedtuple("EdgemapParameters",
                                             +" magnitude_features"
                                             +" magnitude_block_length"
                                             +" magnitude_threshold"
+                                            +" magnitude_spread"
                                             +" magnitude_and_edge_features"
                                             +" mag_smooth_freq"
                                             +" mag_downsample_freq"
@@ -2269,6 +2270,7 @@ def makeEdgemapParameters(block_length,
                           magnitude_features=False,
                           magnitude_block_length=0,
                           magnitude_threshold=.5,
+                          magnitude_spread=0,
                           magnitude_and_edge_features=False,
                           mag_smooth_freq=0,
                           mag_downsample_freq=0,
@@ -2299,6 +2301,7 @@ def makeEdgemapParameters(block_length,
                             magnitude_features=magnitude_features,
                             magnitude_block_length=magnitude_block_length,
                             magnitude_threshold=magnitude_threshold,
+                            magnitude_spread=magnitude_spread,
                             magnitude_and_edge_features=magnitude_and_edge_features,
                             mag_smooth_freq=mag_smooth_freq,
                             mag_downsample_freq=mag_downsample_freq,
@@ -2357,14 +2360,14 @@ def get_edge_features(S,parameters,verbose=False):
     if parameters.magnitude_features:
         E = esp.magnitude_features(S,
                            parameters.magnitude_block_length,
-                           parameters.spread_length,
+                           parameters.magnitude_spread,
                                    parameters.magnitude_threshold,
                            parameters.threshold)
         return E.reshape(E.shape[0],E.shape[1],1)
     elif parameters.magnitude_and_edge_features:
-        E2 = esp.magnitude_features(S.copy(),
+        E2 = esp.magnitude_features_whole_block(S.copy(),
                                     parameters.magnitude_block_length,
-                                    parameters.spread_length,
+                                    parameters.magnitude_spread,
                                     parameters.magnitude_threshold,
                                     parameters.mag_smooth_freq,
                                     parameters.mag_downsample_freq)
@@ -2379,14 +2382,14 @@ def get_edge_features(S,parameters,verbose=False):
                                      edge_feature_row_breaks = edge_feature_row_breaks,
                                      verbose=verbose)
         if not parameters.auxiliary_data:
-            return np.hstack((E.T,E2))
+            return np.hstack((E.T,E2,ABinary))
         else:
             ABinary = esp.magnitude_features(A,
                                              parameters.magnitude_block_length,
-                                             1,
+                                             0,
                                              parameters.auxiliary_threshold,
                                              0,0)
-            return np.hstack((E.T,E2,ABinary))
+            return np.hstack((E2,E.T))
     else:
         E, edge_feature_row_breaks,\
             edge_orientations = esp._edge_map_no_threshold(S)
