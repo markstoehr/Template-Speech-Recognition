@@ -633,6 +633,7 @@ def magnitude_features(S,block_length,spread_radius,threshold_quantile,
         Dimension 0 corresponds to the time dimension and dimension 1
         to the frequency dimension.  These are the binary magnitude features
     """
+
     if mag_smooth_freq > 0:
         S = median_filter(S,(mag_smooth_freq,1))
     if mag_downsample_freq > 0:
@@ -665,6 +666,79 @@ def magnitude_features(S,block_length,spread_radius,threshold_quantile,
     weight_filter[spread_radius,spread_radius]=1
     E = (correlate(E,weight_filter,mode='constant') >= 1).astype(np.uint8)
     return E
+
+
+def magnitude_features_whole_block(S,block_length,spread_radius,threshold_quantile,
+                       mag_smooth_freq,
+                       mag_downsample_freq):
+    """
+    Construct a binary map from a spectrogram where values are binarized
+    via an adaptive threshold.
+
+    The algorithm proceeds as follows: we are attempting to find the
+    top values in a band, to prevent aliasing we do a windowing operation.
+    
+    The start time for the windows is  [-block_length/4,3*block_length/4]
+    the next is over [block_length/4,5*block_length/4] then
+    [3*block_length/4, 7*block_length/4], ...
+    these are the windows for estimating the quantiles
+
+    The windows that we actually set the quantiles for are 
+    [0,block_length/2], [block_length/2,block_length],
+    [block_length,3*block_length/2], ...
+    where these correspond to the middle half of the estimation windows
+    
+    Parameters:
+    ===========
+    S: numpy.ndarray[ndim=2]
+        Dimension 0 corresponds to frequency, dimension 1 corresponds to time
+        this is the spectrogram to be quantized
+    block_length: int
+        Length of block to use for estimating the threshold
+    spread_radius: int
+        How much to spread in a radius
+    threshold_quantile: float
+        Quantile for thresholding
+
+    Returns:
+    ========
+    E: numpy.ndarray[ndim=2]
+        Dimension 0 corresponds to the time dimension and dimension 1
+        to the frequency dimension.  These are the binary magnitude features
+    """
+    if mag_smooth_freq > 0:
+        S = median_filter(S,(mag_smooth_freq,1))
+    if mag_downsample_freq > 0:
+        S = S[::mag_downsample_freq]
+    num_features, num_frames = S.shape
+    block_quarter = block_length/4
+    S = S.T
+    E = np.zeros(S.shape,dtype=np.uint8)
+    # handling the initial window
+    block = np.sort(S[:3*block_quarter])
+    E[:2*block_quarter]  = S[:2*block_quarter] >= block[int(threshold_quantile*3*block_quarter*S.shape[1]+.5)]
+    next_frame_to_set = 2*block_quarter
+    while next_frame_to_set < num_frames:
+        estimate_win_start = next_frame_to_set-block_quarter
+        estimate_win_end = min(num_frames,
+                               estimate_win_start+4*block_quarter)
+        last_frame_to_set = min(next_frame_to_set + 2*block_quarter,
+                                num_frames)
+        block = np.sort(S[estimate_win_start:estimate_win_end]
+                        )
+        E[next_frame_to_set:last_frame_to_set] = (
+            S[next_frame_to_set:last_frame_to_set]
+            >= block[int(threshold_quantile*(estimate_win_end -
+                                             estimate_win_start)*S.shape[1])])
+        next_frame_to_set=last_frame_to_set
+        
+    
+    # now we spread the detected points in all directions
+    weight_filter = np.ones((2*spread_radius+1,2*spread_radius+1)) * 1./spread_radius
+    weight_filter[spread_radius,spread_radius]=1
+    E = (correlate(E,weight_filter,mode='constant') >= 1).astype(np.uint8)
+    return E
+
     
 
 def get_pattern_examples(data_files_iter,pattern,
@@ -832,11 +906,20 @@ def smooth_downsample_spectrogram(S,downsample_factor,bin_width=None):
 def get_spectrogram_features(s,sample_rate,num_window_samples,
                           num_window_step_samples,fft_length,
                              freq_cutoff,kernel_length,
-                             preemph=.95,mode="valid",dim_0_is='features',
+                             preemph=.95,mode="valid",
                              no_use_dpss=False,
-                             do_freq_smoothing=True):
+                             do_freq_smoothing=True,
+                             auxiliary_data=False):
     s = _preemphasis(s,preemph)
-    S = _spectrograms(s,num_window_samples,
+    if auxiliary_data:
+        S,A = _spectrograms(s,num_window_samples,
+                      num_window_step_samples,
+                      fft_length,
+                      sample_rate,
+                      no_use_dpss=no_use_dpss,
+                          auxiliary_data=auxiliary_data)
+    else:
+        S = _spectrograms(s,num_window_samples,
                       num_window_step_samples,
                       fft_length,
                       sample_rate,
@@ -845,44 +928,33 @@ def get_spectrogram_features(s,sample_rate,num_window_samples,
     freq_idx = int(freq_cutoff/(float(sample_rate)/fft_length))
     S = S[:,:freq_idx]
 
-    if dim_0_is == 'features':
-        # correct for the shape
-        # we want each row of S to correspond to a frequency
-        # and we want the bottom row to represent the lowest
-        # frequency
-        if np.any(S==0):
-            import pdb; pdb.set_trace()
-        S = np.log(S.transpose())
-        # S = S[::-1,:]
-        # smooth the spectrogram
-        x = np.arange(0, kernel_length, 1, np.float64)
-        x0 = kernel_length // 2.
-        sigma = 1
-        g=1/(sigma * np.sqrt(2*np.pi)) *np.exp(-((x-x0)**2  / 2* sigma**2))
-        smoothing_kernel = g/g.sum()
-        # feature smoothing should leave only meaningful features
-        if do_freq_smoothing:
-            S_smoothed = convolve(S,smoothing_kernel.reshape(kernel_length,1),mode ='valid')
-        else:
-            S_smoothed = S
+    # correct for the shape
+    # we want each row of S to correspond to a frequency
+    # and we want the bottom row to represent the lowest
+    # frequency
+    if np.any(S==0):
+        import pdb; pdb.set_trace()
+    S = np.log(S)
+    # S = S[::-1,:]
+    # smooth the spectrogram
+    x = np.arange(0, kernel_length, 1, np.float64)
+    x0 = kernel_length // 2.
+    sigma = 1
+    g=1/(sigma * np.sqrt(2*np.pi)) *np.exp(-((x-x0)**2  / 2* sigma**2))
+    smoothing_kernel = g/g.sum()
+    # feature smoothing should leave only meaningful features
+    if do_freq_smoothing:
+        S_smoothed = convolve(S,smoothing_kernel.reshape(1,kernel_length),mode ='valid')
+    else:
+        S_smoothed = S
         # preserve time length of spectrogram, smooth over time
-        S_smoothed= convolve(S_smoothed,smoothing_kernel.reshape(1,kernel_length),mode='same')
-        S_subsampled = S_smoothed[::2,:]
+    S_smoothed= convolve(S_smoothed,smoothing_kernel.reshape(kernel_length,1),mode='same')
+    S_subsampled = S_smoothed[:,::2]
         # compute the edgemap
+    if auxiliary_data:
+        return np.hstack((S_subsampled, A))
+    else:
         return S_subsampled
-    elif dim_0_is == 'time':
-        S = np.log(S)
-        # smooth the spectrogram
-        x = np.arange(0, kernel_length, 1, np.float64)
-        x0 = kernel_length // 2.
-        sigma = 1
-        g=1/(sigma * np.sqrt(2*np.pi)) *np.exp(-((x-x0)**2  / 2* sigma**2))
-        smoothing_kernel = g/g.sum()
-        # preserve time length of spectrogram, smooth over time
-        S_smoothed = convolve(S,smoothing_kernel.reshape(kernel_length,1),mode ='same')
-        # feature smoothing should leave only meaningful features
-        S_smoothed= convolve(S_smoothed,smoothing_kernel.reshape(1,kernel_length),mode='valid')
-        return S_smoothed[:,::2]
 
 
         
@@ -1988,7 +2060,8 @@ def _spectrograms(s,num_window_samples,
                   fft_length,
                   sample_rate,
                   K=5,
-                  no_use_dpss=False):
+                  no_use_dpss=False,
+                  auxiliary_data=False):
     """
     Gives the discrete prolate slepian sequence
     estimation of the power spectrum
@@ -1998,18 +2071,70 @@ def _spectrograms(s,num_window_samples,
     num_windows = int(.5 + (len(s)-num_window_samples)/float(num_window_step_samples))
     Slep = np.zeros((num_windows,
                      fft_length/2))
+    zero_crossings_energy_wiener = np.zeros((num_windows,3))
     H = np.hamming(num_window_samples)
-
+    t = float(num_window_samples)
     for win_id in xrange(num_windows):
         if no_use_dpss:
             Slep[win_id] = np.abs(fft( H * s[win_id*num_window_step_samples:win_id*num_window_step_samples+num_window_samples],fft_length)[:fft_length/2])**2
         else:
-            J = fft(E_slep[:5] * s[win_id*num_window_step_samples:win_id*num_window_step_samples+num_window_samples],fft_length)
+            signal = s[win_id*num_window_step_samples:win_id*num_window_step_samples+num_window_samples]
+            zero_crossings_energy_wiener[win_id,0] = np.sum(signal[:-1]*signal[1:] > 0)/t
+            zero_crossings_energy_wiener[win_id,1] = np.log(np.var(signal))
+            J = fft(E_slep[:5] * signal,fft_length)
             J=J[:,:fft_length/2]
             Slep[win_id] = (np.abs(J)**2).sum(0)/5
+            zero_crossings_energy_wiener[win_id,2] = np.exp(np.mean(np.log(Slep[win_id])))/np.mean(Slep[win_id])
             
+    if auxiliary_data:
+        return Slep, zero_crossings_energy_wiener
+    else:
+        return Slep
+
+def wiener_entropy_pyramid(S,num_levels=3,level_factor=3):
+    """
+    Compute the wiener entropy
+    Parameters:
+    ===========
+    S:
+       assumed to have frequency dimension as dimension 1
+       and time as dimension 0
+    """
+    logS = np.log(S)
+    return np.exp(np.mean(np.log(S),1)) / np.mean(S)
+
+def construct_pyramid(S,num_levels,level_factor):
+    out_S = np.zeros((S.shape[0],0),dtype=S.dtype)
     
-    return Slep
+    for cur_level in xrange(num_levels-1,-1,-1):
+        num_channels = level_factor**(cur_level)
+        for channel_id in xrange(num_channels):
+            if channel_id ==0:
+                out_S = out_S.hstack((out_S,
+                                  S[:,channel_id::num_channels]))
+            else:
+                out_S[-num_channels:] += S[:,channel_id::num_channels]
+
+    return out_S
+
+def zero_crossing_rates(s,num_window_samples,
+                       num_window_step_samples,
+                       fft_length,
+                       sample_rate,
+                       K=5,
+                       no_use_dpss=False):
+    """
+    Computes the zero crossing rate for the overall signal
+    and for the signal filtered at various frequencies
+    using bandpass filters
+    """
+    zero_crossings = np.zeros(len(s)-num_window_samples-num_window_step-samples + (len(s) % num_window_step_samples))
+    zero_crossings[:len(s)-1] = s[:-1]*s[1:]
+    zero_crossing = zero_crossing.reshape(len(zero_crossing)/num_window_step_samples,
+                                          num_window_step_samples)
+    zero_crossings = zero_crossings.sum(1)
+    
+
 
 def audspec(spectrogram,sample_rate,nbands=None,
             minfreq=0,maxfreq=None,
