@@ -2371,7 +2371,7 @@ def get_edge_features(S,parameters,verbose=False):
                                     parameters.magnitude_threshold,
                                     parameters.mag_smooth_freq,
                                     parameters.mag_downsample_freq)
-        
+
         E, edge_feature_row_breaks,\
             edge_orientations = esp._edge_map_no_threshold(S)
         esp._edge_map_threshold_segments(E,
@@ -2382,14 +2382,16 @@ def get_edge_features(S,parameters,verbose=False):
                                      edge_feature_row_breaks = edge_feature_row_breaks,
                                      verbose=verbose)
         if not parameters.auxiliary_data:
-            return np.hstack((E.T,E2,ABinary))
+            return np.hstack((E.T,E2))
         else:
             ABinary = esp.magnitude_features(A,
                                              parameters.magnitude_block_length,
                                              0,
                                              parameters.auxiliary_threshold,
-                                             0,0)
-            return np.hstack((E2,E.T))
+                                             0,0,
+                                             mag_spread_length=1)
+
+            return np.hstack((E.T,E2,ABinary))
     else:
         E, edge_feature_row_breaks,\
             edge_orientations = esp._edge_map_no_threshold(S)
