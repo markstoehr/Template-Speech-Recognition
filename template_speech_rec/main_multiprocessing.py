@@ -343,7 +343,7 @@ def get_leehon_mapping():
 
 def save_all_leehon_phones(utterances_path,file_indices,leehon_mapping,phn,
                            sp,ep,pp,save_tag,savedir,mel_smoothing_kernel,
-                           offset,waveform_offset,num_use_file_idx=-1):
+                           offset,waveform_offset,num_use_file_idx=-1,use_spec=False):
     """
     Parameters:
     ==========
@@ -377,19 +377,22 @@ def save_all_leehon_phones(utterances_path,file_indices,leehon_mapping,phn,
     for e in phn_features:
         if len(e) > 0: break
 
-    for fl in file_indices[:num_use_file_idx]:
-        utterance = gtrd.makeUtterance(e[0].utt_path,e[0].file_idx,
+    if use_spec:
+        for fl in file_indices[:num_use_file_idx]:
+            utterance = gtrd.makeUtterance(e[0].utt_path,e[0].file_idx,
                                            use_noise_file=None,
                                            noise_db=None)
 
-        S = gtrd.get_spectrogram(utterance.s,sp,no_auxiliary_data=True)
-        try:
-            S -= avg_spec_bgd
-        except:
-            import pdb; pdb.set_trace()
-        avg_bgd_std.add_frames(S**2,time_axis=0)
+            S = gtrd.get_spectrogram(utterance.s,sp,no_auxiliary_data=True)
+            try:
+                S -= avg_spec_bgd
+            except:
+                import pdb; pdb.set_trace()
+                avg_bgd_std.add_frames(S**2,time_axis=0)
 
-    avg_bgd_sigma = avg_bgd_std.E * ( avg_bgd.num_frames/(avg_bgd.num_frames+1.))
+            avg_bgd_sigma = avg_bgd_std.E * ( avg_bgd.num_frames/(avg_bgd.num_frames+1.))
+    else:
+        avg_bgd_sigma = np.ones(avg_spec_bgd.shape)
     np.save('%sspec_bgd_sigma_%s.npy' % (savedir,save_tag),avg_bgd_sigma)
 
 
