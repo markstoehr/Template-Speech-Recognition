@@ -597,7 +597,8 @@ class Pattern_Examples:
 
 def magnitude_features(S,block_length,spread_radius,threshold_quantile,
                        mag_smooth_freq,
-                       mag_downsample_freq):
+                       mag_downsample_freq,
+                       mag_spread_length=1):
     """
     Construct a binary map from a spectrogram where values are binarized
     via an adaptive threshold.
@@ -659,13 +660,11 @@ def magnitude_features(S,block_length,spread_radius,threshold_quantile,
             >= block[int(threshold_quantile*(estimate_win_end -
                                              estimate_win_start))])
         next_frame_to_set=last_frame_to_set
-        
+
     
     # now we spread the detected points in all directions
-    if spread_radius > 0:
-        weight_filter = np.ones((2*spread_radius+1,2*spread_radius+1)) * 1./spread_radius
-        weight_filter[spread_radius,spread_radius]=1
-        E = (correlate(E,weight_filter,mode='constant') >= 1).astype(np.uint8)
+    if mag_spread_length > 0:
+        E = (maximum_filter(E,size=(2*mag_spread_length+1,1),mode='constant') ).astype(np.uint8)
     return E
 
 
@@ -733,13 +732,14 @@ def magnitude_features_whole_block(S,block_length,spread_radius,threshold_quanti
                                              estimate_win_start)*S.shape[1])])
         next_frame_to_set=last_frame_to_set
         
-    
     # now we spread the detected points in all directions
     if spread_radius > 0:
         weight_filter = np.ones((2*spread_radius+1,2*spread_radius+1)) * 1./spread_radius
         weight_filter[spread_radius,spread_radius]=1
         E = (correlate(E,weight_filter,mode='constant') >= 1).astype(np.uint8)
-    return E
+
+ 
+    return E.astype(np.uint8)
 
     
 
