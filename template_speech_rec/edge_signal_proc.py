@@ -16,7 +16,7 @@ from scipy import linalg
 from scipy.fftpack import fft,dct
 from scipy.signal.windows import hanning
 from scipy.signal import convolve
-from scipy.ndimage.filters import generic_filter, correlate,correlate1d, median_filter
+from scipy.ndimage.filters import generic_filter, correlate,correlate1d, median_filter, maximum_filter
 
 dctm13_40 = np.array([[  1.58113883e-01,   1.58113883e-01,   1.58113883e-01,
           1.58113883e-01,   1.58113883e-01,   1.58113883e-01,
@@ -635,7 +635,7 @@ def magnitude_features(S,block_length,spread_radius,threshold_quantile,
     """
 
     if mag_smooth_freq > 0:
-        S = median_filter(S,(mag_smooth_freq,1))
+        S = maximum_filter(S,(mag_smooth_freq,1))
     if mag_downsample_freq > 0:
         S = S[::mag_downsample_freq]
     num_features, num_frames = S.shape
@@ -708,7 +708,7 @@ def magnitude_features_whole_block(S,block_length,spread_radius,threshold_quanti
         to the frequency dimension.  These are the binary magnitude features
     """
     if mag_smooth_freq > 0:
-        S = median_filter(S,(mag_smooth_freq,1))
+        S = maximum_filter(S,(mag_smooth_freq,1))
     if mag_downsample_freq > 0:
         S = S[::mag_downsample_freq]
     num_features, num_frames = S.shape
@@ -716,7 +716,7 @@ def magnitude_features_whole_block(S,block_length,spread_radius,threshold_quanti
     S = S.T
     E = np.zeros(S.shape,dtype=np.uint8)
     # handling the initial window
-    block = np.sort(S[:3*block_quarter])
+    block = np.sort(S[:3*block_quarter].ravel())
     E[:2*block_quarter]  = S[:2*block_quarter] >= block[int(threshold_quantile*3*block_quarter*S.shape[1]+.5)]
     next_frame_to_set = 2*block_quarter
     while next_frame_to_set < num_frames:
@@ -725,7 +725,7 @@ def magnitude_features_whole_block(S,block_length,spread_radius,threshold_quanti
                                estimate_win_start+4*block_quarter)
         last_frame_to_set = min(next_frame_to_set + 2*block_quarter,
                                 num_frames)
-        block = np.sort(S[estimate_win_start:estimate_win_end]
+        block = np.sort(S[estimate_win_start:estimate_win_end].ravel()
                         )
         E[next_frame_to_set:last_frame_to_set] = (
             S[next_frame_to_set:last_frame_to_set]
@@ -735,9 +735,10 @@ def magnitude_features_whole_block(S,block_length,spread_radius,threshold_quanti
         
     
     # now we spread the detected points in all directions
-    weight_filter = np.ones((2*spread_radius+1,2*spread_radius+1)) * 1./spread_radius
-    weight_filter[spread_radius,spread_radius]=1
-    E = (correlate(E,weight_filter,mode='constant') >= 1).astype(np.uint8)
+    if spread_radius > 0:
+        weight_filter = np.ones((2*spread_radius+1,2*spread_radius+1)) * 1./spread_radius
+        weight_filter[spread_radius,spread_radius]=1
+        E = (correlate(E,weight_filter,mode='constant') >= 1).astype(np.uint8)
     return E
 
     
