@@ -383,7 +383,10 @@ def save_all_leehon_phones(utterances_path,file_indices,leehon_mapping,phn,
                                            noise_db=None)
 
         S = gtrd.get_spectrogram(utterance.s,sp,no_auxiliary_data=True)
-        S -= avg_spec_bgd
+        try:
+            S -= avg_spec_bgd
+        except:
+            import pdb; pdb.set_trace()
         avg_bgd_std.add_frames(S**2,time_axis=0)
 
     avg_bgd_sigma = avg_bgd_std.E * ( avg_bgd.num_frames/(avg_bgd.num_frames+1.))
