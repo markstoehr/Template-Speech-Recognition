@@ -50,10 +50,13 @@ def get_params(sample_rate=16000,
                             spread_length=1,
                             threshold=.7,
                magnitude_block_length=0,
+               magnitude_threshold=.4,
                magnitude_and_edge_features=False,
                magnitude_features=False,
                mag_smooth_freq=0,
                mag_downsample_freq=0,
+               auxiliary_data=False,
+               auxiliary_threshold=.5,
                use_parts=False,
                parts_path="/home/mark/Template-Speech-Recognition/"
                          + "Development/102012/"
@@ -194,15 +197,19 @@ def get_params(sample_rate=16000,
             delta_window=delta_window,
             no_use_dpss=no_use_dpss,
             do_freq_smoothing=do_freq_smoothing,
+            auxiliary_data=auxiliary_data
             ),
             gtrd.makeEdgemapParameters(block_length=block_length,
                                         spread_length=spread_length,
                                         threshold=threshold,
                                        magnitude_features=magnitude_features,
                                        magnitude_block_length=magnitude_block_length,
+                                       magnitude_threshold=magnitude_threshold,
                                        magnitude_and_edge_features=magnitude_and_edge_features,
                                        mag_smooth_freq=mag_smooth_freq,
-                                       mag_downsample_freq=mag_downsample_freq),
+                                       mag_downsample_freq=mag_downsample_freq,
+                                       auxiliary_data=auxiliary_data,
+                                       auxiliary_threshold=auxiliary_threshold),
             pp,
             root_path,
             test_path,train_path,
@@ -375,7 +382,7 @@ def save_all_leehon_phones(utterances_path,file_indices,leehon_mapping,phn,
                                            use_noise_file=None,
                                            noise_db=None)
 
-        S = gtrd.get_spectrogram(utterance.s,sp)
+        S = gtrd.get_spectrogram(utterance.s,sp,no_auxiliary_data=True)
         S -= avg_spec_bgd
         avg_bgd_std.add_frames(S**2,time_axis=0)
 
@@ -5603,10 +5610,14 @@ def main(args):
         block_length=args.block_length,
         spread_length=args.spread_length,
         threshold=args.edge_threshold_quantile,
+        magnitude_block_length=args.magnitude_block_length,
+        magnitude_threshold=args.magnitude_threshold,
         magnitude_and_edge_features=args.magnitude_and_edge_features,
         magnitude_features=args.magnitude_features,
         mag_smooth_freq=args.mag_smooth_freq,
         mag_downsample_freq=args.mag_downsample_freq,
+        auxiliary_data=args.auxiliary_data,
+        auxiliary_threshold=args.auxiliary_threshold,
         use_parts=args.use_parts,
         parts_path=args.parts_path,
         parts_S_path=args.parts_S_path,
@@ -7016,6 +7027,13 @@ syllables and tracking their performance
                         help="number of frequency bands to downsample over in order to get a magnitude estimate")
     parser.add_argument('--magnitude_block_length',default=0,type=int,
                         help="block length to use in estimation of the blocks for getting the magnitude feature quantization")
+    parser.add_argument('--magnitude_threshold',type=float,default=.3,
+                        help="threshold for the binarization of the magnitudes of the data")
+    
+    parser.add_argument('--auxiliary_data',action='store_true',
+                        help="whether to also include the zero crossing rate, wiener entropy, and energy features to the binary edge map")
+    parser.add_argument('--auxiliary_threshold',type=float,default=.3,
+                        help="threshold for the binarization of the zero crossing rate, wiener entropy, and energy features")
     parser.add_argument('--only_svm',action='store_true',
                         help='only use svm for second stage')
     parser.add_argument('--no_sil',action='store_true',
