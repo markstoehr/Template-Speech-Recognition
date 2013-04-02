@@ -51,6 +51,7 @@ def get_params(sample_rate=16000,
                             threshold=.7,
                magnitude_block_length=0,
                magnitude_threshold=.4,
+               magnitude_spread=1,
                magnitude_and_edge_features=False,
                magnitude_features=False,
                mag_smooth_freq=0,
@@ -205,6 +206,7 @@ def get_params(sample_rate=16000,
                                        magnitude_features=magnitude_features,
                                        magnitude_block_length=magnitude_block_length,
                                        magnitude_threshold=magnitude_threshold,
+                                       magnitude_spread=magnitude_spread,
                                        magnitude_and_edge_features=magnitude_and_edge_features,
                                        mag_smooth_freq=mag_smooth_freq,
                                        mag_downsample_freq=mag_downsample_freq,
@@ -5618,6 +5620,7 @@ def main(args):
         threshold=args.edge_threshold_quantile,
         magnitude_block_length=args.magnitude_block_length,
         magnitude_threshold=args.magnitude_threshold,
+        magnitude_spread=args.magnitude_spread,
         magnitude_and_edge_features=args.magnitude_and_edge_features,
         magnitude_features=args.magnitude_features,
         mag_smooth_freq=args.mag_smooth_freq,
@@ -7034,6 +7037,8 @@ syllables and tracking their performance
     parser.add_argument('--magnitude_block_length',default=0,type=int,
                         help="block length to use in estimation of the blocks for getting the magnitude feature quantization")
     parser.add_argument('--magnitude_threshold',type=float,default=.3,
+                        help="threshold for the binarization of the magnitudes of the data")
+    parser.add_argument('--magnitude_spread',type=float,default=1,
                         help="threshold for the binarization of the magnitudes of the data")
     
     parser.add_argument('--auxiliary_data',action='store_true',
