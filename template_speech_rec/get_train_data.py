@@ -2336,7 +2336,17 @@ PartsParameters = collections.namedtuple("PartsParameters",
                                             +" numParts"
                                             +" partGraph"
                                             +" parts_S"
-                                            +" parts_mask"))
+                                            +" parts_mask"
+                                            +" mag_data"
+                                            +" num_mag_channels"
+                                            +" auxiliary_data"
+                                            +" num_auxiliary_data"
+                                            +" MagFeatures"
+                                            +" logMagFeatures"
+                                            +" logInvMagFeatures"
+                                            +" AuxiliaryFeatures"
+                                            +" logAuxiliaryFeatures"
+                                            +" logInvAuxiliaryFeatures"))
 
 def makePartsParameters(use_parts,
                         parts_path,
@@ -2348,7 +2358,17 @@ def makePartsParameters(use_parts,
                         numParts,
                         partGraph=None,
                         parts_S=None,
-                        parts_mask=None):
+                        parts_mask=None,
+                        mag_data=False,
+                        num_mag_channels=10,
+                        auxiliary_data=False,
+                        num_auxiliary_data=3,
+                        MagFeatures=None,
+                        logMagFeatures=None,
+                        logInvMagFeatures=None,
+                        AuxiliaryFeatures=None,
+                        logAuxiliaryFeatures=None,
+                        logInvAuxiliaryFeatures=None):
     if parts_mask is None:
         parts_mask = np.ones(logParts.shape[1:-1],dtype=np.uint8)
 
@@ -2362,7 +2382,17 @@ def makePartsParameters(use_parts,
                            numParts=numParts,
                          partGraph=partGraph,
                          parts_S=parts_S,
-                         parts_mask=parts_mask)
+                         parts_mask=parts_mask,
+                         mag_data=mag_data,
+                         num_mag_channels=num_mag_channels,
+                         auxiliary_data=auxiliary_data,
+                         num_auxiliary_data=num_auxiliary_data,
+                         MagFeatures=MagFeatures,
+                         logMagFeatures=logMagFeatures,
+                         logInvMagFeatures=logInvMagFeatures,
+                         AuxiliaryFeatures=AuxiliaryFeatures,
+                         logAuxiliaryFeatures=logAuxiliaryFeatures,
+                         logInvAuxiliaryFeatures=logInvAuxiliaryFeatures)
 
 
     return pp2
