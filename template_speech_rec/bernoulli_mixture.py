@@ -106,7 +106,7 @@ class BernoulliMixture:
 
     # TODO: save_template never used!
     def run_EM(self, tol, min_probability=0.05, debug_plot=False, hard_assignment=False,rand_seed=None,
-               use_templates=None):
+               use_templates=None,max_iter=500):
         """
         Run the EM algorithm to specified convergence.
 
@@ -141,7 +141,7 @@ class BernoulliMixture:
         loglikelihood = new_loglikelihood/(1-tol) - 10
         self.iterations = 0
         print ((loglikelihood - new_loglikelihood)/loglikelihood)
-        while ((loglikelihood - new_loglikelihood)/loglikelihood) > tol:
+        while ((loglikelihood - new_loglikelihood)/loglikelihood) > tol and self.iterations < max_iter:
             assert np.abs(self.data_mat).sum() > 0
             print("Iteration {0}: loglikelihood {1}".format(self.iterations, loglikelihood))
             loglikelihood = new_loglikelihood
