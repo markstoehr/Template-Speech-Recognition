@@ -71,7 +71,8 @@ class BernoulliMixture:
            [  9.97376426e-01,   2.62357439e-03]])
 
     """
-    def __init__(self,num_mix,data_mat,init_type='unif_rand',init_seed=0):
+    def __init__(self,num_mix,data_mat,init_type='unif_rand',init_seed=0,
+                 init_centers=None):
         # TODO: opt_type='expected'
         self.num_mix = num_mix
         self.num_data = data_mat.shape[0]
@@ -85,15 +86,16 @@ class BernoulliMixture:
         np.random.seed(self.seed)
 
 
-        self.min_probability = 0.05
+        self.min_probability = np.float32(0.05)
 
         # If we change this to a true bitmask, we should do ~data_mat
         self.not_data_mat = 1 - self.data_mat
 
         # initializing weights
-        self.weights = 1./num_mix * np.ones(num_mix)
+        self.weights = 1./num_mix * np.ones(num_mix,dtype=np.float32)
         #self.opt_type=opt_type TODO: Not used yet.
-        self.init_affinities_templates(init_type)
+        print "initializing affinities"
+        self.init_affinities_templates(init_type,init_centers=init_centers)
 
         # Data sizes:
         # data_mat : num_data * data_length
@@ -126,8 +128,10 @@ class BernoulliMixture:
         else:
             self.templates = use_templates.copy()
             self.reset_templates()
+
+        
         self.hard_assignment = hard_assignment
-        self.min_probability = min_probability
+        self.min_probability = np.float32(min_probability)
         loglikelihood = -np.inf
         # First E step plus likelihood computation
         new_loglikelihood = self._compute_loglikelihoods()
@@ -138,6 +142,7 @@ class BernoulliMixture:
         self.iterations = 0
         print ((loglikelihood - new_loglikelihood)/loglikelihood)
         while ((loglikelihood - new_loglikelihood)/loglikelihood) > tol:
+            assert np.abs(self.data_mat).sum() > 0
             print("Iteration {0}: loglikelihood {1}".format(self.iterations, loglikelihood))
             loglikelihood = new_loglikelihood
             # M-step
@@ -170,12 +175,12 @@ class BernoulliMixture:
 
     def M_step(self):
         self.weights = np.mean(self.affinities,axis=0)
-        self.work_templates = np.dot(self.affinities.T, self.data_mat)
+        self.work_templates = np.dot(self.affinities.T, self.data_mat).astype(np.float32)
         self.work_templates /= self.num_data
         self.work_templates /= self.weights.reshape((self.num_mix, 1))
         self.threshold_templates()
-        self.log_templates = np.log(self.work_templates)
-        self.log_invtemplates = np.log(1-self.work_templates)
+        self.log_templates = np.log(self.work_templates).astype(np.float32)
+        self.log_invtemplates = np.log(1-self.work_templates).astype(np.float32)
 
     def get_bernoulli_mixture_named_tuple():
         return BernoulliMixtureSimple(log_templates=self.log_templates,
@@ -186,7 +191,8 @@ class BernoulliMixture:
     def threshold_templates(self):
         self.work_templates = np.clip(self.work_templates, self.min_probability, 1-self.min_probability)
 
-    def init_affinities_templates(self,init_type):
+    def init_affinities_templates(self,init_type,init_centers=None):
+        print "init_centers is not None = %s" % str(init_centers is not None)
         if init_type == 'unif_rand':
             random.seed()
             idx = range(self.num_data)
@@ -199,7 +205,26 @@ class BernoulliMixture:
                 self.affinities[self.num_mix*np.arange(self.num_data/self.num_mix)+mix_id,mix_id] = 1.
                 self.work_templates[mix_id] = np.mean(self.data_mat[self.affinities[:,mix_id]==1],axis=0)
                 self.threshold_templates()
+                
 
+        elif init_type == 'preset' and init_centers is not None:
+            print "using preset templates"
+            self.num_mix = init_centers.shape[0]
+            self.work_templates = init_centers.reshape(self.num_mix,
+                                            self.data_length).astype(np.float32)
+            self.affinities = np.zeros((self.num_data,
+                                        self.num_mix),dtype=np.float32)
+
+            for mix_id in xrange(self.num_mix):
+                # do a soft-max
+                self.affinities[:,mix_id] = np.sum(np.abs(self.data_mat - self.work_templates[mix_id]),axis=1)
+                
+            self.affinities = np.exp(self.affinities.min(axis=1)-self.affinities.T ).T
+            
+            self.affinities = (self.affinities.T / self.affinities.sum(1)).T
+
+            self.work_templates = np.dot(self.affinities.T, self.data_mat).astype(np.float32)
+                
         elif init_type == 'specific':
             random.seed()
             idx = range(self.num_data)
@@ -213,8 +238,11 @@ class BernoulliMixture:
                 self.work_templates[mix_id] = np.mean(self.data_mat[self.affinities[:,mix_id]==1],axis=0)
                 self.threshold_templates()
 
+        self.work_templates = np.clip(self.work_templates,self.min_probability,1-self.min_probability)
         self.log_templates = np.log(self.work_templates)
         self.log_invtemplates = np.log(1-self.work_templates)
+        if np.any(np.isnan(self.log_templates)):
+            import pdb; pdb.set_trace()
 
     def init_templates(self):
         self.work_templates = np.zeros((self.num_mix,
@@ -241,7 +269,6 @@ class BernoulliMixture:
 
     def _compute_loglikelihoods(self):
         template_logscores = self.get_template_loglikelihoods()
-
         loglikelihoods = template_logscores + np.tile(np.log(self.weights),(self.num_data,1))
         max_vals = np.amax(loglikelihoods,axis=1)
         # adjust the marginals by a value to avoid numerical
@@ -255,8 +282,8 @@ class BernoulliMixture:
             return loglikelihood
 
         self.affinities = np.exp(loglikelihoods-np.tile(logmarginals_adj+max_vals,
-                                           (self.num_mix,1)).transpose())
-        self.affinities/=np.tile(np.sum(self.affinities,axis=1),(self.num_mix,1)).transpose()
+                                           (self.num_mix,1)).transpose()).astype(np.float32)
+        self.affinities/=np.tile(np.sum(self.affinities,axis=1),(self.num_mix,1)).transpose().astype(np.float32)
         return loglikelihood
 
     def compute_loglikelihood(self,datamat):
