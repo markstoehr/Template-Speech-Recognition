@@ -50,7 +50,7 @@ def recover_different_length_templates(affinities,examples,lengths,
     """
     Now uses a memory efficient algorithm where block_size
     is the most of the matrix that is used at any given time
-    
+
     The algorithm works as follows: we keep running estimates of the
     affinity sums for each template affinity in affinity sums we also
     keep running template averages, these are the basic estimates that
@@ -59,7 +59,7 @@ def recover_different_length_templates(affinities,examples,lengths,
 
 
     This algorithm has been verified to work
-    
+
     """
     affinities_trans = affinities.T
     affinities_trans /= affinities_trans.sum(1)[:,np.newaxis]
@@ -70,7 +70,7 @@ def recover_different_length_templates(affinities,examples,lengths,
         max_length = avg_lengths.max()
         for i in xrange(avg_lengths.shape[0]):
             avg_lengths[i]=max_length
-    
+
     if sigmas is not None:
         out_sigmas = tuple(
             sigma[:length]
@@ -79,7 +79,7 @@ def recover_different_length_templates(affinities,examples,lengths,
     example_shapes = examples.shape[1:]
     num_data = examples.shape[0]
     if num_data < block_size:
-        
+
         out_templates =  tuple(
             template[:length]
             for template,length in itertools.izip(np.dot(affinities_trans,examples.reshape(examples.shape[0],
@@ -117,7 +117,7 @@ def recover_different_length_templates(affinities,examples,lengths,
         else:
             return template_estimates
 
-            
+
 
 
 def recover_clustered_data(affinities,padded_examples,templates,assignment_threshold = .95):
@@ -196,10 +196,10 @@ def construct_spectral_linear_filter(T,bgd,T_sigma,bgd_sigma,all_cs=False,save_a
     second_moment_filter = -.5 * (inv_T_sigma - inv_bgd_sigma)
     first_moment_filter = T * inv_T_sigma - (bgd * inv_bgd_sigma)
     constant += (- .5 * (T**2 * inv_T_sigma - (bgd**2 * inv_bgd_sigma))).sum()
-    
+
     return (second_moment_filter.astype(save_as_type),first_moment_filter.astype(save_as_type),save_as_type(constant))
-    
-    
+
+
 
 def construct_linear_filter(T,
                             bgd,min_prob=.01,all_cs=False,
@@ -207,10 +207,10 @@ def construct_linear_filter(T,
     """
     Bgd is the tiled matrix of bgd vectors slaooed onto each other
     """
-        
+
     T = np.clip(T,min_prob,1-min_prob)
     Bgd = np.tile(bgd,
-                  (T.shape[0],1,1))
+                  (T.shape[0],) +tuple( np.ones(len(T.shape)-1)))
     T_inv = 1. - T
     Bgd_inv = 1. - Bgd
     C_exp_inv = T_inv/Bgd_inv
@@ -220,6 +220,7 @@ def construct_linear_filter(T,
     else:
         c = np.log(C_exp_inv).sum()
     expW = (T/Bgd) / C_exp_inv
+
     return np.log(expW).astype(np.float32), c
 
 def construct_linear_filter_structured_alternative(T1,T2,
@@ -319,7 +320,7 @@ def convert_to_pos_template_uniform_mixture(Ps,Qs,Ws,clip_factor=.0001):
     so it is a uniform template, and also across different mixture
     components
 
-    Uses the linear filters and the negative templates to infer the 
+    Uses the linear filters and the negative templates to infer the
     positive templates
 
     Parameters:
@@ -343,13 +344,13 @@ def convert_to_pos_template_uniform_mixture(Ps,Qs,Ws,clip_factor=.0001):
         dimension 1 corresponds to frequency channels
         dimension 2 corresponds to features at that
         time-frequency location
-        
+
     clip_factor:
         In order for the templates to work, the probabilities
         need to greater than zero and less than 1 (for logarithms)
-        so we give an alpha such that all probabilities are 
+        so we give an alpha such that all probabilities are
         in the interval [clip_factor, 1-clip_factor]
-        
+
     """
     for i,QW in enumerate(itertools.izip(Qs,Ws)):
         Q,W = QW
@@ -376,8 +377,8 @@ def convert_to_neg_uniform_template(P,W):
         dimension 1 corresponds to frequency channels
         dimension 2 corresponds to features at that
         time-frequency location
-        
-        
+
+
     """
     num_time_frames = P.shape[0]
     # sum(0) sums over the time axis
@@ -414,11 +415,11 @@ def convert_to_neg_uniform_template_mixture(Ps,Qs,Ws,clip_factor=.0001):
         dimension 1 corresponds to frequency channels
         dimension 2 corresponds to features at that
         time-frequency location
-        
+
     clip_factor:
         In order for the templates to work, the probabilities
         need to greater than zero and less than 1 (for logarithms)
-        so we give an alpha such that all probabilities are 
+        so we give an alpha such that all probabilities are
         in the interval [clip_factor, 1-clip_factor]
     """
     # implement the online averaging tool to get
@@ -466,7 +467,7 @@ def make_Qs_from_Ps_bgd(Ps,bgd):
     Parameters:
     ===========
     Ps: tuple of arrays
-        For each array in the tuple the 
+        For each array in the tuple the
         zeroeth dimension is the time dimension
         the other dimensions are features and the shapes
         are the same between each P array except
@@ -511,7 +512,7 @@ def get_lfCs(Ps,Qs):
     ===========
     Ps: tuple of template arrays
     Qs: tuple of template arrays
-    
+
     """
     return np.array(tuple(np.sum(np.log((1-P)/(1-Q)))
                  for P,Q in itertools.izip(Ps,Qs)))
@@ -523,7 +524,7 @@ def get_lfWs_svmWs_error(lfWs,Ws):
     Parameters:
     ===========
     lfWs: tuple of arrays
-        Each array in this tuple is formed from the 
+        Each array in this tuple is formed from the
         linear filter implied by a positive template P
         and a negative template Q
     Ws: tuple of arrays
@@ -566,7 +567,7 @@ def iterative_neg_pos_templates_estimate_mixture(svmWs,svmCs,Ps,bgd,
     Qs = make_Qs_from_Ps_bgd(Ps,bgd)
     lfWs = make_lfWs(Ps,Qs)
     lfCs = get_lfCs(Ps,Qs)
-    
+
     cur_error,individual_errors = get_lfWs_svmWs_error(lfWs,Ws)
 
 
