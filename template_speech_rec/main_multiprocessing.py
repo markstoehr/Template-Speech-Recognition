@@ -1602,7 +1602,8 @@ def get_classification_scores(num_mix,data_classify_lengths,
              svm_constants=svm_constants
              )
 
-    if svm_tag is None:
+
+    if svm_tag is None or svm_tag == '':
         (classify_array,
          classify_locs,
          classify_template_lengths,
@@ -1618,7 +1619,7 @@ def get_classification_scores(num_mix,data_classify_lengths,
 
     np.save('%sclassify_array_%d_%s.npy' % (savedir,num_mix,
                                                 save_tag),classify_array)
-    if svm_tag is not None:
+    if svm_tag is not None and svm_tag != '':
         np.save('%ssvm_classify_array_%d_%s.npy' % (savedir,num_mix,
                                                 save_tag),svm_classify_array)
 
