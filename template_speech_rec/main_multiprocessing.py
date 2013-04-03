@@ -404,7 +404,7 @@ def save_all_leehon_phones(utterances_path,file_indices,leehon_mapping,phn,
     np.savez('%sSs_lengths_%s_%s.npz' % (savedir,
                                              phn,
                                              save_tag),Ss=Ss,Slengths=Slengths,example_mat=example_mat)
-    
+
     Elengths,Es  = gtrd.recover_edgemaps(phn_features,example_mat,bgd=bgd)
     Es = Es.astype(np.uint8)
     np.savez('%sEs_lengths_%s_%s.npz'% (savedir,
@@ -1529,7 +1529,7 @@ def get_classification_scores(num_mix,data_classify_lengths,
     else:
         templates = out
 
-    if svm_tag is not None:
+    if svm_tag is not None and svm_tag != '':
         svm_constants = np.load('data/svm_stage1_bs_8_ae_train_edges_no_smoothing.npy')
         outfile = np.load('data/svm_stage1_ws_8_ae_train_edges_no_smoothing.npz')
         # keep things in float32 so that way storage of the data
@@ -1546,11 +1546,13 @@ def get_classification_scores(num_mix,data_classify_lengths,
 
     else:
         svm_classifiers=None
-
+        svm_constants=None
 
 
     classify_array = np.zeros((data_classify_lengths.shape[0],
                             data_classify_lengths.max() + 2),dtype=np.float32)
+
+
     if use_svm_filter is None:
         if use_spectral:
             linear_filters_cs = et.construct_linear_filters(templates,
@@ -1599,7 +1601,7 @@ def get_classification_scores(num_mix,data_classify_lengths,
              svm_classifiers=svm_classifiers,
              svm_constants=svm_constants
              )
-    
+
     if svm_tag is None:
         (classify_array,
          classify_locs,
@@ -1612,7 +1614,7 @@ def get_classification_scores(num_mix,data_classify_lengths,
          classify_template_lengths,
          classify_template_ids) = classify_scores_out
 
-    
+
 
     np.save('%sclassify_array_%d_%s.npy' % (savedir,num_mix,
                                                 save_tag),classify_array)
@@ -2200,7 +2202,7 @@ def retrain_on_classified_examples(num_mix,save_tag_suffix,phn,new_template_tag,
     if phn not in use_phns:
         print "phone not used in classification"
         return
-    
+
     phn_id = list(use_phns).index(phn)
     num_positives = confusion_matrix[:,phn_id].sum()
     num_negatives = confusion_matrix[phn_id,:].sum()-confusion_matrix[phn_id,phn_id]
@@ -2208,7 +2210,7 @@ def retrain_on_classified_examples(num_mix,save_tag_suffix,phn,new_template_tag,
     templates = get_templates(num_mix,template_tag='%s_%s' % (phn,save_tag_suffix),savedir=savedir)
 
 
-    
+
     new_templates = ()
     svm_ws = ()
     svm_bs = ()
@@ -2239,7 +2241,7 @@ def retrain_on_classified_examples(num_mix,save_tag_suffix,phn,new_template_tag,
             num_mix,
             mix_component, phn,
             save_tag_suffix))
-        
+
         mistake_metadata = outfile['mistake_metadata']
         mistake_length = outfile['mistake_lengths']
 
@@ -2251,7 +2253,7 @@ def retrain_on_classified_examples(num_mix,save_tag_suffix,phn,new_template_tag,
             num_mix,
             mix_component, phn,
             save_tag_suffix))
-        
+
         false_neg_metadata = outfile['false_neg_metadata']
         false_neg_length = outfile['false_neg_lengths']
 
@@ -2294,7 +2296,7 @@ def retrain_on_classified_examples(num_mix,save_tag_suffix,phn,new_template_tag,
                 E_flts[-1] = len(E)
 
 
-            
+
             max_phn_length_third = int(np.ceil(np.max(E_flts[1:]-E_flts[:-1])/3.))
             # prepend the beginning of E with background for padding purposes
             E = np.vstack((
@@ -2311,7 +2313,7 @@ def retrain_on_classified_examples(num_mix,save_tag_suffix,phn,new_template_tag,
                    np.tile(bgd,(max(0,E_flts[-2]+max_phn_length_third+component_length-E_flts[-1]),)
                            +tuple(np.ones(len(bgd.shape)))).astype(np.float32)))
 
-            
+
             # get the positives
             for success in success_metadata[success_metadata[:,0]==file_index_index]:
 
@@ -2337,7 +2339,7 @@ def retrain_on_classified_examples(num_mix,save_tag_suffix,phn,new_template_tag,
                     import pdb; pdb.set_trace()
 
                 cur_neg_example_id += 1
-        
+
         # save the new template
         new_templates += (np.clip(pos_examples.mean(0),.01,.99),)
         # train the svm
@@ -2354,17 +2356,17 @@ def retrain_on_classified_examples(num_mix,save_tag_suffix,phn,new_template_tag,
             clf.fit(data_X, data_Y)
             w = clf.coef_[0]
             b = clf.intercept_[0]
-        
+
             svm_ws += (w.reshape(pos_examples.shape[1:]),)
             print svm_ws[-1].shape
             svm_bs += (b,)
-        
+
             raw_predictions = (data_X * w + b).sum(1)
             pos_scores += ( raw_predictions[data_Y==1],)
             neg_scores += ( raw_predictions[data_Y==0],)
         except:
             import pdb; pdb.set_trace()
-           
+
 
     np.savez('%ssvm_stage1_ws_%d_%s_%s.npz'
                  % (savedir,
@@ -2400,8 +2402,8 @@ def retrain_on_classified_examples(num_mix,save_tag_suffix,phn,new_template_tag,
                  *(templates))
 
 
-    
-        
+
+
 
 def get_tagged_all_detection_clusters(num_mix,save_tag,old_max_detect_tag,savedir,use_spectral=False):
     detection_array = np.load('%sdetection_array_%d_%s.npy' % (savedir,
@@ -5694,7 +5696,7 @@ def main(args):
                                    num_use_file_idx= args.num_use_file_idx))
             jobs.append(p)
             p.start
-    
+
 
     if args.save_syllable_features_to_data_dir:
         save_syllable_features_to_data_dir(args.detect_object,
@@ -6034,7 +6036,7 @@ def main(args):
                     pp,
                     args.load_data_tag,
                     args.savedir,
-                   
+
                     verbose=args.v))
             jobs.append(p)
             p.start
@@ -6900,7 +6902,7 @@ syllables and tracking their performance
     parser.add_argument('--svm_tag',default='',
                         type=str,metavar='str',
                         help="the saved tag suffix for the svm classifiers trained, this is included so that the classification scores automatically runs the svm when classification is performed so that the data points don't have to be loaded twice in order to run the cascade")
-    
+
     parser.add_argument('--estimate_templates',action='store_true',
                         help="Whether to run estimate_templates and save those templates or not")
     parser.add_argument('--estimate_templates_limited_data',type=float,default=None,
@@ -7040,7 +7042,7 @@ syllables and tracking their performance
                         help="threshold for the binarization of the magnitudes of the data")
     parser.add_argument('--magnitude_spread',type=float,default=1,
                         help="threshold for the binarization of the magnitudes of the data")
-    
+
     parser.add_argument('--auxiliary_data',action='store_true',
                         help="whether to also include the zero crossing rate, wiener entropy, and energy features to the binary edge map")
     parser.add_argument('--auxiliary_threshold',type=float,default=.3,
