@@ -859,7 +859,15 @@ def _compute_isolated_classification_E(E,phns,E_flts,
 
         E_window, w_start, w_end = E_window_p_starts_p_ends
 
-        detection_scores  = (compute_likelihood_linear_filter.detect_float(
+
+        if len(E_window.shape) == 2:
+            detection_scores  = (compute_likelihood_linear_filter.detect_float2d(
+                            E_window,
+                            linear_filters_cs[0][0])
+                             + linear_filters_cs[0][1])
+        else:
+
+            detection_scores  = (compute_likelihood_linear_filter.detect_float(
                             E_window,
                             linear_filters_cs[0][0])
                              + linear_filters_cs[0][1])
@@ -869,16 +877,22 @@ def _compute_isolated_classification_E(E,phns,E_flts,
         classify_template_ids[utt_id,phn_id] = filter_id
 
         classify_template_lengths[utt_id,phn_id] = len(linear_filters_cs[0][0])
-
-        classify_array[utt_id,phn_id] =  detection_scores[classify_locs[utt_id,phn_id]-w_start+flt_front_pad]
+        try:
+            classify_array[utt_id,phn_id] =  detection_scores[classify_locs[utt_id,phn_id]-w_start+flt_front_pad]
+        except:
+            import pdb; pdb.set_trace()
         for cur_filt,cur_c in linear_filters_cs[1:]:
             filter_id += 1
 
-            detection_scores = compute_likelihood_linear_filter.detect_float(E_window,
+            if len(E_window.shape) == 2:
+                detection_scores = compute_likelihood_linear_filter.detect_float2d(E_window,
+                  cur_filt) + cur_c
+            else:
+                detection_scores = compute_likelihood_linear_filter.detect_float(E_window,
                                                                                              cur_filt) + cur_c
             cur_filter_classify_time = w_start + np.argmax(detection_scores[:w_end-w_start]) - flt_front_pad
 
-            if classify_array[utt_id,phn_id] <  detection_scores[cur_filter_classify_time-w_start]:
+            if classify_array[utt_id,phn_id] <  detection_scores[cur_filter_classify_time-w_start+flt_front_pad]:
                 classify_locs[utt_id,phn_id] = cur_filter_classify_time
                 classify_template_ids[utt_id,phn_id] = filter_id
 
@@ -895,7 +909,7 @@ def _compute_isolated_classification_E(E,phns,E_flts,
                 +flt_front_pad
                 + classify_template_lengths[utt_id,phn_id]] * svm_classifiers[classify_template_ids[utt_id,phn_id]]).sum() + svm_constants[classify_template_ids[utt_id,phn_id]]
 
-    import pdb; pdb.set_trace()
+
     if np.any(np.isnan(classify_array)) == True:
         import pdb; pdb.set_trace()
 
@@ -1341,7 +1355,8 @@ def get_classify_scores(data_path,file_indices,
     classify_template_ids = np.zeros(classify_array.shape,dtype=np.uint16)
 
 
-    classify_locs = np.zeros(classify_array.shape,dtype=np.uint16)
+    # needs to be a signed int because it can be negative
+    classify_locs = np.zeros(classify_array.shape,dtype=np.int16)
     classify_template_lengths = np.zeros(classify_array.shape,dtype=np.uint16)
     for utt_id,data_file_idx in enumerate(file_indices[:num_examples]):
         if verbose:
@@ -1405,7 +1420,7 @@ def get_classify_scores(data_path,file_indices,
                 classify_locs,
                 classify_template_lengths,
                 classify_template_ids)
-        
+
 
 
 
@@ -1657,7 +1672,7 @@ def get_syllable_features(utterance_directory,data_idx,syllable,
         S_flts = (sflts * S.shape[0] /float(sflts[-1]) + .5).astype(int)
         if E_config is not None:
             E = get_edge_features(S.T,E_config,verbose=E_verbose)
-            
+
             # both are the same
             E_flts = S_flts
 
@@ -1676,15 +1691,15 @@ def get_syllable_features(utterance_directory,data_idx,syllable,
         else:
             E = None
             P = None
-            
+
         if S_config.auxiliary_data:
             S = S[:,:-3]
-        
+
         # make sure to add background features after the spectrogram has been modified
         if avg_bgd_spec is not None:
             avg_bgd_spec.add_frames(S,time_axis=0)
 
-            
+
     else:
         S = None
         E = None
@@ -1694,7 +1709,7 @@ def get_syllable_features(utterance_directory,data_idx,syllable,
     if phn_mapping is not None:
         try:
             use_phns[:] = np.array([phn_mapping[p] for p in use_phns])
-        except: 
+        except:
             import pdb; pdb.set_trace()
     syllable_starts = phns_syllable_matches(use_phns,syllable)
     syllable_length = len(syllable)
