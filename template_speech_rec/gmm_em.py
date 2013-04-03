@@ -49,7 +49,7 @@ def get_data_vec(data_dir,save_tag):
 
 def kmeanspp_gmm_init(
     k,
-    X,centers=None):
+    X,centers=None,verbose=False):
     """
     Construct a set of k centers to initialize kmeans
     or GMM clustering over the data
@@ -116,8 +116,14 @@ def kmeanspp_gmm_init(
         probs_part = (dists/dists.sum()).cumsum()
 
     for i in xrange(start_idx,k):
+        if verbose:
+            if i % 10 ==0:
+                print "working on center %d" % i
         #  get all the  centers taken care of
-        idx.append(X_ids[np.random.rand() <probs_part][0])
+        try:
+            idx.append(X_ids[np.random.rand() <probs_part][0])
+        except:
+            import pdb; pdb.set_trace()
         centers[i] = X[idx[-1]]
         # remove the datum
         if idx[-1]+1 < len(X):
