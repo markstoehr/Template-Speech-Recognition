@@ -143,7 +143,8 @@ class BernoulliMixture:
         print ((loglikelihood - new_loglikelihood)/loglikelihood)
         while ((loglikelihood - new_loglikelihood)/loglikelihood) > tol and self.iterations < max_iter:
             assert np.abs(self.data_mat).sum() > 0
-            print("Iteration {0}: loglikelihood {1}".format(self.iterations, loglikelihood))
+            print("Iteration {0}: loglikelihood {1}, num_affinities bigger than 20 {2}".format(self.iterations, loglikelihood,
+                                                                                               np.sum(self.affinities.sum(0)>=20)))
             loglikelihood = new_loglikelihood
             # M-step
             self.M_step()
