@@ -2353,7 +2353,7 @@ def retrain_on_classified_examples(num_mix,save_tag_suffix,phn,new_template_tag,
                 E_flts[-1] = len(E)
 
             
-            E_windows, window_starts, window_ends, flt_front_pad = gtrd.get_isolated_classify_windows(E,phns,flts,bgd,(,),max_length=component_length)
+            E_windows, window_starts, window_ends, flt_front_pad = gtrd.get_isolated_classify_windows(E,phns,flts,bgd,(),max_length=component_length)
 
 
 
