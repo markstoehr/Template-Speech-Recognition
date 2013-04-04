@@ -2424,6 +2424,7 @@ def retrain_on_classified_examples(num_mix,save_tag_suffix,phn,new_template_tag,
             svm_bs += (b,)
 
             raw_predictions = (data_X * w + b).sum(1)
+            del data_X
             pos_scores += ( raw_predictions[data_Y==1],)
             neg_scores += ( raw_predictions[data_Y==0],)
         except:
