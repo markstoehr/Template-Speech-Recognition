@@ -170,12 +170,14 @@ def code_parts_mag_aux(np.ndarray[ndim=3,dtype=UINT_t] X_edges,
     cdef unsigned int part_x_dim = log_parts.shape[1]
     cdef unsigned int part_y_dim = log_parts.shape[2]
     cdef unsigned int part_z_dim = log_parts.shape[3]
+    cdef unsigned int mag_dim = X_mags.shape[1]
+    cdef unsigned int aux_dim = X_aux.shape[1]
     cdef unsigned int X_x_dim = X_edges.shape[0]
     cdef unsigned int X_y_dim = X_edges.shape[1]
     cdef unsigned int X_z_dim = X_edges.shape[2]
     cdef unsigned int new_x_dim = X_x_dim - part_x_dim + 1
     cdef unsigned int new_y_dim = X_y_dim - part_y_dim + 1
-    cdef unsigned int i_start,j_start,i_end,j_end,count,i,j,z,k
+    cdef unsigned int i_start,j_start,i_end,j_end,count,i,j,z,k, mag_i, tmp_freq_mag
     # we have num_parts + 1 because we are also including some regions as being
     # thresholded due to there not being enough edges
     
@@ -192,18 +194,48 @@ def code_parts_mag_aux(np.ndarray[ndim=3,dtype=UINT_t] X_edges,
         i_end = i_start + part_x_dim
         for j_start in range(X_y_dim-part_y_dim+1):
             j_end = j_start + part_y_dim
-            count = _count_edges(X,i_start,i_end,j_start,j_end,X_z_dim)
-            if count >= threshold:
+            if X_thresh_mask[i_start+part_x_dim/2,
+                             j_start+part_y_dim/2]:
                 out_map[i_start,j_start,0] = -np.inf
                 for i in range(part_x_dim):
+                    # variable for figuring out the maximum over all the assigned
+                    # frequency bands
+                    tmp_freq_mag = 0
+                    # handle the auxiliary parts
+                    for j in range(aux_dim):
+                        if X_aux[i_start+i,j]:
+                            for k in range(num_parts):
+                                out_map[i_start,j_start,k+1] += log_aux_parts[k,i,j]
+                        else:
+                            for k in range(num_parts):
+                                out_map[i_start,j_start,k+1] += log_aux_invparts[k,i,j]
+
                     for j in range(part_y_dim):
+                        if X_mags[i_start+i,(((j_start+j)*mag_dim)/X_y_dim)]:
+                            tmp_freq_mag = 1
                         for z in range(X_z_dim):
-                            if X[i_start+i,j_start+j,z]:
+                            if X_edges[i_start+i,j_start+j,z]:
                                 for k in range(num_parts):
                                     out_map[i_start,j_start,k+1] += log_parts[k,i,j,z]
                             else:
                                 for k in range(num_parts):
                                     out_map[i_start,j_start,k+1] += log_invparts[k,i,j,z]
+                        if j == part_y_dim/2:
+                            for mag_i in range(mag_dim):
+                                if (((j_start+j)*mag_dim)/X_y_dim - mag_i)*(((j_start+j)*mag_dim)/X_y_dim - mag_i) > 1:
+                                    for k in range(num_parts):
+
+                                        out_map[i_start,j_start,k+1] += log_mag_invparts[k,mag_i+part_x_dim]
+                                else:
+                                    for k in range(num_parts):
+
+                                        out_map[i_start,j_start,k+1] += log_mag_parts[k,mag_i+part_x_dim]
+                    if tmp_freq_mag:
+                        for k in range(num_parts):
+                            out_map[i_start,j_start,k+1] += log_mag_parts[k,i]
+                    else:
+                        for k in range(num_parts):
+                            out_map[i_start,j_start,k+1] += log_mag_invparts[k,i]
             else:
                 out_map[i_start,j_start,0] = 0.0
                 
