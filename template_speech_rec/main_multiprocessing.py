@@ -2352,48 +2352,40 @@ def retrain_on_classified_examples(num_mix,save_tag_suffix,phn,new_template_tag,
                 E_flts = S_flts.copy()
                 E_flts[-1] = len(E)
 
+            
+            E_windows, window_starts, window_ends, flt_front_pad = gtrd.get_isolated_classify_windows(E,phns,flts,bgd,(,),max_length=component_length)
 
-
-            max_phn_length_third = int(np.ceil(np.max(E_flts[1:]-E_flts[:-1])/3.))
-            # prepend the beginning of E with background for padding purposes
-            E = np.vstack((
-        np.tile(bgd ,
-                (component_length+max_phn_length_third,)
-                +tuple(
-                    np.ones(
-                        len(
-                            bgd.shape)
-                            )
-                            )
-                            ).astype(np.float32),
-                E.astype(np.float32),
-                   np.tile(bgd,(max(0,E_flts[-2]+max_phn_length_third+component_length-E_flts[-1]),)
-                           +tuple(np.ones(len(bgd.shape)))).astype(np.float32)))
 
 
             # get the positives
             for success in success_metadata[success_metadata[:,0]==file_index_index]:
-
+                start_idx = success[2] - window_starts[success[1]] + flt_front_pad
+                end_idx = start_idx+component_length
                 pos_examples[cur_pos_example_id,
-                             :component_length] = E[success[-1]:
-                                                        success[-1]+component_length]
+                             :component_length] = E_windows[success[1]][start_idx:
+                                                        end_idx]
 
                 cur_pos_example_id += 1
 
             for false_neg in false_neg_metadata[false_neg_metadata[:,0]==file_index_index]:
+                start_idx = false_neg[2] - window_starts[false_neg[1]] + flt_front_pad
+                end_idx = start_idx+component_length
+
                 pos_examples[cur_pos_example_id,
-                             :component_length] = E[false_neg[-1]:
-                                                        false_neg[-1]+component_length]
+                             :component_length] = E_windows[false_neg[1]][start_idx:
+      end_idx]
 
                 cur_pos_example_id += 1
 
             for mistake in mistake_metadata[mistake_metadata[:,0]==file_index_index]:
-                try:
-                    neg_examples[cur_neg_example_id,
-                             :component_length] = E[mistake[-1]:
-                                                        mistake[-1]+component_length]
-                except:
-                    import pdb; pdb.set_trace()
+                start_idx = mistake[2] - window_starts[mistake[1]] + flt_front_pad
+                end_idx = start_idx+component_length
+
+                neg_examples[cur_neg_example_id,
+                             :component_length] = E_windows[mistake[1]][start_idx:
+      end_idx]
+
+
 
                 cur_neg_example_id += 1
 
