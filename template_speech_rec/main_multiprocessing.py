@@ -65,7 +65,7 @@ def get_params(sample_rate=16000,
                parts_S_path=None,
                num_mag_channels=10,
                num_auxiliary_data=3,
-               
+
                save_parts_S=False,
                 bernsteinEdgeThreshold=12,
                 spreadRadiusX=2,
@@ -166,7 +166,7 @@ def get_params(sample_rate=16000,
                 logMagParts=None
                 logInvMagParts=None
                 numMagChannels=10
-            
+
             if auxiliary_data:
                 AuxParts=np.clip(outfile['aparts'],.01,.99)
                 logAuxParts=np.log(AuxParts).astype(np.float64)
@@ -178,8 +178,8 @@ def get_params(sample_rate=16000,
                 logInvAuxParts=None
                 numAuxChannels=3
 
-                
-                
+
+
         else:
             # get the parts Parameters
             EParts=np.clip(np.load(parts_path),.01,.99)
@@ -225,8 +225,8 @@ def get_params(sample_rate=16000,
             AuxiliaryFeatures=AuxParts,
             logAuxiliaryFeatures=logAuxParts,
             logInvAuxiliaryFeatures=logInvAuxParts,
-            
-            
+
+
             )
     else:
         pp=None
@@ -2319,8 +2319,8 @@ def retrain_on_classified_examples(num_mix,save_tag_suffix,phn,new_template_tag,
 
         component_length = int(success_length)
 
-        if ( component_length != int(false_neg_length)) or (component_length != int(mistake_length)):
-            import pdb; pdb.set_trace()
+        #if ( component_length != int(false_neg_length)) and (component_length != int(mistake_length)):
+        #    import pdb; pdb.set_trace()
 
 
         num_positives = len(success_metadata)+len(false_neg_metadata)
@@ -2401,20 +2401,25 @@ def retrain_on_classified_examples(num_mix,save_tag_suffix,phn,new_template_tag,
         new_templates += (np.clip(pos_examples.mean(0),.01,.99),)
         # train the svm
         data_X = np.vstack((pos_examples.reshape(num_positives,
-                                                 np.prod(pos_examples.shape[1:])),
+                                                 np.prod(pos_examples.shape[1:]))[:10000],
                             neg_examples.reshape(num_negatives,
-                                                 np.prod(neg_examples.shape[1:]))))
+                                                 np.prod(neg_examples.shape[1:]))[:10000]))
 
         data_Y = np.hstack((
-                np.ones(len(pos_examples)),
-                np.zeros(len(neg_examples))))
+                np.ones(min(10000,len(pos_examples))),
+                np.zeros(min(10000,len(neg_examples)))))
+
+        del neg_examples
+
+        del pos_examples
+
         try:
             clf = svm.SVC(kernel='linear', C=1)
             clf.fit(data_X, data_Y)
             w = clf.coef_[0]
             b = clf.intercept_[0]
 
-            svm_ws += (w.reshape(pos_examples.shape[1:]),)
+            svm_ws += (w.reshape(new_templates[mix_component].shape),)
             print svm_ws[-1].shape
             svm_bs += (b,)
 
