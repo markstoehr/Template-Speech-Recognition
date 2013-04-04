@@ -63,6 +63,9 @@ def get_params(sample_rate=16000,
                          + "Development/102012/"
                          + "E_templates.npy",
                parts_S_path=None,
+               num_mag_channels=10,
+               num_auxiliary_data=3,
+               
                save_parts_S=False,
                 bernsteinEdgeThreshold=12,
                 spreadRadiusX=2,
@@ -147,11 +150,51 @@ def get_params(sample_rate=16000,
 
 
     if use_parts:
-        # get the parts Parameters
-        EParts=np.clip(np.load(parts_path),.01,.99)
-        logParts=np.log(EParts).astype(np.float64)
-        logInvParts=np.log(1-EParts).astype(np.float64)
-        numParts =EParts.shape[0]
+        if magnitude_and_edge_features or auxiliary_data:
+            outfile = np.load(parts_path)
+            EParts=np.clip(outfile['eparts'],.01,.99)
+            logParts=np.log(EParts).astype(np.float64)
+            logInvParts=np.log(1-EParts).astype(np.float64)
+            numParts =EParts.shape[0]
+            if magnitude_and_edge_features:
+                MagParts=np.clip(outfile['mparts'],.01,.99)
+                logMagParts=np.log(MagParts).astype(np.float64)
+                logInvMagParts=np.log(1-MagParts).astype(np.float64)
+                numMagChannels =MagParts.shape[1]
+            else:
+                MagParts= None
+                logMagParts=None
+                logInvMagParts=None
+                numMagChannels=10
+            
+            if auxiliary_data:
+                AuxParts=np.clip(outfile['aparts'],.01,.99)
+                logAuxParts=np.log(AuxParts).astype(np.float64)
+                logInvAuxParts=np.log(1-AuxParts).astype(np.float64)
+                numAuxChannels =AuxParts.shape[1]
+            else:
+                AuxParts= None
+                logAuxParts=None
+                logInvAuxParts=None
+                numAuxChannels=3
+
+                
+                
+        else:
+            # get the parts Parameters
+            EParts=np.clip(np.load(parts_path),.01,.99)
+            logParts=np.log(EParts).astype(np.float64)
+            logInvParts=np.log(1-EParts).astype(np.float64)
+            numParts =EParts.shape[0]
+            MagParts= None
+            logMagParts=None
+            logInvMagParts=None
+            numMagChannels=10
+            AuxParts= None
+            logAuxParts=None
+            logInvAuxParts=None
+            numAuxChannels=3
+
         if partGraph is not None and spreadPartGraph:
             partGraph = np.load(partGraph).astype(np.uint8)
         else:
@@ -171,7 +214,20 @@ def get_params(sample_rate=16000,
                                    spreadRadiusY=spreadRadiusY,
                                    numParts=numParts,
             partGraph=partGraph,
-            parts_S=parts_S)
+            parts_S=parts_S,
+            mag_data=magnitude_and_edge_features,
+            num_mag_channels=numMagChannels,
+            auxiliary_data=auxiliary_data,
+            num_auxiliary_data=numAuxChannels,
+            MagFeatures=MagParts,
+            logMagFeatures=logMagParts,
+            logInvMagFeatures=logInvMagParts,
+            AuxiliaryFeatures=AuxParts,
+            logAuxiliaryFeatures=logAuxParts,
+            logInvAuxiliaryFeatures=logInvAuxParts,
+            
+            
+            )
     else:
         pp=None
 
@@ -7048,6 +7104,7 @@ syllables and tracking their performance
                         help="whether to also include the zero crossing rate, wiener entropy, and energy features to the binary edge map")
     parser.add_argument('--auxiliary_threshold',type=float,default=.3,
                         help="threshold for the binarization of the zero crossing rate, wiener entropy, and energy features")
+
     parser.add_argument('--only_svm',action='store_true',
                         help='only use svm for second stage')
     parser.add_argument('--no_sil',action='store_true',
