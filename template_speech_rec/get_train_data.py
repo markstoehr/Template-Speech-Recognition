@@ -11,6 +11,7 @@ import spread_waliji_patches as swp
 import compute_likelihood_linear_filter
 import multiprocessing
 
+
 class AverageBackground:
     def __init__(self):
         self.num_frames = 0
@@ -2449,7 +2450,35 @@ def get_edge_features(S,parameters,verbose=False):
                                      verbose=verbose)
         return reorg_part_for_fast_filtering(E)
 
+
+gaussian5by5=np.array([[ 0.19785663,  0.36326131,  0.44481078,  0.36326131,  0.19785663],
+       [ 0.36326131,  0.66694134,  0.81666476,  0.66694134,  0.36326131],
+       [ 0.44481078,  0.81666476,  1.        ,  0.81666476,  0.44481078],
+       [ 0.36326131,  0.66694134,  0.81666476,  0.66694134,  0.36326131],
+       [ 0.19785663,  0.36326131,  0.44481078,  0.36326131,  0.19785663]], dtype=np.float32)
+
+
 def get_part_features(E,parameters,verbose=False):
+    if parameters.mag_data and parameters.auxiliary_data:
+        E = E.T
+        E_edges = E[:-parameters.num_mag_channels-parameters.num_auxiliary_data].T
+        E_mags = E[-parameters.num_mag_channels-parameters.num_auxiliary_data:-parameters.num_auxiliary_data].T
+        E_aux = E[-parameters.num_auxiliary_data:].T
+        num_edges = 8
+        num_freq_bins = E_edges.shape[1]/num_edges
+        try:
+            E_edges = E_edges.reshape(len(E_edges),num_freq_bins,num_edges)
+        except:
+            import pdb; pdb.set_trace()
+
+        if log_parts.shape[1]==5 and log_parts.shape[2]==5:
+            gaussian = np.tile(gaussian5by5.reshape(5,5,1),(1,1,num_edges))
+        else:
+            gaussian = np.tile(makeGaussian(part_freq),(1,1,num_edges))
+
+        count_out = convolve(E_edges,gaussian,mode='same')[:,:,num_edges/2]
+        
+
     out = cp.code_parts(E.astype(np.uint8),
                         parameters.logParts,parameters.logInvParts,parameters.bernsteinEdgeThreshold)
     max_responses = np.argmax(out,-1)
