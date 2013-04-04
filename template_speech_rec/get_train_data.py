@@ -10,7 +10,7 @@ import code_parts as cp
 import spread_waliji_patches as swp
 import compute_likelihood_linear_filter
 import multiprocessing
-
+import sklearn
 
 class AverageBackground:
     def __init__(self):
@@ -2468,6 +2468,9 @@ def get_part_features(E,parameters,verbose=False):
         E_edges = E[:-parameters.num_mag_channels-parameters.num_auxiliary_data].T
         E_mags = E[-parameters.num_mag_channels-parameters.num_auxiliary_data:-parameters.num_auxiliary_data].T
         E_aux = E[-parameters.num_auxiliary_data:].T
+        
+        
+        
         num_edges = 8
         num_freq_bins = E_edges.shape[1]/num_edges
         try:
@@ -2481,6 +2484,18 @@ def get_part_features(E,parameters,verbose=False):
             gaussian = np.tile(makeGaussian(part_freq),(1,1,num_edges))
 
         count_out = convolve(E_edges,gaussian,mode='same')[:,:,num_edges/2]
+        E_thresh_mask = (count_out > 12).astype(np.uint8)
+        E_parts = code_parts_mag_aux(X_edges,X_mags,X_aux,
+                                     parameters.log_parts,parameters.log_invparts,
+                                     parameters.log_mag_parts,parameters.log_mag_invparts,
+                                     parameters.log_aux_parts,
+                                     parameters.log_aux_invparts,
+                                     E_thresh_mask)
+        max_responses = np.argmax(out,-1)
+        spread_responses = cp.spread_patches(max_responses,
+                                         parameters.spreadRadiusX,
+                                         parameters.spreadRadiusY,
+                                         parameters.numParts)
         
 
     out = cp.code_parts(E.astype(np.uint8),
