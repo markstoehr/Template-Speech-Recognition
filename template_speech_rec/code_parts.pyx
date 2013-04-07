@@ -205,10 +205,10 @@ def code_parts_mag_aux(np.ndarray[ndim=3,dtype=UINT_t] X_edges,
                     for j in range(aux_dim):
                         if X_aux[i_start+i,j]:
                             for k in range(num_parts):
-                                out_map[i_start,j_start,k+1] += log_aux_parts[k,i,j]
+                                out_map[i_start,j_start,k+1] += log_aux_parts[k,i*aux_dim + j]
                         else:
                             for k in range(num_parts):
-                                out_map[i_start,j_start,k+1] += log_aux_invparts[k,i,j]
+                                out_map[i_start,j_start,k+1] += log_aux_invparts[k,i*aux_dim  + j]
 
                     for j in range(part_y_dim):
                         if X_mags[i_start+i,(((j_start+j)*mag_dim)/X_y_dim)]:

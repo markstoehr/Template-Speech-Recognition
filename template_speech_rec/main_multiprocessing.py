@@ -153,6 +153,7 @@ def get_params(sample_rate=16000,
         if magnitude_and_edge_features or auxiliary_data:
             outfile = np.load(parts_path)
             EParts=np.clip(outfile['eparts'],.01,.99)
+            EParts = EParts.reshape(len(EParts),5,5,8)
             logParts=np.log(EParts).astype(np.float64)
             logInvParts=np.log(1-EParts).astype(np.float64)
             numParts =EParts.shape[0]
@@ -160,7 +161,8 @@ def get_params(sample_rate=16000,
                 MagParts=np.clip(outfile['mparts'],.01,.99)
                 logMagParts=np.log(MagParts).astype(np.float64)
                 logInvMagParts=np.log(1-MagParts).astype(np.float64)
-                numMagChannels =MagParts.shape[1]
+
+                numMagChannels =MagParts.shape[1] - logParts.shape[1]
             else:
                 MagParts= None
                 logMagParts=None
@@ -171,7 +173,7 @@ def get_params(sample_rate=16000,
                 AuxParts=np.clip(outfile['aparts'],.01,.99)
                 logAuxParts=np.log(AuxParts).astype(np.float64)
                 logInvAuxParts=np.log(1-AuxParts).astype(np.float64)
-                numAuxChannels =AuxParts.shape[1]
+                numAuxChannels =AuxParts.shape[1]/logParts.shape[1]
             else:
                 AuxParts= None
                 logAuxParts=None
