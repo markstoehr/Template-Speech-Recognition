@@ -11,6 +11,7 @@ import spread_waliji_patches as swp
 import compute_likelihood_linear_filter
 import multiprocessing
 import sklearn
+from scipy.signal import convolve
 
 class AverageBackground:
     def __init__(self):
@@ -2464,7 +2465,7 @@ gaussian5by5=np.array([[ 0.19785663,  0.36326131,  0.44481078,  0.36326131,  0.1
 
 def get_part_features(E,parameters,verbose=False):
     if parameters.mag_data and parameters.auxiliary_data:
-        E = E.T
+        E = E.T.astype(np.uint8)
         E_edges = E[:-parameters.num_mag_channels-parameters.num_auxiliary_data].T
         E_mags = E[-parameters.num_mag_channels-parameters.num_auxiliary_data:-parameters.num_auxiliary_data].T
         E_aux = E[-parameters.num_auxiliary_data:].T
@@ -2478,35 +2479,44 @@ def get_part_features(E,parameters,verbose=False):
         except:
             import pdb; pdb.set_trace()
 
-        if log_parts.shape[1]==5 and log_parts.shape[2]==5:
+        if parameters.logParts.shape[1]==5 and parameters.logParts.shape[2]==5:
             gaussian = np.tile(gaussian5by5.reshape(5,5,1),(1,1,num_edges))
         else:
             gaussian = np.tile(makeGaussian(part_freq),(1,1,num_edges))
 
         count_out = convolve(E_edges,gaussian,mode='same')[:,:,num_edges/2]
         E_thresh_mask = (count_out > 12).astype(np.uint8)
-        E_parts = code_parts_mag_aux(X_edges,X_mags,X_aux,
-                                     parameters.log_parts,parameters.log_invparts,
-                                     parameters.log_mag_parts,parameters.log_mag_invparts,
-                                     parameters.log_aux_parts,
-                                     parameters.log_aux_invparts,
+
+        out = cp.code_parts_mag_aux(E_edges,E_mags,E_aux,
+                                     parameters.logParts,parameters.logInvParts,
+                                     parameters.logMagFeatures,parameters.logInvMagFeatures,
+                                     parameters.logAuxiliaryFeatures,
+                                     parameters.logInvAuxiliaryFeatures,
                                      E_thresh_mask)
         max_responses = np.argmax(out,-1)
         spread_responses = cp.spread_patches(max_responses,
                                          parameters.spreadRadiusX,
                                          parameters.spreadRadiusY,
                                          parameters.numParts)
+        if len(spread_responses) < E.shape[1]:
+            spread_responses = np.vstack((spread_responses,
+                                          np.zeros( (E.shape[1] - len(spread_responses),)
+                                                    + spread_responses.shape[1:])))
+
         
 
-    out = cp.code_parts(E.astype(np.uint8),
-                        parameters.logParts,parameters.logInvParts,parameters.bernsteinEdgeThreshold)
-    max_responses = np.argmax(out,-1)
-    spread_responses = cp.spread_patches(max_responses,
+    else:
+        out = cp.code_parts(E.astype(np.uint8),
+                            parameters.logParts,parameters.logInvParts,parameters.bernsteinEdgeThreshold)
+        max_responses = np.argmax(out,-1)
+        spread_responses = cp.spread_patches(max_responses,
                                          parameters.spreadRadiusX,
                                          parameters.spreadRadiusY,
                                          parameters.numParts)
-    if parameters.partGraph is not None:
-        cp.spread_graph_patches(spread_responses,
-                          parameters.partGraph)
+        if parameters.partGraph is not None:
+            cp.spread_graph_patches(spread_responses,
+                                    parameters.partGraph)
+  
+
     return spread_responses
 
