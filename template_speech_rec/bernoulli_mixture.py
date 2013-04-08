@@ -72,7 +72,7 @@ class BernoulliMixture:
 
     """
     def __init__(self,num_mix,data_mat,init_type='unif_rand',init_seed=0,
-                 init_centers=None):
+                 init_centers=None,min_probability=.01):
         # TODO: opt_type='expected'
         self.num_mix = num_mix
         self.num_data = data_mat.shape[0]
@@ -86,7 +86,7 @@ class BernoulliMixture:
         np.random.seed(self.seed)
 
 
-        self.min_probability = np.float32(0.05)
+        self.min_probability = np.float32(min_probability)
 
         # If we change this to a true bitmask, we should do ~data_mat
         self.not_data_mat = 1 - self.data_mat
@@ -106,7 +106,7 @@ class BernoulliMixture:
 
     # TODO: save_template never used!
     def run_EM(self, tol, min_probability=0.05, debug_plot=False, hard_assignment=False,rand_seed=None,
-               use_templates=None,max_iter=500):
+               use_templates=None,max_iter=500,min_iter=10):
         """
         Run the EM algorithm to specified convergence.
 
@@ -119,17 +119,17 @@ class BernoulliMixture:
             Disallow probabilities to fall below this value, and extend below one minus this value.
         init_seed : integer or None
         """
-        if use_templates is None:
-            self.reset_templates()
-            if rand_seed is not None:
-                self.seed = rand_seed
-                np.random.seed(self.seed)
-                self.init_affinities_templates('unif_rand')
-        else:
-            self.templates = use_templates.copy()
-            self.reset_templates()
+        # if use_templates is None:
+        #     self.reset_templates()
+        #     if rand_seed is not None:
+        #         self.seed = rand_seed
+        #         np.random.seed(self.seed)
+        #         self.init_affinities_templates('unif_rand')
+        # else:
+        #     self.templates = use_templates.copy()
+        #     self.reset_templates()
 
-        
+
         self.hard_assignment = hard_assignment
         self.min_probability = np.float32(min_probability)
         loglikelihood = -np.inf
@@ -141,7 +141,7 @@ class BernoulliMixture:
         loglikelihood = new_loglikelihood/(1-tol) - 10
         self.iterations = 0
         print ((loglikelihood - new_loglikelihood)/loglikelihood)
-        while np.abs((loglikelihood - new_loglikelihood)/loglikelihood) > tol and self.iterations < max_iter:
+        while (np.abs((loglikelihood - new_loglikelihood)/loglikelihood) > tol and self.iterations < max_iter) or self.iterations < min_iter:
             assert np.abs(self.data_mat).sum() > 0
             print("Iteration {0}: loglikelihood {1}, num_affinities bigger than 20 {2}".format(self.iterations, loglikelihood,
                                                                                                (np.bincount(np.argmax(self.affinities,1))>=20).sum()))
@@ -206,26 +206,17 @@ class BernoulliMixture:
                 self.affinities[self.num_mix*np.arange(self.num_data/self.num_mix)+mix_id,mix_id] = 1.
                 self.work_templates[mix_id] = np.mean(self.data_mat[self.affinities[:,mix_id]==1],axis=0)
                 self.threshold_templates()
-                
+
 
         elif init_type == 'preset' and init_centers is not None:
             print "using preset templates"
             self.num_mix = init_centers.shape[0]
-            self.work_templates = init_centers.reshape(self.num_mix,
-                                            self.data_length).astype(np.float32)
-            self.affinities = np.zeros((self.num_data,
-                                        self.num_mix),dtype=np.float32)
+            self.work_templates = np.clip(init_centers.reshape(self.num_mix,
+                                            self.data_length), self.min_probability,1-self.min_probability)
+            self.log_templates = np.log(self.work_templates)
+            self.log_invtemplates = np.log(1-self.work_templates)
 
-            for mix_id in xrange(self.num_mix):
-                # do a soft-max
-                self.affinities[:,mix_id] = np.sum(np.abs(self.data_mat - self.work_templates[mix_id]),axis=1)
-                
-            self.affinities = np.exp(self.affinities.min(axis=1)-self.affinities.T ).T
-            
-            self.affinities = (self.affinities.T / self.affinities.sum(1)).T
 
-            self.work_templates = np.dot(self.affinities.T, self.data_mat).astype(np.float32)
-                
         elif init_type == 'specific':
             random.seed()
             idx = range(self.num_data)
@@ -258,6 +249,7 @@ class BernoulliMixture:
 
     def reset_templates(self):
         self.templates = self.work_templates.reshape(self.num_mix,self.data_length)
+        
         self.log_templates = np.log(self.templates)
         self.log_invtemplates = np.log(1-self.templates)
 
