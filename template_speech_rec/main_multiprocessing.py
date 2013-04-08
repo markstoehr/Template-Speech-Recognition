@@ -4,7 +4,7 @@ import pylab as pl
 from sklearn import svm
 import template_speech_rec.get_train_data as gtrd
 import template_speech_rec.estimate_template as et
-import template_speech_rec.bernoulli_mixture as bm
+import template_speech_rec.bernoulli_mixture_gustave as bm
 import template_speech_rec.roc_functions as rf
 import template_speech_rec.code_parts as cp
 import template_speech_rec.spread_waliji_patches as swp
