@@ -4,7 +4,7 @@ import pylab as pl
 from sklearn import svm
 import template_speech_rec.get_train_data as gtrd
 import template_speech_rec.estimate_template as et
-import template_speech_rec.bernoulli_mixture_gustave as bm
+import template_speech_rec.bernoulli_mixture as bm
 import template_speech_rec.roc_functions as rf
 import template_speech_rec.code_parts as cp
 import template_speech_rec.spread_waliji_patches as swp
@@ -2125,7 +2125,7 @@ def get_classify_scores_metadata(num_mix,phn,save_tag,savedir,
                                                save_tag))
     argmax_classify_array = outfile['argmax_classify_array']
     max_classify_array=outfile['max_classify_array'].astype(np.float32)
-    max_classify_template_ids = outfile['max_classify_template_ids']
+    max_classify_template_ids = outfile['max_classify_template_ids'].astype(np.uint16)
     max_classify_template_lengths = outfile['max_classify_template_lengths']
     max_classify_locs = outfile['max_classify_locs'].astype(np.uint16)
     outfile = np.load('%strue_max_classify_results_%d_%s.npz' % (savedir,
@@ -2134,7 +2134,7 @@ def get_classify_scores_metadata(num_mix,phn,save_tag,savedir,
     true_max_classify_array = outfile['true_max_classify_array'].astype(np.float32)
     true_max_classify_locs = outfile['true_max_classify_locs'].astype(np.uint16)
 
-    true_max_classify_template_ids = outfile['true_max_classify_template_ids']
+    true_max_classify_template_ids = outfile['true_max_classify_template_ids'].astype(np.uint16)
     true_max_classify_template_lengths = outfile['true_max_classify_template_lengths']
     num_use_phns = len(use_phns)
 
@@ -2161,9 +2161,11 @@ def get_classify_scores_metadata(num_mix,phn,save_tag,savedir,
 
         mistake_scores, mistake_metadata = get_mistakes.get_example_scores_metadata(component_mistake_mask,
                                                                      max_classify_locs,
+                                                                                    max_classify_template_ids,
                                                                      max_classify_array,
                                                                      classify_lengths,
                                                                      num_mistakes_by_component[mix_component])
+
 
         sorted_mistake_ids = np.argsort(mistake_scores)[::-1]
         np.savez('%sstage1_mistake_scores_metadata_%d_%d_%s_%s' %(
@@ -2175,6 +2177,9 @@ def get_classify_scores_metadata(num_mix,phn,save_tag,savedir,
                  mistake_scores=mistake_scores,
                  mistake_metadata=mistake_metadata,
                  mistake_lengths=mistake_lengths[mix_component])
+        
+
+
 
     # get the false negatives
     false_neg_mask = np.logical_and(argmax_classify_array != phn,
@@ -2194,9 +2199,18 @@ def get_classify_scores_metadata(num_mix,phn,save_tag,savedir,
 
         false_neg_scores, false_neg_metadata = get_mistakes.get_example_scores_metadata(component_false_neg_mask,
                                                                      true_max_classify_locs,
+                                                                                        true_max_classify_template_ids,
                                                                      true_max_classify_array,
                                                                      classify_lengths,
                                                                      num_false_negs_by_component[mix_component])
+
+        false_neg_false_scores, false_neg_false_metadata = get_mistakes.get_example_scores_metadata(component_false_neg_mask,
+                                                                     max_classify_locs,
+                                                                                                   max_classify_template_ids,
+                                                                     max_classify_array,
+                                                                     max_classify_template_lengths,
+                                                                     num_false_negs_by_component[mix_component])
+
 
         sorted_false_neg_ids = np.argsort(false_neg_scores)[::-1]
         np.savez('%sstage1_false_neg_scores_metadata_%d_%d_%s_%s' %(
@@ -2208,6 +2222,17 @@ def get_classify_scores_metadata(num_mix,phn,save_tag,savedir,
                  false_neg_scores=false_neg_scores,
                  false_neg_metadata=false_neg_metadata,
                  false_neg_lengths=false_neg_lengths[mix_component])
+
+        sorted_false_neg_false_ids = np.argsort(false_neg_false_scores)[::-1]
+        np.savez('%sstage1_false_neg_false_scores_metadata_%d_%d_%s_%s' %(
+                savedir,
+
+                num_mix,
+                mix_component,phn,
+                save_tag),
+                 false_neg_false_scores=false_neg_false_scores,
+                 false_neg_false_metadata=false_neg_false_metadata,
+                 false_neg_false_lengths=false_neg_false_lengths[mix_component])
 
 
 
@@ -2230,6 +2255,7 @@ def get_classify_scores_metadata(num_mix,phn,save_tag,savedir,
 
         success_scores, success_metadata = get_mistakes.get_example_scores_metadata(component_success_mask,
                                                                      max_classify_locs,
+                                                                                    max_classify_template_ids,
                                                                      max_classify_array,
                                                                      classify_lengths,
                                                                      num_successes_by_component[mix_component])
