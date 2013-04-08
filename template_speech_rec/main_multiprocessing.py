@@ -2126,7 +2126,7 @@ def get_classify_scores_metadata(num_mix,phn,save_tag,savedir,
     argmax_classify_array = outfile['argmax_classify_array']
     max_classify_array=outfile['max_classify_array'].astype(np.float32)
     max_classify_template_ids = outfile['max_classify_template_ids'].astype(np.uint16)
-    max_classify_template_lengths = outfile['max_classify_template_lengths']
+    max_classify_template_lengths = outfile['max_classify_template_lengths'].astype(np.uint16)
     max_classify_locs = outfile['max_classify_locs'].astype(np.uint16)
     outfile = np.load('%strue_max_classify_results_%d_%s.npz' % (savedir,
                                                num_mix,
@@ -2135,8 +2135,59 @@ def get_classify_scores_metadata(num_mix,phn,save_tag,savedir,
     true_max_classify_locs = outfile['true_max_classify_locs'].astype(np.uint16)
 
     true_max_classify_template_ids = outfile['true_max_classify_template_ids'].astype(np.uint16)
-    true_max_classify_template_lengths = outfile['true_max_classify_template_lengths']
+    true_max_classify_template_lengths = outfile['true_max_classify_template_lengths'].astype(np.uint16)
     num_use_phns = len(use_phns)
+
+
+    false_neg_mask = np.logical_and(argmax_classify_array != phn,
+                              classify_labels == phn).astype(np.uint8)
+    num_false_negs = np.int(false_neg_mask.sum())
+
+
+    false_neg_false_scores, false_neg_false_metadata = get_mistakes.get_example_scores_metadata(false_neg_mask,
+                                                                     max_classify_locs,
+                                                                     max_classify_template_ids,
+                                                                     max_classify_template_lengths,
+                                                                     max_classify_array,classify_lengths,
+                                                                     num_false_negs)
+
+
+
+    np.savez('%sstage1_false_neg_false_scores_metadata_%d_%s_%s.npz' %(
+                savedir,
+
+                num_mix,phn,
+                save_tag),
+                 false_neg_false_scores=false_neg_false_scores,
+                 false_neg_false_metadata=false_neg_false_metadata,
+                 false_neg_false_phns = argmax_classify_array[false_neg_mask.astype(bool)]
+                 )
+
+    full_success_mask = np.logical_and(argmax_classify_array == phn,
+                              classify_labels == phn).astype(np.uint8)
+    num_full_successs = np.int(full_success_mask.sum())
+
+
+    full_success_scores, full_success_metadata = get_mistakes.get_example_scores_metadata(full_success_mask,
+                                                                     max_classify_locs,
+                                                                     max_classify_template_ids,
+                                                                     max_classify_template_lengths,
+                                                                     max_classify_array,classify_lengths,
+                                                                     num_full_successs)
+
+
+
+    np.savez('%sstage1_full_success_scores_metadata_%d_%s_%s.npz' %(
+                savedir,
+
+                num_mix,phn,
+                save_tag),
+                 full_success_scores=full_success_scores,
+                 full_success_metadata=full_success_metadata
+                 )
+
+
+
 
     # get the false positives
     mistake_mask = np.logical_and(argmax_classify_array == phn,
@@ -2162,6 +2213,7 @@ def get_classify_scores_metadata(num_mix,phn,save_tag,savedir,
         mistake_scores, mistake_metadata = get_mistakes.get_example_scores_metadata(component_mistake_mask,
                                                                      max_classify_locs,
                                                                                     max_classify_template_ids,
+                                                                                    max_classify_template_lengths,
                                                                      max_classify_array,
                                                                      classify_lengths,
                                                                      num_mistakes_by_component[mix_component])
@@ -2177,7 +2229,7 @@ def get_classify_scores_metadata(num_mix,phn,save_tag,savedir,
                  mistake_scores=mistake_scores,
                  mistake_metadata=mistake_metadata,
                  mistake_lengths=mistake_lengths[mix_component])
-        
+
 
 
 
@@ -2198,18 +2250,13 @@ def get_classify_scores_metadata(num_mix,phn,save_tag,savedir,
         # get the length
 
         false_neg_scores, false_neg_metadata = get_mistakes.get_example_scores_metadata(component_false_neg_mask,
-                                                                     true_max_classify_locs,
+                                                                                        true_max_classify_locs,
                                                                                         true_max_classify_template_ids,
+                                                                                        true_max_classify_template_lengths,
                                                                      true_max_classify_array,
                                                                      classify_lengths,
                                                                      num_false_negs_by_component[mix_component])
 
-        false_neg_false_scores, false_neg_false_metadata = get_mistakes.get_example_scores_metadata(component_false_neg_mask,
-                                                                     max_classify_locs,
-                                                                                                   max_classify_template_ids,
-                                                                     max_classify_array,
-                                                                     max_classify_template_lengths,
-                                                                     num_false_negs_by_component[mix_component])
 
 
         sorted_false_neg_ids = np.argsort(false_neg_scores)[::-1]
@@ -2222,17 +2269,6 @@ def get_classify_scores_metadata(num_mix,phn,save_tag,savedir,
                  false_neg_scores=false_neg_scores,
                  false_neg_metadata=false_neg_metadata,
                  false_neg_lengths=false_neg_lengths[mix_component])
-
-        sorted_false_neg_false_ids = np.argsort(false_neg_false_scores)[::-1]
-        np.savez('%sstage1_false_neg_false_scores_metadata_%d_%d_%s_%s' %(
-                savedir,
-
-                num_mix,
-                mix_component,phn,
-                save_tag),
-                 false_neg_false_scores=false_neg_false_scores,
-                 false_neg_false_metadata=false_neg_false_metadata,
-                 false_neg_false_lengths=false_neg_false_lengths[mix_component])
 
 
 
@@ -2256,6 +2292,7 @@ def get_classify_scores_metadata(num_mix,phn,save_tag,savedir,
         success_scores, success_metadata = get_mistakes.get_example_scores_metadata(component_success_mask,
                                                                      max_classify_locs,
                                                                                     max_classify_template_ids,
+                                                                                    max_classify_template_lengths,
                                                                      max_classify_array,
                                                                      classify_lengths,
                                                                      num_successes_by_component[mix_component])
@@ -2301,6 +2338,7 @@ def retrain_on_classified_examples(num_mix,save_tag_suffix,phn,new_template_tag,
     svm_bs = ()
     pos_scores = ()
     neg_scores = ()
+    import pdb; pdb.set_trace()
     for mix_component in xrange(num_mix):
         print mix_component
         outfile = np.load('%sstage1_success_scores_metadata_%d_%d_%s_%s.npz' %(
@@ -2380,7 +2418,7 @@ def retrain_on_classified_examples(num_mix,save_tag_suffix,phn,new_template_tag,
                 E_flts = S_flts.copy()
                 E_flts[-1] = len(E)
 
-            
+
             E_windows, window_starts, window_ends, flt_front_pad = gtrd.get_isolated_classify_windows(E,utterance.phns,E_flts,bgd,(),max_length=component_length)
 
 
@@ -2483,6 +2521,155 @@ def retrain_on_classified_examples(num_mix,save_tag_suffix,phn,new_template_tag,
                     phn,
                     new_template_tag),
                  *(templates))
+
+
+def retrain_on_classified_examples_generative(num_mix,save_tag_suffix,phn,new_template_tag,data_path,file_idx,sp,ep,pp,load_data_tag,
+                              savedir,
+                                   verbose=False):
+    bgd = np.load('%sbgd_%s.npy' %(savedir,load_data_tag))
+    outfile = np.load('%sclassify_confusion_mat_use_phns_%d_%s.npz' % (savedir,
+                                               num_mix,
+                                               save_tag_suffix))
+
+
+    confusion_matrix = outfile['confusion_matrix']
+    confusion_matrix_by_id = outfile['confusion_matrix_by_id']
+    use_phns = outfile['use_phns']
+    if phn not in use_phns:
+        print "phone not used in classification"
+        return
+
+    phn_id = list(use_phns).index(phn)
+    num_positives = confusion_matrix[:,phn_id].sum()
+    num_negatives = confusion_matrix[phn_id,:].sum()-confusion_matrix[phn_id,phn_id]
+
+    templates = get_templates(num_mix,template_tag='%s_%s' % (phn,save_tag_suffix),savedir=savedir)
+
+
+    sorted_confusion_counts_by_id = np.sort(confusion_matrix_by_id[:,phn_id*num_mix:(phn_id+1)*num_mix].sum(1))[::-1]
+    sorted_confusion_phn_ids = np.argsort(confusion_matrix_by_id[:,phn_id*num_mix:(phn_id+1)*num_mix].sum(1))[::-1]/num_mix
+    sorted_confusion_template_ids = np.argsort(confusion_matrix_by_id[:,phn_id*num_mix:(phn_id+1)*num_mix].sum(1))[::-1] % num_mix
+    top_confusion_threshold = np.sum(sorted_confusion_counts_by_id >= 20)
+    top_confusion_phn_ids = sorted_confusion_phn_ids[:top_confusion_threshold]
+    top_confusion_phn_template_ids = sorted_confusion_template_ids[:top_confusion_threshold]
+
+    all_templates = ()
+    top_phns = tuple( use_phns[k] for k in tuple(frozenset(top_confusion_phn_ids)))
+    for tphn in top_phns:
+        ttemplates = get_templates(num_mix,template_tag='%s_%s' % (tphn,save_tag_suffix),savedir=savedir)
+
+        for tphn_tidx in top_confusion_phn_template_ids[use_phns[top_confusion_phn_ids]  == tphn]:
+            try:
+                all_templates += (ttemplates[tphn_tidx],)
+            except:
+                import pdb; pdb.set_trace()
+
+
+    outfile = np.load('%sstage1_false_neg_false_scores_metadata_%d_%s_%s.npz' %(
+                savedir,
+
+                num_mix,phn,
+                save_tag_suffix))
+    false_neg_scores=outfile['false_neg_false_scores']
+    false_neg_metadata=outfile['false_neg_false_metadata']
+    false_neg_phns = outfile['false_neg_false_phns']
+    false_neg_phn_ids = np.array(tuple(
+        list(use_phns).index(p) for p in false_neg_phns)).astype(np.uint16)
+
+    outfile = np.load('%sstage1_full_success_scores_metadata_%d_%s_%s.npz' %(
+                savedir,
+
+                num_mix,phn,
+                save_tag_suffix))
+    full_success_scores=outfile['full_success_scores']
+    full_success_metadata=outfile['full_success_metadata']
+
+    num_false_negs = len(false_neg_scores)
+    num_true_pos = len(full_success_scores)
+
+    max_template_length = np.max(full_success_metadata[:,-1])
+    max_template_length = max(np.max(false_neg_metadata[:,-1]),
+                              max_template_length)
+
+    utterance = gtrd.makeUtterance(data_path,file_idx[0])
+    S = gtrd.get_spectrogram(utterance.s,sp)
+    S_flts = utterance.flts
+    E = gtrd.get_edge_features(S.T,ep,verbose=False)
+
+    X_data = np.zeros((num_false_negs+num_true_pos,
+                         max_template_length)
+                         + E.shape[1:],dtype=np.uint8)
+    X_data_lengths = np.zeros((num_false_negs+num_true_pos),dtype=np.uint16)
+    # set where we will put all the templates that we're adding
+    # in order to do the computations with
+
+    cur_datum_id = 0
+    for i,f_idx in enumerate(file_idx):
+        utt_false_neg_mask = false_neg_metadata[:,0] == i
+        utt_success_mask = full_success_metadata[:,0] == i
+        if np.sum(utt_false_neg_mask) + np.sum(utt_success_mask) <= 0:
+            continue
+        if cur_datum_id % 50 == 0:
+            print "working on example %d for %s" % (cur_datum_id,phn)
+        utterance = gtrd.makeUtterance(data_path,file_idx[i])
+        S = gtrd.get_spectrogram(utterance.s,sp)
+        S_flts = utterance.flts
+        E = gtrd.get_edge_features(S.T,ep,verbose=False)
+        E_flts = S_flts
+        E_windows, window_starts, window_ends, flt_front_pad = gtrd.get_isolated_classify_windows(E,utterance.phns,E_flts,bgd,None,max_length=max_template_length)
+        for false_neg_metadatum in false_neg_metadata[utt_false_neg_mask]:
+
+            fn_phn_id = false_neg_metadatum[1]
+            w_start = window_starts[fn_phn_id]
+
+            phn_start_loc = false_neg_metadatum[2] -w_start+flt_front_pad
+            phn_len = false_neg_metadatum[-1]
+
+            X_data[cur_datum_id,:phn_len] = E_windows[fn_phn_id][phn_start_loc:phn_start_loc+phn_len]
+            if phn_len < X_data.shape[1]:
+                X_data[cur_datum_id,phn_len:] = (np.random.rand(
+                    *((X_data.shape[1]-phn_len,)
+                      + X_data.shape[2:])) <= np.tile(bgd,
+                                                      (X_data.shape[1]-phn_len,) + tuple(np.ones(len(X_data.shape[2:]))))).astype(np.uint8)
+            X_data_lengths[cur_datum_id] = phn_len
+            cur_datum_id += 1
+
+        for success_metadatum in full_success_metadata[utt_success_mask]:
+
+            fn_phn_id = success_metadatum[1]
+            w_start = window_starts[fn_phn_id]
+
+            phn_start_loc = success_metadatum[2] -w_start+flt_front_pad
+            phn_len = success_metadatum[-1]
+
+            X_data[cur_datum_id,:phn_len] = E_windows[fn_phn_id][phn_start_loc:phn_start_loc+phn_len]
+            if phn_len < X_data.shape[1]:
+                X_data[cur_datum_id,phn_len:] = (np.random.rand(
+                    *((X_data.shape[1]-phn_len,)
+                      + X_data.shape[2:])) <= np.tile(bgd,
+                                                      (X_data.shape[1]-phn_len,) + tuple(np.ones(len(X_data.shape[2:]))))).astype(np.uint8)
+            X_data_lengths[cur_datum_id] = phn_len
+            cur_datum_id += 1
+
+
+    template_array = np.zeros( (len(all_templates),)
+                              + X_data.shape[1:],dtype=np.float32)
+    for i,t in enumerate(all_templates):
+        template_array[i,:len(t)] = t
+        if len(t) < template_array.shape[1]:
+            template_array[i,len(t):] = bgd
+    
+
+    bem = bm.BernoulliMixture(len(template_array),X_data,
+                              init_type='preset',
+                              init_centers=template_array)
+    bem.run_EM(.000001,min_probability=0.01)
+    templates = et.recover_different_length_templates(bem.affinities,
+                                                      X_data,
+                                                      X_data_lengths,
+                                                      do_truncation=True)
+    np.savez('%sReestimate_templates_%s_%s.npz',
+             *templates)
 
 
 
@@ -6124,6 +6311,28 @@ def main(args):
             jobs.append(p)
             p.start
 
+    if args.retrain_on_classified_examples_generative == 'train':
+        leehon_mapping, rejected_phones, use_phns = get_leehon39_dict(no_sil=args.no_sil)
+        jobs = []
+        for num_mix in args.num_mix_parallel:
+            p = multiprocessing.Process(target=
+                                        retrain_on_classified_examples_generative(
+                    num_mix,
+                    args.save_tag_suffix,
+                    args.detect_object[0],
+                    args.template_tag,
+                    train_path,
+                    train_file_indices,
+                    sp,
+                    ep,
+                    pp,
+                    args.load_data_tag,
+                    args.savedir,
+
+                    verbose=args.v))
+            jobs.append(p)
+            p.start
+
     if args.get_fpr_tpr_tagged:
         print "Finished save_detection_setup"
         if len(args.num_mix_parallel) > 0:
@@ -7010,6 +7219,9 @@ syllables and tracking their performance
                         type=str,
                         help="whether to run the get_classify_scores_metadata function and the string should be 'train' or 'test' to indicate which data set to use.  This function also takes in a phn and it gives the set of false positives, true positives, and false negatives")
     parser.add_argument('--retrain_on_classified_examples',default='',
+                        type=str,
+                        help="whether to run the retrain_on_classified_examples function and the string should be 'train' or 'test' to indicate which data set to use.  This function loads metadata about the successful stage 1 classifications and the unsuccessful and uses this to retrain the templats and make a discriminative cascade")
+    parser.add_argument('--retrain_on_classified_examples_generative',default='',
                         type=str,
                         help="whether to run the retrain_on_classified_examples function and the string should be 'train' or 'test' to indicate which data set to use.  This function loads metadata about the successful stage 1 classifications and the unsuccessful and uses this to retrain the templats and make a discriminative cascade")
 
