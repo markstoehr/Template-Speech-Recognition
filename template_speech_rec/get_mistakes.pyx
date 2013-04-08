@@ -20,6 +20,7 @@ ctypedef np.int16_t INT_t
 def get_example_scores_metadata(np.ndarray[ndim=2,dtype=BOOL_t] example_mask,
                  np.ndarray[ndim=2,dtype=UINT_t] classify_locs,
                  np.ndarray[ndim=2,dtype=UINT_t] classify_template_ids,
+                 np.ndarray[ndim=2,dtype=UINT_t] classify_template_lengths,
                  np.ndarray[ndim=2,dtype=DTYPE_t] classify_array,
                  np.ndarray[ndim=1,dtype=UINT_t] classify_lengths,
                  int num_examples):
@@ -31,7 +32,7 @@ def get_example_scores_metadata(np.ndarray[ndim=2,dtype=BOOL_t] example_mask,
 
     cdef np.ndarray[ndim=2,dtype=UINT_t] example_metadata = np.zeros(
         (num_examples,
-         4),
+         5),
         dtype=UINT)
     cur_example_id = 0
     for utt_id in range(num_utts):
@@ -42,5 +43,6 @@ def get_example_scores_metadata(np.ndarray[ndim=2,dtype=BOOL_t] example_mask,
                 example_metadata[cur_example_id,1] = phn_id
                 example_metadata[cur_example_id,2] = classify_locs[utt_id,phn_id]
                 example_metadata[cur_example_id,3] = classify_template_ids[utt_id,phn_id]
+                example_metadata[cur_example_id,4] = classify_template_lengths[utt_id,phn_id]
                 cur_example_id += 1
     return example_scores,example_metadata
