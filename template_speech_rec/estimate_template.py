@@ -67,7 +67,7 @@ def recover_different_length_templates(affinities,examples,lengths,
         avg_lengths = (np.dot(affinities_trans,lengths)  + .5).astype(int)
     else:
         avg_lengths = np.ceil(np.dot(affinities_trans,lengths)).astype(int)
-        max_length = avg_lengths.max()
+        max_length = lengths.max()
         for i in xrange(avg_lengths.shape[0]):
             avg_lengths[i]=max_length
 
@@ -154,7 +154,7 @@ def register_templates_time_zero(examples,lengths=None,min_prob=.01):
                    1-min_prob), registered_examples
 
 def construct_linear_filters(Ts,
-                            bgd,all_cs=False,use_spectral=False,T_sigmas=None,bgd_sigma=None):
+                            bgd,all_cs=False,use_spectral=False,T_sigmas=None,bgd_sigma=None,min_prob=.01):
     """
     Bgd is the tiled matrix of bgd vectors slaooed onto each other
     all_cs option returns many different cs corresponding to different lengths of the template
@@ -165,7 +165,10 @@ def construct_linear_filters(Ts,
             for T,T_sigma in itertools.izip(Ts,T_sigmas))
     else:
         return tuple(
-            construct_linear_filter(T,bgd,all_cs=all_cs,use_spectral=use_spectral)
+            construct_linear_filter(np.clip(T,min_prob,
+                                            1-min_prob),
+                                    np.clip(bgd,min_prob,
+                                            1-min_prob),all_cs=all_cs,use_spectral=use_spectral)
             for T in Ts)
 
 def construct_spectral_linear_filter(T,bgd,T_sigma,bgd_sigma,all_cs=False,save_as_type=np.float32):
@@ -222,6 +225,36 @@ def construct_linear_filter(T,
     expW = (T/Bgd) / C_exp_inv
 
     return np.log(expW).astype(np.float32), c
+
+def construct_likelihood_linear_filters(Ts,min_prob=.01,all_cs=False,
+                            use_spectral=False,sigma=None):
+    """
+    Bgd is the tiled matrix of bgd vectors slaooed onto each other
+    """
+
+    return tuple(
+        construct_likelihood_linear_filter(T,min_prob=min_prob,all_cs=all_cs)
+        for T in Ts)
+                                           
+
+def construct_likelihood_linear_filter(T,min_prob=.01,all_cs=False,
+                            use_spectral=False,sigma=None):
+    """
+    Bgd is the tiled matrix of bgd vectors slaooed onto each other
+    """
+
+    T = np.clip(T,min_prob,1-min_prob)
+    T_inv = 1. - T
+    C_exp_inv = T_inv
+    if all_cs:
+        c = np.cumsum(np.log(C_exp_inv.reshape(len(C_exp_inv),
+                                               np.prod(C_exp_inv.shape[1:]))).sum(1)[::-1])[::-1]
+    else:
+        c = np.log(C_exp_inv).sum()
+    expW = T / C_exp_inv
+
+    return np.log(expW).astype(np.float32), c
+
 
 def construct_linear_filter_structured_alternative(T1,T2,
                             bgd=None,min_prob=.01):
