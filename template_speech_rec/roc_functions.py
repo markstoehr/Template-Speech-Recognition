@@ -617,7 +617,10 @@ def get_roc_curve(potential_thresholds,
                                      C0,C1,frame_rate)
             for threshold in potential_thresholds]).T
 
-    return_tuple = (rate_mat[0],rate_mat[1])
+    try:
+        return_tuple = (rate_mat[0],rate_mat[1])
+    except:
+        import pdb; pdb.set_trace()
     if return_detected_examples:
         return_tuple +=  (true_false_positive_rate(threshold,
                                                      detection_array,
@@ -840,7 +843,7 @@ def get_pos_false_pos_false_neg_detect_points(detection_clusters_at_threshold,
                     #   these head and tail points
                     #   but, once we find the largest local maximum
                     #   we then need to remove those points
-                    cluster_vals = detection_row[c[0]-1:c[1]+1][1:-1]
+                    cluster_vals = detection_row[max(c[0]-1,0):min(c[1]+1,len(detection_row))][1:-1]
                     peak_window = np.arange(se[0]-int((se[1]-se[0] + 0.)/3. + .5),
                                             se[0]+int((se[1]-se[0])/3. + .5)) -c[0]
                     peak_window = peak_window[ ( peak_window >= 0) *
@@ -855,8 +858,8 @@ def get_pos_false_pos_false_neg_detect_points(detection_clusters_at_threshold,
                     # cluster length back to the original system
                     # getting rid of the extended cluster
 
-                    cluster_detect_lengths = np.array([template_lengths[idx] for idx in detection_template_ids[utt_id,c[0]:c[1]]])
-                    cluster_detect_ids = detection_template_ids[utt_id,c[0]:c[1]]
+                    cluster_detect_lengths = np.array([template_lengths[idx] for idx in detection_template_ids[utt_id,max(0,c[0]):min(len(detection_row),c[1])]])
+                    cluster_detect_ids = detection_template_ids[utt_id,max(0,c[0]):min(len(detection_row),c[1])]
 
                     phn_context,flt_context = gtrd.get_phn_context(c[0],
                                                               c[1],
@@ -884,10 +887,10 @@ def get_pos_false_pos_false_neg_detect_points(detection_clusters_at_threshold,
 
                 if c[1]-c[0] < 2:
                     cluster_max_peak_loc=0
-                    cluster_max_peak_val=detection_row[c[0]]
-                    cluster_vals = detection_row[c[0]:c[1]]
+                    cluster_max_peak_val=detection_row[max(c[0],0)]
+                    cluster_vals = detection_row[max(0,c[0]):min(len(detection_row),c[1])]
                 else:
-                    cluster_vals = detection_row[c[0]-1:c[1]+1]
+                    cluster_vals = detection_row[max(0,c[0]-1):min(len(detection_row),c[1]+1)]
                     cluster_max_peak_loc = get_max_peak(cluster_vals)
                     if cluster_max_peak_loc == -1:
                         cluster_max_peak_val = -np.inf
@@ -908,8 +911,8 @@ def get_pos_false_pos_false_neg_detect_points(detection_clusters_at_threshold,
                 # getting rid of the extended cluster
                     cluster_max_peak_loc -= 1
                     cluster_vals = cluster_vals[1:-1]
-                cluster_detect_lengths = np.array([template_lengths[idx] for idx in detection_template_ids[utt_id,c[0]:c[1]]])
-                cluster_detect_ids = detection_template_ids[utt_id,c[0]:c[1]]
+                cluster_detect_lengths = np.array([template_lengths[idx] for idx in detection_template_ids[utt_id,max(0,c[0]):min(len(detection_row),c[1])]])
+                cluster_detect_ids = detection_template_ids[utt_id,max(0,c[0]):min(len(detection_row),c[1])]
 
                 phn_context,flt_context = gtrd.get_phn_context(c[0],
                                                           c[1],
@@ -947,7 +950,7 @@ def get_pos_false_pos_false_neg_detect_points(detection_clusters_at_threshold,
                 print "False Negative in utterance %d at frame %d" % (utt_id,
                                                                       s)
             c = (s+window_start,s+window_end)
-            cluster_vals = detection_row[c[0]-1:c[1]+1]
+            cluster_vals = detection_row[max(c[0]-1,0):min(c[1]+1,len(detection_row))]
             cluster_max_peak_loc = get_max_peak(cluster_vals)
             if cluster_max_peak_loc == -1:
                 cluster_max_peak_val = -np.inf
@@ -969,8 +972,8 @@ def get_pos_false_pos_false_neg_detect_points(detection_clusters_at_threshold,
             cluster_max_peak_loc -= 1
 
             cluster_vals = cluster_vals[1:-1]
-            cluster_detect_lengths = np.array([template_lengths[idx] for idx in detection_template_ids[utt_id,c[0]:c[1]]])
-            cluster_detect_ids = detection_template_ids[utt_id,c[0]:c[1]]
+            cluster_detect_lengths = np.array([template_lengths[idx] for idx in detection_template_ids[utt_id,max(0,c[0]):min(len(detection_row),c[1])]])
+            cluster_detect_ids = detection_template_ids[utt_id,max(0,c[0]):min(len(detection_row),c[1])]
             phn_context,flt_context = gtrd.get_phn_context(c[0],
                                                       c[1],
                                                       phns,
@@ -978,17 +981,19 @@ def get_pos_false_pos_false_neg_detect_points(detection_clusters_at_threshold,
                                                       offset=1,
                                                       return_flts_context=True)
 
-            false_neg_times[utt_id].append(FalseNegativeDetection(
-                    true_window_cluster=c,
-                    max_peak_loc=cluster_max_peak_loc,
-                    max_peak_val=cluster_max_peak_val,
-                    max_peak_id=cluster_detect_ids[cluster_max_peak_loc],
-                    window_vals=cluster_vals,
-                    true_label_times=(s,e),
-                    phn_context=phn_context,
-                    flt_context=flt_context,
-                    utterances_path=utterances_path,
+            try:
+                false_neg_times[utt_id].append(FalseNegativeDetection(
+                        true_window_cluster=c,
+                        max_peak_loc=cluster_max_peak_loc,
+                        max_peak_val=cluster_max_peak_val,
+                        max_peak_id=cluster_detect_ids[cluster_max_peak_loc],
+                        window_vals=cluster_vals,
+                        true_label_times=(s,e),
+                        phn_context=phn_context,
+                        flt_context=flt_context,
+                        utterances_path=utterances_path,
                     file_index=file_indices[utt_id]))
+            except: import pdb; pdb.set_trace()
 
         if return_example_types:
             cur_example_for_typing+=len(start_end_times)
