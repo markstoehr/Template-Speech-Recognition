@@ -12,6 +12,7 @@ import compute_likelihood_linear_filter
 import multiprocessing
 import sklearn
 from scipy.signal import convolve
+from scipy.io import wavfile
 
 class AverageBackground:
     def __init__(self):
@@ -88,7 +89,8 @@ def get_examples_from_phns_ftls(syllable,
                                 flts,
                                 log_part_blocks,
                                 coarse_length,
-                                verbose=False):
+                                verbose=False,
+                                phn_mapping=None):
     """
     Parameters:
     ===========
@@ -952,7 +954,8 @@ def _compute_detection_E(E,phns,E_flts,
                                                                E_flts,
                                                                None,
                                                                E.shape[0],
-                                                               verbose=verbose)
+                                                               verbose=verbose,\
+                                                               )
 
     if len(detect_lengths) % 200 == 0:
         print "len(detect_lengths)=%d" % (len(detect_lengths))
@@ -1255,6 +1258,8 @@ def get_detection_scores_mixture_named_params(data_path,file_indices,
     if num_examples == -1:
         num_examples = len(file_indices)
 
+    if phn_mapping is not None:
+        syllable = np.array([phn_mapping[p] for p in syllable])
     detection_lengths = []
     detection_lengths2 = []
     if return_detection_template_ids:
@@ -1274,6 +1279,9 @@ def get_detection_scores_mixture_named_params(data_path,file_indices,
         S = get_spectrogram(utterance.s,S_config)
         S_flts = utterance.flts
         E = get_edge_features(S.T,E_config,verbose=False)
+
+        if phn_mapping is not None:
+            phns = np.array([phn_mapping[p] for p in utterance.phns])
 
 
         if use_spectral:
@@ -1295,8 +1303,13 @@ def get_detection_scores_mixture_named_params(data_path,file_indices,
                 E = get_part_features(E,P_config,verbose=False)
                 E_flts = S_flts.copy()
                 E_flts[-1] = len(E)
+            
+            if phn_mapping is not None:
+                phns = np.array([phn_mapping[p] for p in utterance.phns])
+            else:
+                phns = utterance.phns
 
-            _compute_detection_E(E,utterance.phns,E_flts,
+            _compute_detection_E(E,phns,E_flts,
                                  detection_array,
                                  detection_template_ids,
                                  detection_lengths,
@@ -1518,8 +1531,10 @@ Utterance = collections.namedtuple("Utterance",
                                     ("utterance_directory"
                                     +" file_idx"
                                     +" s"
-                                    +" phns"
-                                    +" flts"
+                                    +" phn"
+                                    +" phn_flts"
+                                    +" wrd"
+                                    +" wrd_flts"
                                     ))
 
 def match_noise_to_file(noise,s,db):
@@ -1545,7 +1560,8 @@ def makeUtterance(
                  file_idx,
                  use_noise_file=None,
                  noise_db=0):
-    s = np.load(utterance_directory+file_idx+'s.npy')
+    sr,s = wavfile.read(utterance_directory+file_idx+'.wav')
+    s = (s.astype(float))/(2.**15-1.)
     if use_noise_file is not None:
         noise = np.load(use_noise_file)
         s = match_noise_to_file(noise,s,noise_db)
@@ -1554,8 +1570,11 @@ def makeUtterance(
         utterance_directory=utterance_directory,
         file_idx=file_idx,
         s = s,
-        phns = np.load(utterance_directory+file_idx+'phns.npy'),
-        flts = np.load(utterance_directory+file_idx+'feature_label_transitions.npy'))
+        phn = np.load(utterance_directory+file_idx+'phn.npy'),
+        phn_flts = np.load(utterance_directory+file_idx+'phn_flts.npy'),
+        wrd = np.load(utterance_directory+file_idx+'wrd.npy'),
+        wrd_flts = np.load(utterance_directory+file_idx+'wrd_flts.npy'))
+        
 
 
 
@@ -1719,7 +1738,8 @@ def get_syllable_features(utterance_directory,data_idx,syllable,
             import pdb; pdb.set_trace()
     syllable_starts = phns_syllable_matches(use_phns,syllable)
     syllable_length = len(syllable)
-
+    if len(syllable_starts) > 0:
+        print len(syllable_starts)
 
     if (waveform_offset is None or waveform_offset == 0) and (S is not None and P is not None):
         return [ SyllableFeatures(
@@ -2040,20 +2060,24 @@ def recover_edgemaps(syllable_features,example_mat,bgd=None):
             lengths[idx] = len(syllable_features[i][jdx].E)
             Es[idx][:lengths[idx]] = syllable_features[i][jdx].E.astype(np.uint8)[:lengths[idx]]
             if bgd is not None and lengths[idx] <max_length:
-                Es[idx][lengths[idx]:] = (np.random.rand(
-                    *((max_length - lengths[idx],)+E_shape))
-                                          <= np.tile(bgd,
-                                                    (max_length-lengths[idx],)
-                                                     +np.ones(len(bgd.shape)-1))).astype(np.uint8)
+                try:
+                    Es[idx][lengths[idx]:] = (np.random.rand(
+                            *((max_length - lengths[idx],)+E_shape))
+                                              <= np.tile(bgd,
+                                                         (max_length-lengths[idx],)
+                                                         +tuple(np.ones(len(bgd.shape))))).astype(np.uint8)
+                except: import pdb; pdb.set_trace()
         else:
             lengths[idx] = len(syllable_features[i][jdx].E)
             Es[idx][:lengths[idx]] = syllable_features[i][jdx].E.astype(np.uint8)[:lengths[idx]]
             if bgd is not None and lengths[idx] <max_length:
-                Es[idx][lengths[idx]:] = (np.random.rand(
-                    *((max_length - lengths[idx],)+E_shape))
-                                          <= np.tile(bgd,
-                                                    (max_length-lengths[idx],)
-                                                     +np.ones(len(bgd.shape)-1))).astype(np.uint8)
+                try:
+                    Es[idx][lengths[idx]:] = (np.random.rand(
+                            *((int(max_length - lengths[idx]),)+E_shape))
+                                              <= np.tile(bgd,
+                                                         (int(max_length-lengths[idx]),)
+                                                         +tuple(np.ones(len(bgd.shape))))).astype(np.uint8)
+                except: import pdb; pdb.set_trace()
 
     return lengths, Es
 
@@ -2172,7 +2196,9 @@ SpectrogramParameters = collections.namedtuple("SpectrogramParameters",
                                                 +" delta_window"
                                                 +" no_use_dpss"
                                                 +" do_freq_smoothing"
-                                                +" auxiliary_data"))
+                                                +" auxiliary_data"
+                                                +" preemphasis"
+                                                +" time_smoothing_length"))
 
 def makeSpectrogramParameters(sample_rate=16000,
                               num_window_samples=320,
@@ -2193,7 +2219,9 @@ def makeSpectrogramParameters(sample_rate=16000,
                               delta_window=9,
                               no_use_dpss=False,
                               do_freq_smoothing=True,
-                              auxiliary_data=False):
+                              auxiliary_data=False,
+                              preemphasis=.94,
+                              time_smoothing_length=3):
     """
     wrapper Function so that named tuple can have
     optional arguments
@@ -2221,7 +2249,38 @@ def makeSpectrogramParameters(sample_rate=16000,
                                  delta_window=delta_window,
                                  no_use_dpss=no_use_dpss,
                                  do_freq_smoothing=do_freq_smoothing,
-                                 auxiliary_data=auxiliary_data)
+                                 auxiliary_data=auxiliary_data,
+                                 preemphasis=preemphasis,
+                                 time_smoothing_length=time_smoothing_length)
+
+def get_spectrogram_use_config(waveform,spectrogram_config,return_sample_mapping=False):
+    if return_sample_mapping:
+        S, sample_mapping, sample_to_frames =  esp.get_spectrogram_features(waveform,
+                                        spectrogram_config['sample_rate'],
+                                        spectrogram_config['num_window_samples'],
+                                        spectrogram_config['num_window_step_samples'],
+                                        spectrogram_config['fft_length'],
+                                        spectrogram_config['freq_cutoff'],
+                                        spectrogram_config['kernel_length'],
+                                        preemph=spectrogram_config['preemphasis'],
+                                        no_use_dpss=spectrogram_config['no_use_dpss'],
+                                        do_freq_smoothing=spectrogram_config['do_freq_smoothing'],
+                                        return_sample_mapping=True
+                                 )
+        return S, sample_mapping, sample_to_frames
+    else:
+        return   esp.get_spectrogram_features(waveform,
+                                        spectrogram_config['sample_rate'],
+                                        spectrogram_config['num_window_samples'],
+                                        spectrogram_config['num_window_step_samples'],
+                                        spectrogram_config['fft_length'],
+                                        spectrogram_config['freq_cutoff'],
+                                        spectrogram_config['kernel_length'],
+                                        preemph=spectrogram_config['preemphasis'],
+                                        no_use_dpss=spectrogram_config['no_use_dpss'],
+                                        do_freq_smoothing=spectrogram_config['do_freq_smoothing'],
+                                        return_sample_mapping=False
+                                 )
 
 def get_spectrogram(waveform,spectrogram_parameters,mel_smoothing_kernel=-1,
                     no_auxiliary_data=False):
@@ -2236,7 +2295,8 @@ def get_spectrogram(waveform,spectrogram_parameters,mel_smoothing_kernel=-1,
                                 num_ceps=spectrogram_parameters.num_ceps,
                                 lift=spectrogram_parameters.liftering,
                                 include_energy=spectrogram_parameters.include_energy,
-                                no_use_dpss=spectrogram_parameters.no_use_dpss
+                                no_use_dpss=spectrogram_parameters.no_use_dpss,
+                                time_smoothing_length=spectrogram_parameters.time_smoothing_length
                                 ).T
     elif spectrogram_parameters.do_mfccs:
         return esp.get_melfcc(waveform,
@@ -2266,6 +2326,7 @@ def get_spectrogram(waveform,spectrogram_parameters,mel_smoothing_kernel=-1,
                                      spectrogram_parameters.fft_length,
                                      spectrogram_parameters.freq_cutoff,
                                      spectrogram_parameters.kernel_length,
+                                            preemph=spectrogram_parameters.preemphasis,
                                             no_use_dpss=spectrogram_parameters.no_use_dpss,
                                             do_freq_smoothing=spectrogram_parameters.do_freq_smoothing,
                                             auxiliary_data=auxiliary_data_param
@@ -2283,7 +2344,9 @@ EdgemapParameters = collections.namedtuple("EdgemapParameters",
                                             +" mag_smooth_freq"
                                             +" mag_downsample_freq"
                                             +" auxiliary_data"
-                                            +" auxiliary_threshold"))
+                                            +" auxiliary_threshold"
+                                            +" abst_threshold"
+                                            +" magnitude_thresholded_edges"))
 
 def makeEdgemapParameters(block_length,
                           spread_length,
@@ -2296,7 +2359,11 @@ def makeEdgemapParameters(block_length,
                           mag_smooth_freq=0,
                           mag_downsample_freq=0,
                           auxiliary_data=False,
-                          auxiliary_threshold=.5
+                          auxiliary_threshold=.5,
+                          abst_threshold=np.array([ 0.025,  0.025,  0.015,
+                                                           0.015,  0.02 ,  0.02 ,
+                                                           0.02 ,  0.02 ]),
+                          magnitude_thresholded_edges=False
                           ):
     """
     Wrapper function to construct EdgemapParameters
@@ -2327,7 +2394,9 @@ def makeEdgemapParameters(block_length,
                             mag_smooth_freq=mag_smooth_freq,
                             mag_downsample_freq=mag_downsample_freq,
                             auxiliary_data=auxiliary_data,
-                            auxiliary_threshold=auxiliary_threshold
+                            auxiliary_threshold=auxiliary_threshold,
+                            abst_threshold=abst_threshold,
+                            magnitude_thresholded_edges=magnitude_thresholded_edges
                             )
     return emp
 
@@ -2404,6 +2473,19 @@ def makePartsParameters(use_parts,
     return pp2
 
 
+def get_edge_features_use_config(S,config):
+    E, edge_feature_row_breaks,\
+            edge_orientations = esp._edge_map_no_threshold(S)
+    esp._edge_map_threshold_segments(E,
+                                     config['block_length'],
+                                     config['spread_length'],
+                                     threshold=config['threshold'],
+                                     edge_orientations = edge_orientations,
+                                     edge_feature_row_breaks = edge_feature_row_breaks,
+                                         abst_threshold=config['abst_threshold'],
+                                     verbose=False)
+    return reorg_part_for_fast_filtering(E).astype(np.uint8)
+
 def get_edge_features(S,parameters,verbose=False):
     if parameters.auxiliary_data:
         A = S[-3:]
@@ -2443,6 +2525,33 @@ def get_edge_features(S,parameters,verbose=False):
                                              mag_spread_length=1)
 
             return np.hstack((E.T,E2,ABinary))
+    elif parameters.magnitude_thresholded_edges:
+        E2 = esp.magnitude_features_whole_block(S.copy(),
+                                    parameters.magnitude_block_length,
+                                    parameters.magnitude_spread,
+                                    parameters.magnitude_threshold,
+                                    parameters.mag_smooth_freq,
+                                    parameters.mag_downsample_freq)
+
+        E, edge_feature_row_breaks,\
+            edge_orientations = esp._edge_map_no_threshold(S)
+
+        E2 = E2[::-1].T
+        for i in xrange(8):
+            E[E2.shape[0]*i: E2.shape[0]*(i+1)] *= E2
+            
+
+
+        esp._edge_map_threshold_segments(E,
+                                     parameters.block_length,
+                                     parameters.spread_length,
+                                     threshold=parameters.threshold,
+                                     edge_orientations = edge_orientations,
+                                     edge_feature_row_breaks = edge_feature_row_breaks,
+                                         abst_threshold=parameters.abst_threshold,
+                                     verbose=verbose)
+        return reorg_part_for_fast_filtering(E)
+
     else:
         E, edge_feature_row_breaks,\
             edge_orientations = esp._edge_map_no_threshold(S)
@@ -2452,6 +2561,7 @@ def get_edge_features(S,parameters,verbose=False):
                                      threshold=parameters.threshold,
                                      edge_orientations = edge_orientations,
                                      edge_feature_row_breaks = edge_feature_row_breaks,
+                                         abst_threshold=parameters.abst_threshold,
                                      verbose=verbose)
         return reorg_part_for_fast_filtering(E)
 
