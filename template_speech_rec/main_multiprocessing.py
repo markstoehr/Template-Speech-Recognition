@@ -35,6 +35,7 @@ def get_params(sample_rate=16000,
     fft_length=512,
     kernel_length=7,
                freq_cutoff=3000,
+               preemphasis=.95,
                use_mel=False,
                do_mfccs=False,
                no_use_dpss=False,
@@ -71,8 +72,8 @@ def get_params(sample_rate=16000,
                 spreadRadiusX=2,
                 spreadRadiusY=2,
                root_path='/home/mark/Template-Speech-Recognition/',
-               train_suffix='Data/Train/',
-               test_suffix='Data/Test/',
+               train_suffix='Data/train/',
+               test_suffix='Data/test/',
                savedir='data/',
                mel_smoothing_kernel=-1,
                penalty_list=['unreg', '1.0',
@@ -256,7 +257,8 @@ def get_params(sample_rate=16000,
             delta_window=delta_window,
             no_use_dpss=no_use_dpss,
             do_freq_smoothing=do_freq_smoothing,
-            auxiliary_data=auxiliary_data
+            auxiliary_data=auxiliary_data,
+            preemphasis=preemphasis
             ),
             gtrd.makeEdgemapParameters(block_length=block_length,
                                         spread_length=spread_length,
@@ -381,7 +383,8 @@ def get_leehon_mapping():
                    'h#':'sil',
                    'pau':'sil',
                    'epi':'sil',
-                   'sp':'sil'}
+                   'sp':'sil',
+                            'q':'sil'}
     phns_down = list(
         set(
             [
@@ -395,7 +398,7 @@ def get_leehon_mapping():
         if phn not in leehon_mapping.keys():
             leehon_mapping[phn] = phn
 
-    leehon_mapping["q"] = "q"
+    leehon_mapping["q"] = "sil"
 
     use_phns = np.array(list(set(leehon_mapping.values())))
     return leehon_mapping, use_phns
@@ -468,6 +471,7 @@ def save_all_leehon_phones(utterances_path,file_indices,leehon_mapping,phn,
     np.savez('%sEs_lengths_%s_%s.npz'% (savedir,
                                         phn,
                                         save_tag) ,Es=Es,Elengths=Elengths,example_mat=example_mat)
+
 
 
 
@@ -787,6 +791,7 @@ def estimate_templates(num_mix_params,
         Slengths = Slengths[use_idx]
 
 
+    print "maximum length is %d" % Elengths.max()
     for num_mix in num_mix_params:
         print num_mix
         if num_mix == 1:
@@ -813,6 +818,7 @@ def estimate_templates(num_mix_params,
         else:
             bem = bm.BernoulliMixture(num_mix,Es)
             bem.run_EM(.000001)
+
             templates = et.recover_different_length_templates(bem.affinities,
                                                                   Es,
                                                                   Elengths,
@@ -1420,7 +1426,9 @@ def save_detection_setup(num_mix,train_example_lengths,
                          use_noise_file=None,
                          noise_db=0,
                          use_spectral=False,
-                         load_data_tag=None):
+                         load_data_tag=None,
+                         use_normalized_filter_means=None,
+                         use_normalized_filters=None):
     """
     Opens:
     ======
@@ -1463,14 +1471,28 @@ def save_detection_setup(num_mix,train_example_lengths,
     except:
         print "It seems that the templates could not be loaded for"
         print "template_tag=%s\tnum_mix=%d" % (template_tag,num_mix)
+
         return
+
+
     if use_spectral:
         templates, sigmas = out
     else:
         templates = out
+
+
     detection_array = np.zeros((train_example_lengths.shape[0],
+
                             train_example_lengths.max() + 2),dtype=np.float32)
-    if use_svm_filter is None:
+    if use_normalized_filter_means is not None and use_normalized_filters is not None:
+        cs = np.load(use_normalized_filter_means)
+        outfile = np.load(use_normalized_filters)
+        linear_filters_cs = tuple( (outfile['arr_%d' % i],
+                                 cs[i]) for i in xrange(len(outfile.files)))
+        
+
+    elif use_svm_filter is None:
+
         if use_spectral:
             linear_filters_cs = et.construct_linear_filters(templates,
                                                         bgd,use_spectral=use_spectral,T_sigmas=sigmas,bgd_sigma=bgd_sigma)
@@ -1499,6 +1521,7 @@ def save_detection_setup(num_mix,train_example_lengths,
 
     if num_use_file_idx == -1:
         num_use_file_idx = len(file_indices)
+
 
     (detection_array,
      example_start_end_times,
@@ -1610,25 +1633,7 @@ def get_classification_scores(num_mix,data_classify_lengths,
     classify_array = np.zeros((data_classify_lengths.shape[0],
                             data_classify_lengths.max() + 2),dtype=np.float32)
 
-
-    if use_svm_filter is None:
-        if use_spectral:
-            linear_filters_cs = et.construct_linear_filters(templates,
-                                                        bgd,use_spectral=use_spectral,T_sigmas=sigmas,bgd_sigma=bgd_sigma)
-        else:
-
-            linear_filters_cs = et.construct_linear_filters(templates,
-                                                        bgd,use_spectral=use_spectral)
-
-    else:
-        linear_filters_cs = ()
-        for mix_component in xrange(num_mix):
-            outfile = np.load('%s%d%s' % (use_svm_filter[0],
-                                          mix_component,
-                                          use_svm_filter[1]))
-            linear_filters_cs += ((outfile['w'].reshape(templates[mix_component].shape).astype(np.float32),
-                                   float(outfile['b'])),)
-
+    linear_filters_cs = et.construct_linear_filters(templates,bgd)
 
 
     if template_tag is None:
@@ -1733,7 +1738,7 @@ def get_fpr_tpr(num_mix,
             np.save('%sdetected_examples.npy',roc_out[2])
 
 
-def get_fpr_tpr_tagged(num_mix,syllable_string,
+def get_fpr_tpr_tagged(num_mix,syllable_string,leehon_mapping,
                        return_detected_examples=False,
                        return_clusters=False,
                        save_tag='',savedir='data/',
@@ -3343,9 +3348,15 @@ def false_pos_examples_cascade_score(num_mix,syllable_string,
 
     false_pos_score_dict = {}
     false_pos_example_info_dict = {}
+    # rflts means the relative feature label transitions so that we
+    # get a sense of where the detected syllable was within th econtext
+    # of the info list
+    false_pos_example_rflts_dict = {}
 
     file_idx = '-1'
     for utt_id, utt_fps in enumerate(false_pos_times):
+        if utt_id % 50 == 0:
+            print "Working on utterance %d" % utt_id
         if len(utt_fps) ==0 : continue
         utt = gtrd.makeUtterance(utt_fps[0].utterances_path,
                                      utt_fps[0].file_index)
@@ -3393,14 +3404,45 @@ def false_pos_examples_cascade_score(num_mix,syllable_string,
                 if cascade_id not in false_pos_example_info_dict.keys():
                     false_pos_example_info_dict[cascade_id] = [[] for i in xrange(num_mix)]
 
+                if cascade_id not in false_pos_example_rflts_dict.keys():
+                    false_pos_example_rflts_dict[cascade_id] =[ [] for i in xrange(num_mix)]
+
                 try:
                     false_pos_score_dict[cascade_id][cascade_mix_component].append(np.sum(fp_features * cascade_filter)+cascade_constant)
                     # saves the saved location of the file
                     # and the start end times for the s and S/E features
-                    false_pos_example_info_dict[cascade_id][cascade_mix_component].append((utt_fps[0].utterances_path,
-                                     utt_fps[0].file_index,
-                                                                                           s_start_end,
-                                                                                           (detect_time,detect_time+detect_length)))
+                    before_phns = np.arange(len(utt.flts))[utt.flts <= detect_time]
+                    
+                    after_phns = np.arange(len(utt.flts))[utt.flts > detect_time+detect_length
+                                                        ]
+
+                    if len(before_phns) > 1:
+                        context_phns = utt.phns[before_phns[-2]:before_phns[-2]+5]
+                        if len(after_phns)> 0:
+                            context_indices = (before_phns[-2],after_phns[0])
+                        else:
+                            context_indices = (before_phns[-2],-1)
+                    else:
+                        context_phns = np.hstack((np.array(['']),
+                                                  utt.phns[before_phns[-1]:before_phns[-1]+4]))
+                        if len(after_phns)> 0:
+                            context_indices = (before_phns[-1],after_phns[0])
+                        else:
+                            context_indices = (before_phns[-1],-1)
+
+                    l = len(context_phns)
+                    if l < 5:
+                            context_phns = np.hstack((context_phns,
+                                                  np.zeros(5-l,dtype=context_phns.dtype)))
+
+                    false_pos_example_info_dict[cascade_id][cascade_mix_component].append(context_phns)
+                    false_pos_example_rflts_dict[cascade_id][cascade_mix_component].append(( tuple(utt.phns[context_indices[0]:context_indices[-1]]),
+                                                                                       tuple(utt.flts[context_indices[0]:context_indices[-1]] - detect_time)))
+
+# (utt_fps[0].utterances_path,
+#                                      int(utt_fps[0].file_index),
+#                                                                                            s_start_end,
+#                                                                                            (detect_time,detect_time+detect_length)))
 
 
                  #   if verbose:
@@ -3419,11 +3461,33 @@ def false_pos_examples_cascade_score(num_mix,syllable_string,
                 k,save_tag),
                 np.array(reduce(lambda x,y: x+y,
                                 v)))
+        np.save('%s%s_false_positive_cascade2_example_info_%s.npy' %(
+                savedir,
+                k,save_tag),
+                np.array(reduce(lambda x,y: x+y,
+                                false_pos_example_info_dict[k])))
+        out = open('%s%s_false_positive_cascade2_example_rflts_%s.pkl' %(
+                savedir,
+                k,save_tag),'wb')
+        cPickle.dump(
+                np.array(reduce(lambda x,y: x+y,
+                                false_pos_example_rflts_dict[k])),
+                out)
+        out.close()
+        try:
+            for mix_component, component_scores in enumerate(false_pos_example_info_dict[k]):
+                np.save('%s%s_false_positive_cascade2_example_info_%d_%s.npy' % (
+                    savedir,
+                    k,mix_component,save_tag),
+                    np.array(component_scores))
+        except: print "failed to save"
+
+
         for mix_component, component_scores in enumerate(v):
             np.save('%s%s_false_positive_cascade2_component_scores_%d_%s.npy' % (
                     savedir,
                     k,mix_component,save_tag),
-                    component_scores)
+                    np.array(component_scores))
 
             if num_extract_top_false_positives > 0:
                 # the top scores
@@ -3475,6 +3539,105 @@ def false_pos_examples_cascade_score(num_mix,syllable_string,
                 Ss_fp_file_names)
                 np.save('%sfp_extracted_top_false_positive_fnames_Wav%s_%s.npy' % (savedir,k,save_tag),
                 Wav_fp_file_names)
+
+
+def list_of_top_true_false_positives(num_mix,syllable_string,
+                                     sp,ep,waveform_offset=10,thresh_percent=None,save_tag='',template_tag='train_parts',savedir='data/',
+                               verbose=False,pp=None,num_use_file_idx=None,
+                               max_num_points_cluster=1000,
+                                     do_spectral_detection=False,
+                                     num_extract_top_false_positives=0,
+                                     old_max_detect_tag=None,
+                                     load_data_tag=None):
+    # get the original false pos times
+    # and the identities of the things I'm working with
+    if old_max_detect_tag is None:
+        old_max_detect_tag=template_tag
+    if load_data_tag is None:
+        load_data_tag = save_tag
+    if thresh_percent is None and load_data_tag=='':
+        out = open('%s%s_false_pos_times_%d.pkl' % (savedir,syllable_string,num_mix),'rb')
+    else:
+        out = open('%s%s_false_pos_times_%d_%d_%s.pkl' % (savedir,syllable_string,num_mix,
+                                                       thresh_percent,
+                                                             load_data_tag),'rb')
+        if verbose:
+            print "using file %s%s_false_pos_times_%d_%d_%s.pkl for false_positive hunting" % (savedir,syllable_string,num_mix,
+                                                       thresh_percent,
+                                                             load_data_tag)
+    false_pos_times=pickle.load(out)
+    out.close()
+
+    detection_lengths = np.load('%sdetection_lengths_%d_%s.npy' % (savedir,num_mix,
+                                               load_data_tag))
+
+    num_time_points = float(detection_lengths.sum())
+    outfile = np.load('%s%s_second_layer_cascade_filters_%d_%s.npz' % (savedir,syllable_string,
+
+                                                          num_mix,
+                                                               template_tag))
+    cascade_filters = tuple(outfile['arr_%d' % i] for i in xrange(len(outfile.files)))
+    cascade_mix_components = np.load('%s%s_second_layer_cascade_mix_components_%d_%s.npy' % (savedir,syllable_string,
+
+                                                          num_mix,
+                                                               template_tag))
+    cascade_constants = np.load('%s%s_second_layer_cascade_constant_terms_%d_%s.npy' % (savedir,syllable_string,
+
+                                                          num_mix,
+                                                               template_tag))
+    cascade_names = np.load('%s%s_second_layer_cascade_names_%d_%s.npy' % (savedir,syllable_string,
+
+                                                          num_mix,
+                                                               template_tag))
+
+    cascade_identities = np.load('%s%s_second_layer_cascade_identities_%d_%s.npy' % (savedir,syllable_string,
+
+                                                          num_mix,
+                                                               template_tag))
+    for cascade_id in cascade_identities:
+        fp_scores = np.load('%s%s_false_positive_cascade2_scores_%s.npy' %(
+                savedir,
+                cascade_id,save_tag))
+        fp_example_info = np.load('%s%s_false_positive_cascade2_example_info_%s.npy' %(
+                savedir,
+                cascade_id,save_tag))
+        out = open('%s%s_false_positive_cascade2_example_rflts_%s.pkl' %(
+                savedir,
+                cascade_id,save_tag),'rb')
+        fp_rflts = cPickle.load(out)
+        out.close()
+        tp_scores = np.load('%s%s_true_positive_cascade2_scores_%s.npy' %(
+                savedir,
+                cascade_id,save_tag))
+        out = open('%s%s_true_positive_cascade2_example_rflts_%s.pkl' %(
+                savedir,
+                cascade_id,save_tag),'rb')
+        tp_rflts = cPickle.load(out)
+        out.close()
+
+        fp_sorted_score_ids = np.argsort(fp_scores)[::-1]
+        f = open('%s%s_top_false_positives_%s.txt' %(
+                savedir,cascade_id,save_tag),'w')
+        for sorted_score_id in fp_sorted_score_ids:
+            f.write("%g,%s,%s,%g\n" % (fp_scores[sorted_score_id],
+                                   str(fp_rflts[sorted_score_id][0]),
+                                str(fp_rflts[sorted_score_id][1]),
+                                float(np.sum(tp_scores >fp_scores[sorted_score_id]))/float(len(tp_scores))))
+
+        f.close()
+
+        tp_sorted_score_ids = np.argsort(tp_scores)[::-1]
+        f = open('%s%s_top_true_positives_%s.txt' %(
+                savedir,cascade_id,save_tag),'w')
+        for sorted_score_id in tp_sorted_score_ids:
+            f.write("%g,%s,%s,%g\n" % (tp_scores[sorted_score_id],
+                                   str(tp_rflts[sorted_score_id][0]),
+                                str(tp_rflts[sorted_score_id][1]),
+                                       float(np.sum(fp_scores >tp_scores[sorted_score_id]))/num_time_points))
+
+        f.close()
+
+
 
 
 
@@ -3556,8 +3719,11 @@ def true_pos_examples_cascade_score(num_mix,syllable_string,
 
     true_pos_score_dict = {}
     true_pos_lengths_dict = {}
+    true_pos_example_rflts_dict={}
     file_idx = '-1'
     for utt_id, utt_tps in enumerate(true_pos_times):
+        if utt_id % 50 == 0:
+            print "working on true positive utt_id = %d" % utt_id
         if len(utt_tps) ==0 : continue
         utt = gtrd.makeUtterance(utt_tps[0].utterances_path,
                                      utt_tps[0].file_index)
@@ -3597,12 +3763,36 @@ def true_pos_examples_cascade_score(num_mix,syllable_string,
 
                 if cascade_id not in true_pos_lengths_dict.keys():
                     true_pos_lengths_dict[cascade_id] = [[] for i in xrange(num_mix)]
+                    
+                if cascade_id not in true_pos_example_rflts_dict.keys():
+                    true_pos_example_rflts_dict[cascade_id] =[ [] for i in xrange(num_mix)]
+                    
+                
+
 
                 try:
                     true_pos_score_dict[cascade_id][cascade_mix_component].append(np.sum(tp_features * cascade_filter)+cascade_constant)
                     true_pos_lengths_dict[cascade_id][cascade_mix_component].append(tp.true_label_times[1]-tp.true_label_times[0])
  #                   if verbose:
  #                       print true_pos_score_dict[cascade_id][cascade_mix_component][-1]
+                    
+                    before_phns = np.arange(len(utt.flts))[utt.flts <= detect_time]
+                    
+                    after_phns = np.arange(len(utt.flts))[utt.flts > detect_time+detect_length
+                                                        ]
+                    if len(before_phns) > 1:
+                        if len(after_phns)> 0:
+                            context_indices = (before_phns[-2],after_phns[0])
+                        else:
+                            context_indices = (before_phns[-2],-1)
+                    else:
+                        if len(after_phns)> 0:
+                            context_indices = (before_phns[-1],after_phns[0])
+                        else:
+                            context_indices = (before_phns[-1],-1)
+                    
+                    true_pos_example_rflts_dict[cascade_id][cascade_mix_component].append(( tuple(utt.phns[context_indices[0]:context_indices[-1]]),
+                                                                                       tuple(utt.flts[context_indices[0]:context_indices[-1]] - detect_time)))
 
                 except:
 
@@ -3615,6 +3805,15 @@ def true_pos_examples_cascade_score(num_mix,syllable_string,
                 k,save_tag),
                 np.array(reduce(lambda x,y: x+y,
                                 v)))
+        out = open('%s%s_true_positive_cascade2_example_rflts_%s.pkl' %(
+                savedir,
+                k,save_tag),'wb')
+        cPickle.dump(
+                np.array(reduce(lambda x,y: x+y,
+                                true_pos_example_rflts_dict[k])),
+                out)
+        out.close()
+
         for mix_component, component_scores in enumerate(v):
             np.save('%s%s_true_positive_cascade2_component_scores_%d_%s.npy' %(
                     savedir,
@@ -3642,6 +3841,9 @@ def get_thresh_list(num_mix,detect_scores, detect_ids,
                     max_num_points_cluster):
     thresh_list = ()
     for i in xrange(num_mix):
+        if max_num_points_cluster == -1:
+            max_num_points_cluster = len(tuple(set(detect_scores[detect_ids ==i])))
+
         scores = np.sort(tuple(set(detect_scores[detect_ids ==i])))[::-1][:max_num_points_cluster][::-1]
         for score in scores:
             if np.sum(detect_scores[detect_ids==i] >= score) <= max_num_points_cluster:
@@ -4180,7 +4382,10 @@ def get_second_layer_cascade_roc_curves(num_mix,savedir,syllable_string,
     out.close()
     num_false_negs = sum(len(utt) for utt in false_neg_times)
     false_neg_lengths = reduce(lambda x,y: x+y, (tuple(k.true_label_times[1]-k.true_label_times[0] for k in utt) for utt in false_neg_times))
-    false_neg_length_counts = np.bincount(false_neg_lengths)
+    if len(false_neg_lengths)> 0:
+        false_neg_length_counts = np.bincount(false_neg_lengths)
+    else:
+        false_neg_length_counts = np.zeros(1)
     false_neg_nonzero_lengths = np.nonzero(false_neg_length_counts)[0]
 
     # for each component
@@ -5860,7 +6065,16 @@ def main(args):
     if args.v:
         print args
 
-    syllable_string = '_'.join(p for p in args.detect_object)
+    if args.leehon_mapping:
+        leehon_mapping, use_phns = get_leehon_mapping()
+        detect_object = tuple(leehon_mapping[p] for p in args.detect_object)
+    else:
+        leehon_mapping =None
+        detect_object = args.detect_object
+
+    
+
+    syllable_string = '_'.join(p for p in detect_object)
     (sp,
      ep,pp,
      root_path,
@@ -5876,6 +6090,7 @@ def main(args):
         fft_length=args.fft_length,
         kernel_length=args.kernel_length,
         freq_cutoff=args.freq_cutoff,
+        preemphasis=args.preemphasis,
         use_mel=args.use_mel,
         do_mfccs=args.do_mfccs,
         no_use_dpss=args.no_use_dpss,
@@ -5922,10 +6137,7 @@ def main(args):
         svm_name=None
     else:
         svm_name='_'.join(args.svm_name)
-    if args.leehon_mapping:
-        leehon_mapping, use_phns = get_leehon_mapping()
-    else:
-        leehon_mapping =None
+
     if args.save_leehon_phn != '':
         leehon_mapping, rejected_phones, use_phns = get_leehon39_dict()
         jobs = []
@@ -5969,7 +6181,7 @@ def main(args):
 
 
     if args.save_syllable_features_to_data_dir:
-        save_syllable_features_to_data_dir(args.detect_object,
+        save_syllable_features_to_data_dir(detect_object,
                                            train_path,
                                            train_file_indices,
                                            sp,ep,
@@ -5989,7 +6201,7 @@ def main(args):
         (Ss,
          Slengths,
          Es,
-         Elengths) =get_processed_examples(args.detect_object,
+         Elengths) =get_processed_examples(detect_object,
                                            train_path,
                                            train_file_indices,
                                            sp,ep,
@@ -6005,7 +6217,7 @@ def main(args):
         (Ss,
          Slengths,
          Es,
-         Elengths) =get_processed_examples(args.detect_object,
+         Elengths) =get_processed_examples(detect_object,
                                            train_path,
                                            train_file_indices,
                                            sp,ep,
@@ -6035,7 +6247,7 @@ def main(args):
         (Ss,
          Slengths,
          Es,
-         Elengths) =get_processed_examples(args.detect_object,
+         Elengths) =get_processed_examples(detect_object,
                                            train_path,
                                            train_file_indices,
                                            sp,ep,
@@ -6068,7 +6280,7 @@ def main(args):
         (Ss,
          Slengths,
          Es,
-         Elengths) =get_processed_examples(args.detect_object,
+         Elengths) =get_processed_examples(detect_object,
                                            train_path,
                                            train_file_indices,
                                            sp,ep,
@@ -6160,7 +6372,7 @@ def main(args):
                                             save_detection_setup(num_mix,
                                                                  test_example_lengths,
                                                                  test_path,test_file_indices,
-                                                                 args.detect_object,sp,
+                                                                 detect_object,sp,
                                                                  ep,
                                                                  leehon_mapping,
                                                                  pp=pp,
@@ -6173,7 +6385,9 @@ def main(args):
                                                                  use_noise_file=args.use_noise_file,
                                                                  noise_db=args.noise_db,
                                                                  use_spectral=args.do_spectral_detection,
-                                                                 load_data_tag=args.load_data_tag))
+                                                                 load_data_tag=args.load_data_tag,
+                                                                       use_normalized_filter_means=args.use_normalized_filter_means,
+                                                                       use_normalized_filters=args.use_normalized_filters))
                 jobs.append(p)
                 p.start
 
@@ -6185,26 +6399,30 @@ def main(args):
             jobs = []
             for num_mix in args.num_mix_parallel:
                 p =multiprocessing.Process(target=save_detection_setup(num_mix,train_example_lengths,
-                             train_path,train_file_indices,args.detect_object,sp,
+                             train_path,train_file_indices,detect_object,sp,
                              ep,leehon_mapping,pp=pp,save_tag=args.save_tag,template_tag=args.template_tag,savedir=args.savedir,verbose=args.v,
                                                                        num_use_file_idx=args.num_use_file_idx,
                                                                        use_svm_based=args.use_svm_based_templates,syllable_string=syllable_string,
                                                                  svm_name=svm_name,
                                                                  use_svm_filter=args.use_svm_filter,
                                                                  use_spectral=args.do_spectral_detection,
-                                                                       load_data_tag=args.load_data_tag))
+                                                                       load_data_tag=args.load_data_tag,
+                                                                       use_normalized_filter_means=args.use_normalized_filter_means,
+                                                                       use_normalized_filters=args.use_normalized_filters))
                 jobs.append(p)
                 p.start
         else:
             save_detection_setup(args.num_mix,train_example_lengths,
-                                 train_path,train_file_indices,args.detect_object,sp,
+                                 train_path,train_file_indices,detect_object,sp,
                                  ep,leehon_mapping,pp=pp,save_tag=args.save_tag,template_tag=args.template_tag,savedir=args.savedir,verbose=args.v,
                                                                        num_use_file_idx=args.num_use_file_idx,
                                                                        use_svm_based=args.use_svm_based_templates,syllable_string=syllable_string,
                                                                  svm_name=svm_name,
                                                                  use_svm_filter=args.use_svm_filter,
                                                                  use_spectral=args.do_spectral_detection,
-                                 load_data_tag=args.load_data_tag)
+                                 load_data_tag=args.load_data_tag,
+                                                                       use_normalized_filter_means=args.use_normalized_filter_means,
+                                                                       use_normalized_filters=args.use_normalized_filters)
     if args.visualize_detection_setup=='train_detect_visualize':
         if len(args.num_mix_parallel) >0 :
             for num_mix in args.num_mix_parallel:
@@ -6234,7 +6452,7 @@ def main(args):
         for num_mix in args.num_mix_parallel:
             p=multiprocessing.Process(target=
             get_fpr_tpr_classify(num_mix,train_classify_lengths,
-                                 args.detect_object,
+                                 detect_object,
                                  leehon_mapping,
                                  rejected_phones,
                                  use_phns,
@@ -6281,7 +6499,7 @@ def main(args):
         for num_mix in args.num_mix_parallel:
             p = multiprocessing.Process(target=
                                         get_classify_scores_metadata(
-                    num_mix,args.detect_object[0],
+                    num_mix,detect_object[0],
                     args.save_tag,args.savedir,
                     "train",
                     use_phns, train_classify_lengths,
@@ -6297,7 +6515,7 @@ def main(args):
                                         retrain_on_classified_examples(
                     num_mix,
                     args.save_tag_suffix,
-                    args.detect_object[0],
+                    detect_object[0],
                     args.template_tag,
                     train_path,
                     train_file_indices,
@@ -6319,7 +6537,7 @@ def main(args):
                                         retrain_on_classified_examples_generative(
                     num_mix,
                     args.save_tag_suffix,
-                    args.detect_object[0],
+                    detect_object[0],
                     args.template_tag,
                     train_path,
                     train_file_indices,
@@ -6339,7 +6557,7 @@ def main(args):
             print "doing parallel"
             jobs = []
             for num_mix in args.num_mix_parallel:
-                p=multiprocessing.Process(target=get_fpr_tpr_tagged(num_mix,syllable_string,
+                p=multiprocessing.Process(target=get_fpr_tpr_tagged(num_mix,syllable_string,leehon_mapping,
                            return_detected_examples=False,
                            return_clusters=False,
                            save_tag=args.save_tag,savedir=args.savedir,
@@ -6350,7 +6568,7 @@ def main(args):
                 jobs.append(p)
                 p.start
         else:
-            get_fpr_tpr_tagged(args.num_mix,syllable_string,
+            get_fpr_tpr_tagged(args.num_mix,syllable_string,leehon_mapping,
                                return_detected_examples=False,
                                return_clusters=False,
                                save_tag=args.save_tag,savedir=args.savedir,
@@ -6766,6 +6984,23 @@ def main(args):
                 jobs.append(p)
                 p.start
 
+    if args.list_of_top_true_false_positives:
+        print "list_of_top_true_false_positives"
+        if len(args.num_mix_parallel) > 0:
+            print "doing parallel"
+            jobs = []
+            for num_mix in args.num_mix_parallel:
+                p =multiprocessing.Process(target=list_of_top_true_false_positives(num_mix,syllable_string,
+                                     sp,ep,waveform_offset=10,thresh_percent=args.thresh_percent,save_tag=args.save_tag,template_tag=args.template_tag,savedir=args.savedir,
+                               verbose=args.v,pp=pp,num_use_file_idx=args.num_use_file_idx,
+                               max_num_points_cluster=args.max_num_points_cluster,
+                                                                                   do_spectral_detection=args.do_spectral_detection,
+                                                                                   num_extract_top_false_positives=args.num_extract_top_false_positives,
+                                                                                   old_max_detect_tag=args.old_max_detect_tag,
+                                                                                   load_data_tag=args.load_data_tag))
+                jobs.append(p)
+                p.start
+
     if args.true_pos_examples_cascade_score:
         print "saving second layer cascade"
         if len(args.num_mix_parallel) > 0:
@@ -6806,7 +7041,7 @@ def main(args):
             for num_mix in args.num_mix_parallel:
                 p =multiprocessing.Process(target=test_phase_detection(num_mix,test_example_lengths,test_path,
                                  test_file_indices,
-                                 args.detect_object,sp,ep,leehon_mapping,
+                                 detect_object,sp,ep,leehon_mapping,
                                  args.save_tag,
                                  args.savedir,
                                  args.old_max_detect_tag,
@@ -6892,7 +7127,7 @@ def perform_test_phase_detection(num_mix,test_example_lengths,test_path,
                          test_path,test_file_indices,syllable,sp,
                          ep,leehon_mapping,save_tag="test")
     # going to use detection at the same threshold
-    get_fpr_tpr_tagged(num_mix,syllable_string,
+    get_fpr_tpr_tagged(num_mix,syllable_string,leehon_mapping,
                 return_detected_examples=False,
                 return_clusters=False,
                 save_tag='test',get_plots=True)
@@ -7083,9 +7318,11 @@ syllables and tracking their performance
     parser.add_argument('--kernel_length',nargs=1,default=7,
                         type=int,metavar='N',
                         help="Length of the kernel for performing smoothing on the spectrogram, this is similar to doing DCT smoothing on the spectrogram as is commonly practiced in speech recognition")
-    parser.add_argument('--freq_cutoff',nargs=1,default=3000,
+    parser.add_argument('--freq_cutoff',default=3000,
                         type=int,metavar='N',
                         help="Frequency cutoff for the computation to limit high frequency components and mimic the telephone situation")
+    parser.add_argument('--preemphasis',default=.95,
+                        type=float,help="preemphasis factor")
     parser.add_argument('--use_mel',action='store_true',
                         help="Whether to use mel filters over the spectrogram for smoothing and making the frequency axis logarithmic above 1kHz")
     parser.add_argument('--mel_smoothing_kernel',default=-1,type=int,
@@ -7112,13 +7349,13 @@ syllables and tracking their performance
                         help="whether to use the dpss in the computation of the spectrogram")
     parser.add_argument('--no_freq_smoothing',action='store_true',
                         help="whether to do the frequency smoothing, of particular interest in the case of using the multitaper spectral analysis since much smoothing is already included in that")
-    parser.add_argument('--block_length',nargs=1,default=40,
+    parser.add_argument('--block_length',default=40,
                         type=int,metavar='N',
                         help="Blocks that we compute the adaptive edge threshold over")
-    parser.add_argument('--spread_length',nargs=1,default=1,
+    parser.add_argument('--spread_length',default=1,
                         type=int,metavar='N',
                         help="Amount of spreading to do for the edge features")
-    parser.add_argument('--edge_threshold_quantile',nargs=1,default=.7,
+    parser.add_argument('--edge_threshold_quantile',default=.7,
                         type=float,metavar='X',
                         help="Quantile to threshold the edges at, defaults to .7")
     parser.add_argument('--use_parts',action='store_true',
@@ -7152,8 +7389,8 @@ syllables and tracking their performance
                         help="An integer. The radius along the frequency axis which we spread part detections")
     parser.add_argument('--root_path',metavar='Path',
                         type=str,default='/home/mark/Template-Speech-Recognition/',help='A string that is the path to where the experiments and data are located')
-    parser.add_argument('--train_suffix',metavar='Path',type=str,default='Data/Train/',help='A string that when appended to the root path string is the path to where the training data is located')
-    parser.add_argument('--test_suffix',metavar='Path',type=str,default='Data/Test/',help='A string that when appended to the root_path is the path to where the testing data is located')
+    parser.add_argument('--train_suffix',metavar='Path',type=str,default='Data/train/',help='A string that when appended to the root path string is the path to where the training data is located')
+    parser.add_argument('--test_suffix',metavar='Path',type=str,default='Data/test/',help='A string that when appended to the root_path is the path to where the testing data is located')
     parser.add_argument('--save_syllable_features_to_data_dir',
                         action='store_true',
                         help="If included this will attempt to save training data estimated using the parameters to the included path for later processing in an experiment.  This includes spectrograms, edgemaps, and waveforms. Defaults to ")
@@ -7347,6 +7584,12 @@ syllables and tracking their performance
                         help='only use svm for second stage')
     parser.add_argument('--no_sil',action='store_true',
                         help='add silence to the rejected phone list')
+    parser.add_argument('--list_of_top_true_false_positives',action='store_true',
+                        help='recover the false positives from the cascade')
+    parser.add_argument('--use_normalized_filter_means',
+                        default=None,help='path to the filter means when use th enormalized filters')
+    parser.add_argument('--use_normalized_filters',default=None,
+                        help='path to the normalized filters that have a controlled mean')
     syllable=('aa','r')
     threshval = 100
     make_plots =True
