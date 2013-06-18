@@ -714,6 +714,7 @@ def magnitude_features_whole_block(S,block_length,spread_radius,threshold_quanti
     block_quarter = block_length/4
     S = S.T
     E = np.zeros(S.shape,dtype=np.uint8)
+
     # handling the initial window
     block = np.sort(S[:3*block_quarter].ravel())
     E[:2*block_quarter]  = S[:2*block_quarter] >= block[int(threshold_quantile*3*block_quarter*S.shape[1]+.5)]
@@ -911,7 +912,23 @@ def get_spectrogram_features(s,sample_rate,num_window_samples,
                              preemph=.95,mode="valid",
                              no_use_dpss=False,
                              do_freq_smoothing=True,
-                             auxiliary_data=False):
+                             auxiliary_data=False,
+                             return_sample_mapping=False):
+    """
+    Parameters:
+    ===========
+    return_sample_mapping: bool
+        returns sample_mapping which is a 1d array
+        of floats such that entry i is the middle sample
+        corresponding to spectrogram frame i.
+
+    Output:
+    =======
+    sample_mapping: 1d array
+        1d array
+        of floats such that entry i is the middle sample
+        corresponding to spectrogram frame i
+    """
     s = _preemphasis(s,preemph)
     if auxiliary_data:
         S,A = _spectrograms(s,num_window_samples,
@@ -920,12 +937,20 @@ def get_spectrogram_features(s,sample_rate,num_window_samples,
                       sample_rate,
                       no_use_dpss=no_use_dpss,
                           auxiliary_data=auxiliary_data)
+    elif return_sample_mapping:
+        S, sample_to_frames = _spectrograms(s,num_window_samples,
+                      num_window_step_samples,
+                      fft_length,
+                      sample_rate,
+                      no_use_dpss=no_use_dpss,
+                          return_frame_to_sample_mapping=return_sample_mapping)
     else:
         S = _spectrograms(s,num_window_samples,
                       num_window_step_samples,
                       fft_length,
                       sample_rate,
-                      no_use_dpss=no_use_dpss)
+                      no_use_dpss=no_use_dpss,
+                          return_frame_to_sample_mapping=return_sample_mapping)
 
     freq_idx = int(freq_cutoff/(float(sample_rate)/fft_length))
     S = S[:,:freq_idx]
@@ -952,7 +977,9 @@ def get_spectrogram_features(s,sample_rate,num_window_samples,
         # preserve time length of spectrogram, smooth over time
     S_smoothed= convolve(S_smoothed,smoothing_kernel.reshape(kernel_length,1),mode='same')
     S_subsampled = S_smoothed[:,::2]
-        # compute the edgemap
+
+    if return_sample_mapping:
+        return S_subsampled, np.arange(len(S_subsampled),dtype=float)*num_window_step_samples + num_window_samples/2, sample_to_frames
     if auxiliary_data:
         return np.hstack((S_subsampled, A))
     else:
@@ -1009,7 +1036,8 @@ def get_mel_spec(s,sample_rate,
                  num_ceps=13,
                  lift=.6,
                  include_energy=False,
-                 no_use_dpss=False):
+                 no_use_dpss=False,
+                 time_smoothing_length=0):
     """
     The mel spectrogram, this is the basis for MFCCs
     Parameters:
@@ -1155,7 +1183,8 @@ def threshold_edgemap(E,quantile_level,
                       edge_feature_row_breaks,
                       report_level=False,
                       abst_threshold=np.array([ 0.025,  0.025,  0.015,  0.015,  0.02 ,  0.02 ,  0.02 ,  0.02 ]),
-                      critical_bands=None):
+                      critical_bands=None,
+                      convert_to_binary=True):
     """
     Parameters:
     ===========
@@ -1180,6 +1209,7 @@ def threshold_edgemap(E,quantile_level,
             edge_thresholds = np.empty(8)
     # allocate an empty array for the thresholded edges
     E_new = np.empty(E.shape)
+
     for edge_feat_idx in xrange(1,edge_feature_row_breaks.shape[0]):
         start_idx = edge_feature_row_breaks[edge_feat_idx-1]
         end_idx = edge_feature_row_breaks[edge_feat_idx]
@@ -1189,7 +1219,8 @@ def threshold_edgemap(E,quantile_level,
             if critical_bands is None:
                 E_new[start_idx:end_idx,:],edge_thresholds[edge_feat_idx-1] = \
                     threshold_edge_block(E[start_idx:end_idx,:],quantile_level,report_level,
-                                     abst_threshold[edge_feat_idx-1])
+                                     abst_threshold[edge_feat_idx-1],
+                                                 convert_to_binary=convert_to_binary)
             else:
                 for cb_idx,cb in enumerate(critical_bands):
                     E_new[start_idx+cb[0]:
@@ -1198,24 +1229,27 @@ def threshold_edgemap(E,quantile_level,
                         threshold_edge_block(E[start_idx+cb[0]:end_idx+cb[1],:],
                                              quantile_level,
                                              report_level,
-                                             abst_threshold[edge_feat_idx-1])
+                                             abst_threshold[edge_feat_idx-1],
+                                                 convert_to_binary=convert_to_binary)
         else:
             if critical_bands is None:
                 E_new[start_idx:end_idx,:] = \
                     threshold_edge_block(E[start_idx:end_idx,:],
                                          quantile_level,
                                          report_level,
-                                         abst_threshold[edge_feat_idx-1])
+                                         abst_threshold[edge_feat_idx-1],
+                                                 convert_to_binary=convert_to_binary)
             else:
                 for cb_idx,cb in enumerate(critical_bands):
                     E_new[start_idx+cb[0]:start_idx+cb[1],:] = \
                         threshold_edge_block(E[start_idx+cb[0]:end_idx+cb[1],:],
                                              quantile_level,
                                              report_level,
-                                             abst_threshold[edge_feat_idx-1])
+                                             abst_threshold[edge_feat_idx-1],
+                                                 convert_to_binary=convert_to_binary)
 
-                
-            assert np.max(E_new[start_idx:end_idx,:]) <= 1 and np.min(E_new[start_idx:end_idx]) >= 0 
+            if convert_to_binary:
+                assert np.max(E_new[start_idx:end_idx,:]) <= 1 and np.min(E_new[start_idx:end_idx]) >= 0 
     if report_level:
         return E_new, edge_thresholds
 
@@ -1224,7 +1258,8 @@ def threshold_edgemap(E,quantile_level,
 
 def threshold_edge_block(E_block,quantile_level,
                          report_level,
-                         abst_threshold,):
+                         abst_threshold,
+                         convert_to_binary=True):
     """
     Parameters:
     ===========
@@ -1260,7 +1295,7 @@ def threshold_edge_block(E_block,quantile_level,
     sig_idx = E_block[maxima_idx] >= max(tau_quant,abst_threshold)
     if np.any(-sig_idx):
         A[-sig_idx] = 0.
-    if np.any(sig_idx):
+    if np.any(sig_idx) and convert_to_binary:
         A[sig_idx] =1
     E_block[maxima_idx] = A
     E_block[np.logical_not(maxima_idx)]=0
@@ -1515,7 +1550,8 @@ def _edge_map_threshold_segments(E,block_length,
                                  verbose=False,
                                  critical_bands=None,
                                  return_thresholds=False,
-                                 spread_type='unidirectional'):
+                                 spread_type='unidirectional',
+                                 convert_to_binary=True):
     """
     Parameters:
     ===========
@@ -1562,7 +1598,8 @@ def _edge_map_threshold_segments(E,block_length,
                                                  edge_feature_row_breaks,
                                                  report_level=True,
                                                  abst_threshold=abst_threshold,
-                                                 critical_bands=critical_bands)
+                                                 critical_bands=critical_bands,
+                                                 convert_to_binary=convert_to_binary)
             if verbose:
                 print view_threshold
             if return_thresholds:
@@ -1573,21 +1610,24 @@ def _edge_map_threshold_segments(E,block_length,
                               edge_feature_row_breaks,
                               report_level=False,
                               abst_threshold=abst_threshold,
-                              critical_bands=critical_bands)
+                              critical_bands=critical_bands,
+                              convert_to_binary=convert_to_binary)
         if spread_type=='unidirectional':
-            spread_edgemap(last_E,
-                           edge_feature_row_breaks,
-                           edge_orientations,
-                           spread_length=spread_length)
+            if spread_length > 0:
+                spread_edgemap(last_E,
+                               edge_feature_row_breaks,
+                               edge_orientations,
+                               spread_length=spread_length)
         elif spread_type=='all':
-            for i in xrange(8):
-                start_idx=edge_feature_row_breaks[i]
-                if i >= len(edge_feature_row_breaks):
-                    end_idx=len(edge_feature_row_breaks)
-                else:
-                    end_idx=edge_feature_row_breaks[i+1]
-                last_E[start_idx:end_idx]=maximum_filter(
-                    last_E[start_idx:end_idx],size=(2*spread_length+1,2*spread_length+1),mode='constant',cval=0)
+            if spread_length > 0:
+                for i in xrange(8):
+                    start_idx=edge_feature_row_breaks[i]
+                    if i >= len(edge_feature_row_breaks):
+                        end_idx=len(edge_feature_row_breaks)
+                    else:
+                        end_idx=edge_feature_row_breaks[i+1]
+                    last_E[start_idx:end_idx]=maximum_filter(
+                        last_E[start_idx:end_idx],size=(2*spread_length+1,2*spread_length+1),mode='constant',cval=0)
         E[:,-last_block_length:] = last_E[:,-last_block_length:]
 
     for cur_block in xrange(num_full_blocks):
@@ -1598,7 +1638,8 @@ def _edge_map_threshold_segments(E,block_length,
                                                  edge_feature_row_breaks,
                                                  report_level=True,
                                                  abst_threshold=abst_threshold,
-                                                 critical_bands=critical_bands)
+                                                 critical_bands=critical_bands,
+                                                 convert_to_binary=convert_to_binary)
             if verbose:
                 print view_threshold
             if return_thresholds:
@@ -1609,22 +1650,25 @@ def _edge_map_threshold_segments(E,block_length,
                               edge_feature_row_breaks,
                               report_level=False,
                               abst_threshold=abst_threshold,
-                              critical_bands=critical_bands)
+                              critical_bands=critical_bands,
+                              convert_to_binary=convert_to_binary)
 
         if spread_type=='unidirectional':
-            spread_edgemap(E_block,
-                           edge_feature_row_breaks,
-                           edge_orientations,
-                           spread_length=spread_length)
+            if spread_length > 0:
+                spread_edgemap(E_block,
+                               edge_feature_row_breaks,
+                               edge_orientations,
+                               spread_length=spread_length)
         elif spread_type=='all':
-            for i in xrange(8):
-                start_idx=edge_feature_row_breaks[i]
-                if i >= len(edge_feature_row_breaks):
-                    end_idx=len(edge_feature_row_breaks)
-                else:
-                    end_idx=edge_feature_row_breaks[i+1]
-                E_block[start_idx:end_idx]=maximum_filter(
-                    E_block[start_idx:end_idx],size=(2*spread_length+1,2*spread_length+1),mode='constant',cval=0)
+            if spread_length > 0:
+                for i in xrange(8):
+                    start_idx=edge_feature_row_breaks[i]
+                    if i >= len(edge_feature_row_breaks):
+                        end_idx=len(edge_feature_row_breaks)
+                    else:
+                        end_idx=edge_feature_row_breaks[i+1]
+                    E_block[start_idx:end_idx]=maximum_filter(
+                        E_block[start_idx:end_idx],size=(2*spread_length+1,2*spread_length+1),mode='constant',cval=0)
         if return_thresholds:
             return view_thresholds
 
@@ -2063,7 +2107,8 @@ def _spectrograms(s,num_window_samples,
                   sample_rate,
                   K=5,
                   no_use_dpss=False,
-                  auxiliary_data=False):
+                  auxiliary_data=False,
+                  return_frame_to_sample_mapping=False):
     """
     Gives the discrete prolate slepian sequence
     estimation of the power spectrum
@@ -2090,6 +2135,8 @@ def _spectrograms(s,num_window_samples,
             
     if auxiliary_data:
         return Slep, zero_crossings_energy_wiener
+    elif return_frame_to_sample_mapping: 
+        return Slep, lambda t: np.arange(max(int(int(float(t-num_window_samples)/num_window_step_samples+1)),0),min(int(t/num_window_step_samples)+1,len(Slep)))
     else:
         return Slep
 
@@ -2140,7 +2187,7 @@ def zero_crossing_rates(s,num_window_samples,
 
 def audspec(spectrogram,sample_rate,nbands=None,
             minfreq=0,maxfreq=None,
-            sumpower=1,bwidth=1.0):
+            sumpower=1,bwidth=1.0,return_bins=False):
     """
     Copied from http://labrosa.ee.columbia.edu/matlab/rastamat/audspec.m
     sample_rate should be an integer
@@ -2155,7 +2202,11 @@ def audspec(spectrogram,sample_rate,nbands=None,
     wts,_ = fft2melmx(nfft,sample_rate,nbands,bwidth,
                     minfreq,maxfreq)
     wts = wts[:, :nfreqs]
-    return np.log(np.dot(wts, spectrogram))
+
+    if return_bins:
+        return np.log(np.dot(wts, spectrogram)), _
+    else:
+        return np.log(np.dot(wts, spectrogram))
 
 def ceplifter(ceps,lift = .6):
     """
