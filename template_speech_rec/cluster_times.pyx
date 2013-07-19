@@ -15,6 +15,120 @@ ctypedef np.float32_t DTYPE_t
 
 ctypedef np.uint8_t UINT_t
 
+cdef int longest_cluster_detect_id(np.ndarray[ndim=1,dtype=int] times,
+                                               np.ndarray[ndim=1,dtype=int] detection_lengths,
+                                               np.ndarray[ndim=1,dtype=np.uint8_t] cluster_partition,
+                                               int num_detections):
+    """
+    Gets the index for the longest cluster within the lot
+    """
+    cdef int longest_cluster_id = -1
+    cdef int cluster_length = 0
+    cdef int k, longest_cluster_length, new_cluster_length, cur_cluster_start_id
+    # if the longest cluster less the detection length is zero then we don't
+    # go beyond this point
+    longest_cluster_length = 0
+    cur_cluster_start_id = 0
+    for k in range(1,num_detections):
+        # detect when we have a split at k-1
+        if cluster_partition[k] > 0:
+            new_cluster_length = times[k-1] - times[cur_cluster_start_id] - detection_lengths[cur_cluster_start_id]
+            if longest_cluster_length < new_cluster_length:
+                # print "new_cluster_length = %d, longest_cluster_length = %d" % (new_cluster_length, longest_cluster_length)
+                # print "k=%d\tcur_cluster_start_id=%d" % (k,cur_cluster_start_id)
+
+                longest_cluster_id = cur_cluster_start_id
+                longest_cluster_length = new_cluster_length
+                
+            # update the fact that the cluster now starts at $k$
+            cur_cluster_start_id = k
+    return longest_cluster_id
+                
+cdef void split_cluster(np.ndarray[ndim=1,dtype=int] times,
+                        np.ndarray[ndim=1,dtype=np.uint8_t] cluster_partition,
+                        int num_detections,
+                        int longest_cluster_id):
+    """
+    Basic assumption is that the cluster has more than one point in it
+    This assumption is ensured by the proper performance of longest_cluster_detect_id
+    """
+    cdef int split_idx = 1 + longest_cluster_id
+    cdef int cur_jump
+    cdef int max_jump = 0
+    cdef int max_jump_loc = 0
+    while cluster_partition[split_idx] < 1 and split_idx < num_detections:
+        # loop invariance condition ensures we stay within the cluster and that we don't
+        # exceed the number of detections
+        cur_jump = times[split_idx] -times[split_idx-1]
+        if cur_jump > max_jump:
+            max_jump_loc = split_idx
+            max_jump = cur_jump
+
+        split_idx += 1
+
+    cluster_partition[split_idx] = 1
+            
+    
+
+def cluster_times_variable_length(
+    np.ndarray[ndim=1,dtype=int] times,
+    np.ndarray[ndim=1,dtype=int] detection_lengths):
+    """
+    times:
+        just the times where I found detections
+    detection_lengths:
+        the lengths for each of those detections found
+    num_times
+        number of scores computed over the utterance
+    """
+    cdef int num_detections = times.shape[0]
+    cdef np.ndarray[ndim=1,dtype=np.uint8_t] cluster_partition = np.zeros(num_detections,dtype=np.uint8)
+    # codes for the cluster partition are
+    # 1 means that this is where a cluster starts and further
+    #    processing may be needed to get it to obey that the length
+    #    of the cluster is less than C1
+    # 2 means that this is where a cluster ends and no further processing is required
+
+
+    # start off with one big cluster
+    cluster_partition[0] = 1
+    # check whether there is any more processing to do
+    if num_detections < 2:
+        return cluster_partition
+
+
+    # now we divide the cluster up as much as possible
+    cdef int time_idx = 0
+    for time_idx in range(1,num_detections):
+        if times[time_idx] - times[time_idx-1] >= detection_lengths[time_idx-1]:
+            cluster_partition[time_idx] = 1
+
+    
+    cdef int longest_cluster_id
+
+    longest_cluster_id = longest_cluster_detect_id(times,
+                                               detection_lengths,
+                                               cluster_partition,
+                                               num_detections)
+
+    cdef int num_iter = 0
+    # print "longest_cluster_id = %d" % longest_cluster_id
+    # print cluster_partition
+    while longest_cluster_id > -1 and num_iter < times[num_detections-1]:
+        # print "in loop"
+        split_cluster(times,
+                      cluster_partition,
+                      num_detections,
+                      longest_cluster_id)
+        
+        longest_cluster_id = longest_cluster_detect_id(times,
+                                               detection_lengths,
+                                               cluster_partition,
+                                               num_detections)
+        num_iter += 1
+        # print "longest_cluster_id = %d" % longest_cluster_id
+    return cluster_partition
+    
 
 def cluster_times(np.ndarray[ndim=1,dtype=np.uint16_t] times,
                   DTYPE_t C0,
