@@ -171,6 +171,29 @@ def construct_linear_filters(Ts,
                                             1-min_prob),all_cs=all_cs,use_spectral=use_spectral)
             for T in Ts)
 
+
+def construct_linear_filters_contiguous(models,
+                            bgd,use_spectral=False,T_sigmas=None,bgd_sigma=None,min_prob=.01):
+    """
+    Bgd is the tiled matrix of bgd vectors slaooed onto each other
+    all_cs option returns many different cs corresponding to different lengths of the template
+    """
+    if use_spectral:
+        return tuple(
+            construct_spectral_linear_filter(T,bgd,T_sigma,bgd_sigma,all_cs=all_cs)
+            for T,T_sigma in itertools.izip(Ts,T_sigmas))
+    else:
+        filters = np.zeros(models.shape)
+        biases = np.zeros((models.shape[0],models.shape[1]))
+        for T_idx, T in enumerate(models):
+            filters[T_idx], biases[T_idx] = construct_linear_filter(np.clip(T,min_prob,
+                                            1-min_prob),
+                                    np.clip(bgd,min_prob,
+                                            1-min_prob),all_cs=True,use_spectral=use_spectral)
+        return filters, biases
+
+
+
 def construct_spectral_linear_filter(T,bgd,T_sigma,bgd_sigma,all_cs=False,save_as_type=np.float32):
     """
     Spectral linear filter assumed to be using diagonal covariance matrices
@@ -218,8 +241,9 @@ def construct_linear_filter(T,
     Bgd_inv = 1. - Bgd
     C_exp_inv = T_inv/Bgd_inv
     if all_cs:
-        c = np.cumsum(np.log(C_exp_inv.reshape(len(C_exp_inv),
-                                               np.prod(C_exp_inv.shape[1:]))).sum(1)[::-1])[::-1]
+        c = np.cumsum(np.log(C_exp_inv.reshape(*((len(C_exp_inv),) +
+                                           (np.prod(C_exp_inv.shape[1:]),)))).sum(1))
+        
     else:
         c = np.log(C_exp_inv).sum()
     expW = (T/Bgd) / C_exp_inv
