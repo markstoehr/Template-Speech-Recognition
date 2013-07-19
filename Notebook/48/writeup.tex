@@ -1,0 +1,329 @@
+% ---- ETD Document Class and Useful Packages ---- %
+\documentclass{article}
+\usepackage{subfigure,epsfig,amsfonts,bigints,listing}
+\usepackage{natbib}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{algorithmic,algorithm}
+\usepackage{fullpage}
+\usepackage{caption}
+\usepackage{hyperref}
+
+
+%% Use these commands to set biographic information for the title page:
+\title{Writeup for the Translation Invariant EM}
+\author{Mark Stoehr}
+\date{June 20, 2013}
+
+\renewcommand{\algorithmicrequire}{\textbf{Input:}}
+\renewcommand{\algorithmicensure}{\textbf{Output:}}
+
+
+
+\begin{document}
+
+
+
+\section{The Statistical Model}
+
+Our work here is done by building models of objects and background.  Our detector finds likely locations for phones by testing the object hypothesis
+against a background hypothesis.  Thus, we need to have a statistical model for objects and for background.  The main workhorse for these statistical
+models is the product of Bernoullis distribution.  Given a random vector $\mathbf{x}\in \{0,1\}^{N\times T\times F}$ the product of Bernoullis distribution
+may compute a likelihood for the data under a parameterization $\mathbf{p}\in (0,1)^{T\times F}$ (we drop any coordinates which are certain so every
+parameter is between zero and one and we don't include any that are example zero or exactly one)
+ where the likelihood is
+$$ \mathcal{L}(\mathbf{x}; \mathbf{p}) = \prod_{n,t,f} p(t,f)^{x_n(t,f)}(1-p(t,f))^{x_n(t,f)}  $$
+which means the log-likelihood may be written
+$$ \log\mathcal{L}(\mathbf{x}; \mathbf{p}) = \sum_{n,t,f} x_n(t,f)\log\frac{p(t,f)}{1-p(t,f)}+\log (1-p(t,f)).  $$
+The model $\mathbf{p}$ is an object model: note that it has extent in time and frequency--it corresponds to a probabilistic model of a template.  We also
+have a model for background, this model assumes no structure across time $\mathbf{p}_{bgd}\in (0,1)^{F}$.  The background likelihood is, then, also a product
+of bernoullis:
+\begin{equation}\label{eq-object_likelihood} \log\mathcal{L}(\mathbf{x}; \mathbf{p}_{bgd}) = \sum_{n,t,f} x_n(t,f)\log \frac{p_{bgd}(f)}{1-p_{bgd}(f)}+\log (1-p_{bgd}(f)).\end{equation}
+Implied by the definition of the object model $\mathbf{p}$ is an object support that extents over a time length of $T$.  If a speech utterance $\mathbf{x}\in \{0,1\}^{T_0\times F}$ where $T_0 > T$ is known to contain an example of the utterance then we wish to model then we suppose that some subset of times 
+$\mathcal{T}(t_{start},t_{end}) = \{ t\mid t_{start}\leq t< t_{end}\}$ correspond to the object support within the utterance.  Additionally, we imagine that sometimes
+an object gets truncated so that $t_{end} < T$ (where $T$ is the object length) and we only hear some prefix of the object.  A full likelihood model
+requires that we compute a likelihood over all observed data in the utterance $\mathbf{x}$ so we use the background model for $\mathbf{x}(0:t_{start})$
+and $\mathbf{x}(t_{end}:T_0)$.  Written out this means that we have
+\begin{equation}\label{eq-object_bgd_background}\begin{array}{rcl}
+\log\mathcal{L}(\mathbf{x},t_{start},t_{end}) &=& \log\mathcal{L}(\mathbf{x}(0:t_{start}); \mathbf{p}_{bgd})\\
+     &&+\log\mathcal{L}(\mathbf{x}(t_{start}:t_{end}); \mathbf{p}(0:t_{end}-t_{start})\\
+     &&+\log\mathcal{L}(\mathbf{x}(t_{end}:T_0); \mathbf{p}_{bgd}).
+\end{array}\end{equation}
+
+\subsection{Latent Variable Model}
+
+We may formalize the above notions by introducing a set of latent variables:
+namely the fully observed data is:
+$$ \left\{(\mathbf{x},c,t_{start},l)\mid \mathbf{x}\in \mathcal{X},c\in [C],0\leq t_{start}<T_{start},0\leq l< L_{\max}\right\} \cup \{(\mathbf{x},bgd)\} $$
+thus, it is useful to introduce a random variable $\chi_{bgd}\in \{0,1\}$ which indicates
+whether the utterance is modeled completely as background or not.  We
+also introduce a categorical random variable $M\in [C]$ where $[C]=\{0,1,\ldots,C-1\}$ which is the identity of the object we propose is in $\mathbf{x}$ (in the case of $\chi_{bgd}=1$ this random variable does not contribute to the
+likelihood), we assume there is a set of allowable start time $[T_{start}]$
+(which is perhaps determined by the label) and we have a random variable
+$\tau_{start}$ taking values in $[T_{start}]$ under a uniform distribution (since we are agnostic about the start time for the object --other than, perhaps that it starts near the labeled time). The other latent variable is the time
+length of the example $l$, which also has a discrete distribution
+taking values in $[L_{\max}]$ where the actual length is $l_c^{\min}+l$ where
+$l_c^{\min}$ is the minimum length for a given class. With these latent
+variables defined we then have a fully-observed likelihood
+\begin{equation}\label{eq-fully_observed_likelihood}
+\begin{array}{clcl}
+\mathcal{L}(&\mathbf{x},\chi_{bgd},M,&&\\
+&\tau_{start},l; \{\mathbf{p}_c\}_{c=0}^{C-1},\mathbf{p}_{bgd}) &=& \chi_{bgd}\mathcal{L}(\mathbf{x}; \mathbf{p}_{bgd})\\
+&&&+(1-\chi_{bgd})\left[\mathcal{L}(\tau_{start})\mathcal{L}(M,l)\right.\\
+&&&\left. \cdot \mathcal{L}(\mathbf{x}(0:l_c^{\min}+l); \mathbf{p}_M(0:l_c^{\min}+l))\right].
+\end{array}
+\end{equation}
+this means that a likelihood ratio test between object and background is
+\begin{equation}
+\begin{array}{rcl}
+\log\frac{\mathcal{L}(\mathbf{x},\chi_{bgd}=1;\mathbf{p}_{bgd})}
+{\mathcal{L}(\mathbf{x},\chi_{bgd}=0,M,\tau_{start},l; \{\mathbf{p}_c\}_{c=0}^{C-1})} &=& \log \frac{P(\chi_{bgd}=1)}{1-P(\chi_{bgd}=1)}+\log\frac{\mathcal{L}(\mathbf{x};\mathbf{p}_{bgd})}
+{\mathcal{L}(\mathbf{x},M,\tau_{start},l; \{\mathbf{p}_c\}_{c=0}^{C-1})}
+\end{array}
+\end{equation}
+hence the log-likelihood ratio is the sum of a log-odds ratio based on the probability of observing background versus object plus a log-likelihood ratio of the data under a background model against the data under an object model.
+
+\subsection{Explicit Label Models}
+
+In some speech datasets, however, we often have explicit labels for the 
+occurrence of speech sounds. We may then consider the data as a marked point process where the labels are points $y=(c,t)$ where $c\in [C]$ is the class
+for the label,$t$ is the time, and $l$ is the length.  The observed
+data are edge features $(t,f,e)$ where $t$ is the time, $f$ is the frequency,
+and $e$ is the edge orientation. A template model $\mathbf{p}_c$ with a
+given length $l$ and start time $t_{start}$ puts a distribution for observing
+ features at location $(t,f,e)$.  To build a joint model we consider
+a conditional model where $$\log\mathbb{P}((X,\tau_{start},c',l)\mid (c,t_{gt}))$$
+ is the template likelihood computed as
+$$
+\log\pi_{c',l}+\log\eta_{\tau_{start}}+\sum_{t=0}^{l-1}\sum_{f,e} X(t+t^*,f,e)\log\frac{\mathbf{p}_c(t,f,e)}{1-\mathbf{p}_c(t,f,e)} + \log(1- \mathbf{p}_c(t,f,e))
+$$
+added to the prefix background likelihood and the suffix background likelihood and
+where $t* = t_{gt}-\Delta_{t}/2+\tau_{start}$.
+
+\subsection{Parameterization For Computation}
+
+
+
+We note the parameterization for these different variables as a tool for
+computation. We have a single parameter $\pi_{bgd}=P(\chi_{bgd}=1)$ for whether
+the background model is present or not.  Next our parameterization for
+the start time is $\tau_{start}\in [T_{start}]=\{0,1,\ldots,T_{start}-1\}$.
+When we 
+
+In this work we assume a generic background model that is estimated a single time from the data. We are interested in learning (or inferring) the object
+model $\mathbf{p}_{bgd}$ from data, in particular we want to infer the object support as well as the object locations (since they may deviate from the labeled
+locations of the object in our dataset).  Towards that end we use the Expectation-Maximization algorithm to iteratively update the model parameters
+to maximize the likelihood over a data set.  In the algorithm we do not update the background model which is estimated as an average over a large amount of
+speech data.  To run the EM algorithm we need to perform three computations:
+\begin{enumerate}
+  \item Likelihood computation
+  \item Expectation Step (E-step)
+  \item Maximization Step
+\end{enumerate}
+and we will handle each of these in the sequel.  
+
+
+\section{Likelihood Computation}
+
+\autoref{eq-object_likelihood} shows that the likelihood computation
+can be performed as a linear function of the data.  Moreover the full
+likelihood as given in \autoref{eq-object_bgd_background} shows that the 
+likelihood is partially a function of the likelihood over the background
+model.  We use a couple of techniques to speed up the computation:
+\begin{enumerate}
+  \item precache the background computation
+  \item compute the likelihood using the log-odds ratio.
+\end{enumerate}
+
+For a given model $\mathbf{p}\in (0,1)^{T\times F}$ the associated log-odds
+ratio template is $\mathbf{w}\in \mathbb{R}^{T\times F}$ where 
+$$
+\mathbf{w}(t,f) = \log\frac{\mathbf{p}(t,f)}{1-\mathbf{p}(t,f)}
+$$
+and we also have a constant term corresponding to the log-partition function
+$$
+\mathbf{c}(t) = \sum_{\tau=0}^{t} \sum_{f=0}^F \log( 1-\mathbf{p}(\tau,f))
+$$
+which allow rapid computation of the likelihood of the data under a proposed
+object support hypothesis. To see this we will consider the likelihood of
+data $\mathbf{x}\in \{0,1\}^{T\times F}$ under a model $\mathbf{p}\in (0,1)^{T\times F}$ (so that the data and the model are assumed to have the same time-length) then we note that
+\begin{equation}\label{eq-likelihood_comp_factored}
+\begin{array}{rcl}
+  \log\mathcal{L}(\mathbf{x}; \mathbf{p}) &=& \sum_{t,f} \mathbf{x}(t,f)\log\frac{\mathbf{p}(t,f) }{1-\mathbf{p}(t,f)} +\log(1-\mathbf{p}(t,f))\\
+  &=& \mathbf{c}(T-1)+\sum_{t,f} \mathbf{x}(t,f)\mathbf{w}(t,f)
+\end{array}\end{equation}
+
+Since the background model is not updated during the EM algorithm
+we may precompute those terms and use those within the likelihood computation
+for fast computation.  In the likelihood computation step for this model
+
+\begin{algorithm}
+\caption{Likelihood Computation}
+\label{alg-likelihood_computation}
+\begin{algorithmic}[1]
+  \REQUIRE Data $\{\mathbf{x}_n\}_{n=0}^{N-1}\subset \{0,1\}^{T_{\max}\times F}$,
+           minimum support lengths $\{ l_c^{\min}\}_{c=0}^{C-1}$,
+           start time labels $\{ l_n^{gt}\}_{n=0}^{N-1}\}$,
+           length-component priors $\{ \pi_{c,l}\}$,
+           start time priors $\{ \eta_{\tau}\}$,
+           number of start times $\Delta_{start}\in\mathbb{Z}_+$,
+           log-likelihood filter $\{ W_c\}_{c=0}^{C-1}$,
+           constant factor $\{ \alpha_c\}_{c=0}^{C-1}$,
+           background frame scores $\{ B^{frame}_n \}_{n=0}^{N-1} \subset \mathbb{R}^{T_{\max}}$,
+           background example prefix scores $\{B^{prefix}_n\}_{n=0}^{N-1}\subset\mathbb{R}^{T_{\max}}$,
+           background example scores $\{B_n\}_{n=0}^{N-1}\subset\mathbb{R}$
+
+   \FOR{$n=0,\ldots,N-1$}
+       \STATE $t^*\gets l_n^{gt} - (\Delta_{start} -1 )/2$\COMMENT{\em Earliest Potential Start Time for the Template}
+       \STATE $M_n\gets B^{frame}_n$\COMMENT{\em Use these to compute incrementally the maximum log-likelihoods for each example}
+       \FOR{$c=0,\ldots,C-1$}
+           \FOR{$\tau=0,\ldots,\Delta_{start}-1$}
+               \STATE $\tau_{start}\gets t^*+\tau$
+               \FOR{$l=0,\ldots,\Delta_{l}-1$}
+                   \STATE $l^* \gets l_c^{\min}+l$
+                   \IF{$l=0$}
+                       \STATE $L_n(c,\tau,l)\gets \log \pi_{c,l}+\log \eta_{\tau}$
+                       \IF{$\tau_{start} > 0$}
+                           \STATE $L_n(c,\tau,l) \gets L_n(c,\tau,l)+ B^{prefix}_n(\tau_{start}-1)$\COMMENT{\em Handle the prefix if the prefix is background}
+                       \ENDIF
+
+                       \STATE $L_n(c,\tau_l)\gets L_n(c,\tau,l) + B_n - B^{prefix}_n(\tau_{start}+l^*-1)$ \COMMENT{\em Handle Background suffix}
+                       \FOR{$t=0,\ldots,l^*-1$}
+                           \FOR{$f=0,\ldots,F-1$}
+                                \STATE $L_n(c,\tau,l)\gets L_n(c,\tau,l) + x_n(\tau_{start}+t,f)\cdot W_c(t,f)$
+                           \ENDFOR
+
+                       \ENDFOR
+                       
+                   \ELSE
+                       \STATE $L_n(c,\tau,l)\gets L_n(c,\tau,l) - B_n^{score}(\tau_{start}+l^*-1)$
+                       \FOR{$f=0,\ldots,F-1$}
+                           \STATE $L_n(c,\tau_{start},l) \gets L_n(c,\tau_{start},l) + x_n(\tau_{start}+l^*-1,f)W_c(l^*-1) $
+                       \ENDFOR
+                       
+
+                   \ENDIF
+                   
+                   \STATE $L_n(c,\tau_{start},l)\gets L_n(c,\tau_{start},l) + \alpha_c(l)$\COMMENT{\em  Log Partition Function}
+
+                   \STATE $M_n \gets \max\{ M_n, L_n(c,\tau,l) \}$
+               \ENDFOR
+           \ENDFOR
+       \ENDFOR
+   \ENDFOR
+           
+\end{algorithmic}
+\end{algorithm}
+
+The likelihood computation step gives a couple of things to check for
+whether the computation was accurate.  One is whether certain functions
+give an expected output when computed via different means, the other way
+to test is whether changing the inputs by a certain amount produces a 
+predicted shift in the outputs, the third way is to see if works on a real
+data task.
+
+\section{Maximization Step}
+
+
+The input to the maximization step, roughly speaking, is the data and
+the sufficient statistics.  Efficient computation means that the story
+is more complicated for analyzing what is happening.  The data vectors are
+all fixed length but we are working under the hypothesis that the object
+support could have different location and lengths on those different
+data vectors.
+
+
+\begin{algorithm}
+\caption{Maximization Step}
+\label{alg-max_step}
+    \begin{algorithmic}[1]
+      \REQUIRE Data $\{\mathbf{x}_n\}_{n=0}^{N-1}\subset \{0,1\}^{T_{\max}\times F}$, sufficient statistics $\{S_n\}_{n=0}^{N-1} \subset [0,1]^{C\times T_{start}\times \Delta_l} $, template minimum object lengths $\{l_c^{\min}\}_{c=0}^{C-1}$,
+        labeled support start $\{t_n^{start}\}_{n=0}^{N-1}$
+       
+      \FOR{$n=0,\ldots,N-1$}
+          \FOR{$c=0,\ldots,C-1$}
+              \FOR{$t_{start}=0,\ldots,T_{start}-1$}
+                  \FOR{$l=0,\ldots,\Delta_l-1$}
+                      \STATE $weights[c,l] \gets weights[c,l] + S_n(c,t_{start},l)$
+                  \ENDFOR
+              \ENDFOR
+              \STATE \COMMENT{Do averaging}
+              \FOR{$t=0,\ldots,l_c-1$}
+                 \FOR{$t_{start}=0,\ldots,T_{start}-1$}
+                  \STATE $e_t\gets t_n - \frac{T_{start}-1}{2}+t+t_{start}$
+                  \FOR{$l=0,\ldots,\Delta_l-1$}
+                      \IF{$S_n(c,t_{start},l) > 0$}
+                          \FOR{$f=0,\ldots,F-1$}
+                              \STATE $M_c(t,f)\gets M_c(t,f) + \frac{S_n(c,t_{start},l)}{W_c(t,f)} (\mathbf{x}_n(e_t,f) - M_c(t,f))$
+                          \ENDFOR
+                      \ENDIF
+                  \ENDFOR
+              \ENDFOR
+              \ENDFOR
+          \ENDFOR
+      \ENDFOR
+      \STATE $t\gets 0$
+      \REPEAT
+        \STATE $\mathbf{y}_{t+1} = \frac{\sum_{i=0}\mathbf{x}_i K\left(\left\|\frac{\mathbf{x}_i-\mathbf{y}_t}{h}\right\|\right)}{\sum_{i=0} K\left(\left\|\frac{\mathbf{x}_i-\mathbf{y}_t}{h}\right\|\right)}$
+        \STATE $t\gets t+1$
+
+      \UNTIL{$\frac{\|\mathbf{y}_{t}-\mathbf{y}_{t-1}\|}{\|\mathbf{y}_{t-1}\|} < \varepsilon$}
+      \STATE $\hat{\mathbf{y}}\gets \mathbf{y}_t$
+
+      \ENSURE Estimate mode $\hat{\mathbf{y}}$
+    \end{algorithmic}
+
+\end{algorithm}
+
+
+
+\section{A Comparison With the Standard Template Learning Model}
+
+The structure of the experiment looks like this: we will learn the template in the traditional way
+and then see what happens with no normalization when comparing it to examples,
+then we will see what happens when we do the normalizations,
+then we will compare with the enlarged latent space models.
+
+Ultimately everything will get run again through the clustering procedure, which will be stress-tested and understood better.
+
+Another thing to start doing is to test other 1-dimensional clustering schemes such as mean-shift for getting clusters of detections.
+
+
+We begin with considering the task.  We begin without groupign ao r with aa r.
+We run the first number of lines in  \begin{verbatim} Development/051913/exp_script.sh \end{verbatim}
+This extracts the data as we would like and gets all the features running.
+The next stage will be using the variety of different template learning algorithms
+
+The length distribution is given 
+\begin{figure}
+  \centering
+
+  \includegraphics[height=7cm]{../../Development/051913/aa_r_size_distribution.png}
+  
+    \caption[.]{Distribution of lengths of aa r}
+    \label{fig:display-length_distribution}
+\end{figure}
+
+
+
+
+We work from the script \begin{verbatim}~/Template-Speech-Recognition/Development/051913/exp_script_template_compare062713.sh\end{verbatim}
+
+After \begin{verbatim}CTemplateEstimate.py\end{verbatim} is run the first time we get the templates without the bias correction.
+
+In order to test out the different lengthed EM approach we first get initial
+template estimates using the training data where we train a mixture model.
+The next step is to then run those models through the flexible location EM
+algorithm so that we get sharper estimates.
+
+We have encountered the problem that all the examples like a single mixture component over all the others, this does not bode well for doing
+good detection.  Need to have the EM algorithm actually working for
+multiple different length components where we explicitly account for
+a background model. I'd be curious to see how this particular problem is
+handled within the speech literature.
+
+
+\end{document}
+
+
