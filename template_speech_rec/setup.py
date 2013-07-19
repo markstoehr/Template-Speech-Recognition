@@ -37,6 +37,7 @@ setup(name='amitgroup',
         cython_extension("code_parts"),
         cython_extension("spread_waliji_patches"),        
         cython_extension("get_mistakes"),
+        cython_extension("cluster_times"),
         
     ]
 )
