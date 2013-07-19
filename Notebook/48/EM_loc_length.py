@@ -1,8 +1,10 @@
 #!/usr/bin/python
 
 import numpy as np
+from scipy.signal import gaussian
+import FastEMLocLength
 
-def computeBackgroundLogLikelihoods(E,log_background_model,log_inv_background_model):
+def computeBackgroundLogLikelihoods(E,log_background_model,log_inv_background_model, object_prior_prob):
     """
     Compute the background
 
@@ -22,6 +24,8 @@ def computeBackgroundLogLikelihoods(E,log_background_model,log_inv_background_mo
     E_all_bgd_scores = np.zeros(num_examples)
     background_log_odds = np.zeros(num_features)
 
+    log_background_prior = np.log(1-object_prior_prob)
+
     for feature_id in xrange(num_features):
         background_log_odds[feature_id] = log_background_model[feature_id] - log_inv_background_model[feature_id]
 
@@ -29,7 +33,7 @@ def computeBackgroundLogLikelihoods(E,log_background_model,log_inv_background_mo
         for frame_id in xrange(max_example_length):
             E_bgd_frame_scores[example_id,frame_id] = 0
             for feature_id in xrange(num_features):
-                E_bgd_frame_scores[example_id,frame_id] += E[example_id,frame_id,feature_id] * background_log_odds[feature_id] + log_inv_background_model[feature_id]
+                E_bgd_frame_scores[example_id,frame_id] += E[example_id,frame_id,feature_id] * background_log_odds[feature_id] + log_inv_background_model[feature_id] + log_background_prior
 
             if frame_id == 0:
                 E_bgd_scores_prefix[example_id,frame_id] = E_bgd_frame_scores[example_id,frame_id]
@@ -44,255 +48,161 @@ def computeBackgroundLogLikelihoods(E,log_background_model,log_inv_background_mo
 
 
 
-def computeLogLikelihood(E,L,min_lengths,example_labeled_start_times,log_weights,log_M,
-                       log_inv_M,max_loglikes_by_example, E_bgd_frame_scores,
-                       E_bgd_scores_prefix,E_all_bgd_scores):
+def initSuffStats(E,num_models,num_times,num_lengths,min_prob=0.01):
     """
-        We compute the log-likelihood for each data point
-        under all the possible models
-    L which has type ``
-
-    length_maps[model_id] is a 1d array with the lengths for the maps
-    length_maps[model_id][-1] is the maximum length for the model model_id
-
-    Parameters:
-    ===========
-    L: numpy.array[ndim=4,dtype=np.float32]
-        The array containing the log-likelihood statistics for different
-        parameter settings.
-        `L.shape[0] == num_examples` which is the number of examples
-        `L.shape[1] == num_models` -- number of models
-        `L.shape[2] == num_times`  -- number of start times (assumed to be odd) so that (num_times-1)/2 is the labeled starting time
-                                      and we allow (num_times-1)/2 extra starting times on either side
-        `L.shape[3] == num_lengths` -- number of variations in the length of the template considered
-
-
-    example_labeled_start_times: numpy.ndarray[ndim=1,dtype=int]
-        example_labeled_start_times[example_id] should be the start time corresponding to the likelihood
-        for L[example_id,:,(num_times-1)/2,:]
-    time the sufficient statistic for starting at time
-    t+ example_labeled_start_time[example_id]
-    is S[t].
-
-    data E are assumed to be np.ndarray[ndim=3,dtype=np.uint8]
-    dimension 0 is data identity
-    dimension 1 is time
-    dimension 2 are the features
-    they should otherwise all be the same length
-
-    M are the models  np.ndarray[ndim=3,dtype=np.float]
-    dimension 0 is the model identity
-    dimension 1 is time
-    dimension 2 are features
-
-
-    E_bgd_scores_prefix   --   np.ndarray[ndim=2,dtype=np.float]
-    E_bgd_scores_prefix[example_id,time_t] is the sum for time =0,\ldots,time_t if background is assigned to there
-    E_all_bgd_scores[example_id] - E_bgd_scores_prefix[example_id,time_t] is the sum over the scores time_t+1,\ldots, num_times
-
-
-    E_all_bgd_scores -- np.ndarray[ndim=1,dtype=np.float]
-    E_all_bgd_scores[example_id] is the score if the whole data point is background
-
+    num_times, num_lengths are both assumed to be odd
     """
-    num_examples, example_length, num_features = E.shape
-    num_examples, num_models, num_times, num_lengths = L.shape
+    num_examples, max_time_length, num_features = E.shape
+    L = np.zeros((num_examples,
+                  num_models,
+                  num_times,
+                  num_lengths))
+    
+    example_lls = np.zeros(num_examples)
 
-    # check the invariant
-    assert num_times % 2 == 1
+    num_latent_values_per_example = num_models*num_times*num_lengths
+    example_max_latent_val = 1 - (num_latent_values_per_example-1)*min_prob
+    mid_time = (num_times-1)/2
+    mid_length = (num_lengths-1)/2
+    
+    # put a gaussian distribution over the lengths
+    length_distributions = gaussian(num_lengths,2)
+    length_distributions /= length_distributions.sum()
 
+    # uniform distribution for the times
+    start_time_distribution = np.ones(num_times)/float(num_times)
 
+    
+    
+    L[:] = min_prob
 
-    for example_id in range(num_examples):
-        # first possible start time for the example
-        absolute_start_time = example_labeled_start_times[example_id] - (num_times-1)/2
+    for i in xrange(num_examples):
+        model_idx = i % num_models
+        L[i,model_idx] = np.outer(start_time_distribution,length_distributions)
+        example_lls[i] = L[i].sum()
+        
 
-        for model_id in range(num_models):
-            # loop over the different possible start times
-            for time_id in range(num_times):
-                start_time = absolute_start_time + time_id
-                for length_id in range(num_lengths):
-                    use_length = min_lengths[model_id] + length_id
-                    end_time = start_time + use_length
-                    if start_time < 0:
-                        L[example_id,model_id,time_id,length_id] = - np.inf
-                    elif end_time > example_length:
-                        L[example_id,model_id,time_id,length_id] = - np.inf
-                    elif length_id == 0:
-                        # here we do the whole computation for the template
-                        L[example_id,model_id,time_id,length_id] = log_weights[model_id,length_id]
-                        # handle the prefix background score
-                        if start_time > 0:
-                            # if start_time == 0:
-                            #    There are no background frames at the beginning of the utterance
-                            # else
-                            #    there is a background frame whose last index is start_time-1
-                            L[example_id,model_id,time_id,length_id] += E_bgd_scores_prefix[example_id,
-                                                                 start_time-1]
-                        # handle the suffix background score
-                        # the frames being modeled are
-                        # E[example_id,end_time], E[example_id,end_time+1], E[example_id,end_time+2], \ldots, E[example_id,T_max-1]
-                        L[example_id,model_id,time_id,length_id] += E_all_bgd_scores[example_id] - E_bgd_scores_prefix[example_id,end_time-1]
+    return (L, 
+            example_lls, 
+            np.zeros((num_models,
+                      max_time_length,
+                      num_features)),
+            np.zeros((num_models,                      
+                      num_lengths)),
+            np.zeros((num_models,
+                      num_lengths)))
+        
 
-                        for t in range(use_length):
-                            for f in range(num_features):
-                                L[example_id,model_id,time_id,length_id] += E[example_id,start_time+t,f] *( log_M[model_id,t,f] - log_inv_M[model_id,t,f]) + log_inv_M[model_id,t,f]
-                    else:
-                        # just update the trailing suffix
-                        L[example_id,model_id,time_id,length_id] = L[example_id,model_id,time_id,0] - E_bgd_frame_scores[example_id,use_length-1]
-                        for f in range(num_features):
-                            L[example_id,model_id,time_id,length_id] += E[example_id,start_time + use_length-1,f] *( log_M[model_id,t,f] - log_inv_M[model_id,use_length-1,f]) + log_inv_M[model_id,use_length-1,f]
-
-                    if model_id == 0 and time_id == 0:
-                        max_loglikes_by_example[example_id] = L[example_id,model_id,time_id,length_id]
-                    else:
-                        max_loglikes_by_example[example_id] = max(
-                            max_loglikes_by_example[example_id],
-                            L[example_id,model_id,time_id,length_id])
-
-
-
-
-def EStep(E,L,min_lengths,
-           example_labeled_start_times,log_weights,log_M,
-           log_inv_M,max_loglikes_by_example,E_bgd_frame_scores,
-           E_bgd_scores_prefix,E_all_bgd_scores,example_lls):
+def EM(E,tol,M,min_lengths,example_labeled_start_times,
+       num_start_times,num_lengths,background_model,object_prior_prob = .9,
+       min_prob=0.01,verbose=True):
     """
-    We compute the expected value of the sufficient statistics
-    The sufficient statistics are a four-dimensional array
-    S which has type `np.array[ndim=4,dtype=np.float32]`
+    EM algorithm that allows length variation and location variation within the
+    labeled examples
+    assumed to have a model already initialized
+    model has lengths given by min_lengths
+    example_labeled_start_times says where the middle start time is for the
+       examples.
 
-    length_maps[model_id] is a 1d array with the lengths for the maps
-    length_maps[model_id][-1] is the maximum length for the model model_id
-
-    example_labeled_start_times[example_id] gives the earliest allowable start
-    time the sufficient statistic for starting at time
-    t+ example_labeled_start_time[example_id]
-    is S[t].
-
+    M is the model
     """
-    num_examples, example_length, num_features = E.shape
-    num_examples, num_models, num_times, num_lengths = L.shape
+    
+    num_examples = len(E)
+    num_models = len(min_lengths)
+    min_lengths = min_lengths.astype(np.uint16)
+    example_labeled_start_times = example_labeled_start_times.astype(np.uint16)
+    
+    weights =  np.ones((num_models,num_lengths)) * 1./(num_models*num_lengths)
+    log_start_time_priors = np.log( object_prior_prob * np.ones(num_start_times) * (1./num_start_times))
+    max_loglikes_by_example = np.zeros(num_examples)
+    example_likes = np.zeros(num_examples)
+    
+    log_background_model = np.log(background_model)
+    log_inv_background_model = np.log(1-background_model)
 
-    computeLogLikelihood(E,L,min_lengths,example_labeled_start_times,log_weights,
-                         log_M,
-                       log_inv_M,max_loglikes_by_example,E_bgd_frame_scores,
-                       E_bgd_scores_prefix,E_all_bgd_scores)
-
-    # log-likelihood for the data under the current model
-    out_ll = 0
-
-    # we compute the normalization factors and the log-likelihood
-    # example_lls will be used for normalization in the MStep
-    for example_id in range(num_examples):
-        # begin by looking at the background log-likelihood for the example
-        for length_id in range(num_lengths):
-            example_lls[example_id] = np.exp(E_all_bgd_scores[example_id] - max_loglikes_by_example[example_id])
-
-        for model_id in range(num_models):
-            for time_id in range(num_times):
-                for length_id in range(num_lengths):
-                    L[example_id,model_id,
-                      time_id,length_id] = np.exp(L[example_id,model_id,
-                                                        time_id,length_id] - max_loglikes_by_example[example_id])
-                    for length_id2 in range(length_id,num_lengths):
-                        example_lls[example_id] += L[example_id,model_id,
-                                                     time_id,length_id]
+    L = np.zeros((num_examples,num_models,num_start_times,num_lengths),
+             dtype=np.float64) 
+    LDivideTracker = np.zeros(L.shape,dtype=np.uint8)
+    M_normalizations = np.zeros((num_models,num_lengths)).copy()
+    
 
 
-        out_ll += np.log(example_lls[example_id]) + max_loglikes_by_example[example_id]
+    (E_bgd_frame_scores,
+     E_bgd_scores_prefix,
+     E_all_bgd_scores) = computeBackgroundLogLikelihoods(E,log_background_model,log_inv_background_model,object_prior_prob)
 
-    # # now we update the parameters for the model
-    # for example_id in range(num_examples):
-    #     for model_id in range(num_models):
-    #         for time_id in range(num_times):
-    #             for length_id in range(num_lengths):
-    #                 L[example_id,model_id,
-    #                   time_id,length_id] = L[example_id,model_id,
-    #                                                     time_id,length_id]/example_lls[example_id,0]
-
-    return out_ll
+    criterion = np.inf
+    log_like = -np.inf
+    
+    cur_iter = 0
+    while criterion > tol:
+        prev_log_like = log_like
 
 
-def MStep(E,L,min_lengths,
-           example_labeled_start_times,M,M_normalizations,weights,
-          example_lls
-           ):
-    """
-    We infer the models at this stage
-    Algorithm works as follows:
-    We run through each example and for each example we run through all
-    the models and every time slice that the model has an opinion on
-    and then go through all time slices of the example that the model
-    time slice could be used on and we compute the weighted average
-    using the sufficient statistics computed from the EStep
 
-    example_lls has the normalization factors
-    """
-    num_examples, num_models, num_times, num_lengths = L.shape
-    num_examples, max_time, num_features = E.shape
-    done_division = np.zeros(L.shape,dtype=np.uint8)
-    weights_normalization = 0
-    for example_id in range(num_examples):
-        # learning the templates
-        for model_id in range(num_models):
-            ##
-            # handle the model weights
-            for start_time in range(num_times):
-                for length_id in range(num_lengths):
-                    if done_division[example_id,model_id,start_time,length_id] == 0:
-                        L[example_id,model_id,start_time,length_id] /= example_lls[example_id]
-                        done_division[example_id,model_id,start_time,length_id] = 1
+        # get the log models
+        log_weights = np.log(weights)
+        M = np.clip(M,min_prob,1-min_prob)
+        log_M = np.log(M)
+        log_inv_M = np.log(1-M)
+        W = (log_M - log_inv_M).astype(np.float64)
+        c = np.zeros((num_models,
+                      num_lengths))
+        
+        for model_id in xrange(num_models):
+            c[model_id] = np.cumsum(log_inv_M.sum(-1)[model_id])[min_lengths[model_id]:
+                                                                     min_lengths[model_id]+num_lengths]
 
-                    weights[model_id,length_id] += L[example_id,model_id,start_time ,length_id]
-                    weights_normalization += L[example_id,model_id,start_time ,length_id]
-            example_time_id = 0
+        L[:] = 0.
+        
+        L, max_loglikes_by_example = FastEMLocLength.computeObjectFullLogLikelihood(
+            E,
+            L,
+            min_lengths,
+            example_labeled_start_times,
+            log_weights,
+            log_start_time_priors,
+            W,
+            c,
+            max_loglikes_by_example,
+            E_bgd_frame_scores,
+            E_bgd_scores_prefix,
+            E_all_bgd_scores,
+            )
 
-            # Each model is defined for times
-            # 0 to min_lengths[model_id] + num_lengths
-            for model_time_id in range(min_lengths[model_id]):
-                # when model_time_id == 0 this means that we are at the start
-                # this model frame can only be on example
-                # we compute the indices of a window over which we
-                # may compute contributions
-                # if the max or min are active then we want to know
-                # because that is probably an error
-                example_window_start_time = max(0,example_labeled_start_times[model_id] - (num_times-1)/2  + model_time_id)
-                # the plus one signifies that this is the frame following the
-                # last frame that will be in the window of example frames
-                # that can contribute to this model
-                example_window_end_time = min(max_time,
-                                              example_labeled_start_times[model_id] + (num_times-1)/2 +  model_time_id + 1)
-                # for example_frame_id in range(example_window_start_time,
-                #                               example_window_end_time):
-                for start_time in range(num_times):
-                    for length_id in range(num_lengths):
-                        for feature_id in range(num_features):
-                            M_normalizations[model_id,model_time_id,feature_id] += L[example_id,model_id,start_time,length_id]
-                            M[model_id,model_time_id,feature_id] += L[example_id,model_id,start_time,length_id]/M_normalizations[model_id,model_time_id,feature_id] * (
-                                E[example_id,start_time+example_window_start_time,feature_id]
-                                - M[model_id,model_time_id,feature_id])
+        example_likes[:] = 0.
 
-            # now we handle the case where the estimate is not in every length version of the model
-            for model_time_id in range(min_lengths[model_id],min_lengths[model_id]+num_lengths-1):
-                for start_time in range(num_times):
-                    for length_id in range(model_time_id-min_lengths[model_id]+1,num_lengths):
-                        assert done_division[example_id,model_id,start_time,length_id] == 1
-                        #L[example_id,model_id,start_time,length_id] /= example_lls[example_id]
-                        #done_division[example_id,model_id,start_time+example_window_start_time,length_id] = 1
-                        for feature_id in range(num_features):
-                            M_normalizations[model_id,model_time_id,feature_id] += L[example_id,model_id,start_time,length_id]
-                            M[model_id,model_time_id,feature_id] += L[example_id,model_id,start_time,length_id]/M_normalizations[model_id,model_time_id,feature_id] * (
-                                E[example_id,start_time+example_window_start_time,feature_id]
-                                - M[model_id,model_time_id,feature_id])
+        log_like, L, example_likes = FastEMLocLength.EStep(E,
+                                                         L,
+                                                         max_loglikes_by_example,
+                                                         E_bgd_frame_scores,
+                                                         E_bgd_scores_prefix,
+                                                         E_all_bgd_scores,
+                                                         example_likes,
+                                                         np.log(1-object_prior_prob))
 
-    for model_id in range(num_models):
-        for length_id in range(num_lengths):
-            weights[model_id,length_id]/= weights_normalization
+        M_normalizations[:] = 0
+        
+        L,weights = FastEMLocLength.MStep_weights(E,
+                                                  L,
+                                                  weights,
+                                                  example_likes,
+                                                  M_normalizations)
+
+        M[:] = 0.
+        FastEMLocLength.MStep_models(E,
+          L_use,
+          min_lengths,
+          example_labeled_start_times,
+          M2,
+          M_normalizations)
 
 
-def EM(E,min_lengths,example_labeled_start_times):
-    MStep(E,L,min_lengths,
-           example_labeled_start_times,M,M_normalizations,weights,
-          example_lls
-           )
+        criterion = np.abs(log_like - prev_log_like)/np.abs(log_like)
+        cur_iter += 1
+        if verbose:
+            print "iter %d: %f" % (cur_iter, criterion)
+
+    M = np.clip(M,min_prob,1-min_prob)
+    return M, weights, L
+        
