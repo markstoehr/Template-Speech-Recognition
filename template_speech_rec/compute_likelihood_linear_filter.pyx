@@ -14,6 +14,123 @@ UINT = np.uint8
 ctypedef np.float32_t DTYPE_t
 
 ctypedef np.uint8_t UINT_t
+cdef inline int min(int a, int b): return a if a <= b else b
+cdef inline int max(int a, int b): return a if a >= b else b
+
+
+def get_max_detect_examples(np.ndarray[ndim=4,
+                               dtype=UINT_t] F,
+                            np.ndarray[ndim=3,
+                                       dtype=np.float64_t] LF,
+                            np.ndarray[ndim=1,
+                                       dtype=np.int64_t] lengths):
+    """
+    Parameters:
+    ===========
+    F: np.ndarray[ndim=4,dtype=UINT_t]
+        Features for the example utterances that we have fit with the
+        intermediate features plus downsampled. Dimensions
+        of F[i] and LF are assumed to be (time,frequency,patch_type)
+    LF: np.ndarray[ndim=3,dtype=DTYPE_t]
+        Linear filter for computing the likelihood
+    lengths: np.ndarray[ndim=1,dtype=np.int64_t]
+        how far to go with detection of the detectors
+    Output:
+    =======
+    detect_scores: np.ndarray[ndim=2,dtype=DTYPE_t]
+        Performs spreading 
+    """
+    cdef np.uint16_t num_examples = F.shape[0]
+    cdef np.uint32_t F_dim_0 = F.shape[1]
+    cdef np.uint16_t F_dim_1 = F.shape[2]
+    cdef np.uint16_t F_dim_2 = F.shape[3]
+    cdef np.uint32_t LF_dim_0 = LF.shape[0]
+    cdef np.ndarray[ndim=1,dtype=np.float64_t] max_detect_scores = np.zeros(num_examples,
+                                                                   dtype=np.float64)
+    cdef np.uint32_t cur_example,cur_detection,filter_timepoint,frequency,part_identity, max_time
+    cdef np.float64_t cur_example_val
+    for cur_example in range(num_examples):
+        # cur_detection is the time point in the overall vector
+        for cur_detection in range(lengths[cur_example]):
+        # filter_timepoint is where we are in the filter for
+        # computing these parallel convolutions
+            cur_example_val = 0.0
+            max_time = min( F_dim_0 - cur_detection,
+                            LF_dim_0)
+            for filter_timepoint in range(max_time):
+                for frequency in range(F_dim_1):
+                    for part_identity in range(F_dim_2):
+                        if F[cur_example,
+                             cur_detection+filter_timepoint,
+                             frequency,
+                             part_identity]:
+                            cur_example_val += (
+                        
+                                LF[filter_timepoint,
+                                   frequency,
+                                   part_identity])
+            
+            if cur_detection == 0 or cur_example_val > max_detect_scores[cur_example]:
+                max_detect_scores[cur_example] = cur_example_val
+
+    return max_detect_scores
+
+
+def detect_examples(np.ndarray[ndim=4,
+                               dtype=UINT_t] F,
+                    np.ndarray[ndim=3,
+                               dtype=np.float64_t] LF,
+                    np.ndarray[ndim=1,
+                               dtype=np.int64_t] lengths,
+                    np.int64_t max_length):
+    """
+    Parameters:
+    ===========
+    F: np.ndarray[ndim=4,dtype=UINT_t]
+        Features for the example utterances that we have fit with the
+        intermediate features plus downsampled. Dimensions
+        of F[i] and LF are assumed to be (time,frequency,patch_type)
+    LF: np.ndarray[ndim=3,dtype=DTYPE_t]
+        Linear filter for computing the likelihood
+    lengths: np.ndarray[ndim=1,dtype=np.int64_t]
+        how far to go with detection of the detectors
+    Output:
+    =======
+    detect_scores: np.ndarray[ndim=2,dtype=DTYPE_t]
+        Performs spreading 
+    """
+    cdef np.uint16_t num_examples = F.shape[0]
+    cdef np.uint32_t F_dim_0 = F.shape[1]
+    cdef np.uint16_t F_dim_1 = F.shape[2]
+    cdef np.uint16_t F_dim_2 = F.shape[3]
+    cdef np.uint32_t LF_dim_0 = LF.shape[0]
+    cdef np.ndarray[ndim=2,dtype=np.float64_t] detect_scores = np.zeros((num_examples,
+                                                                    max_length),
+                                                                   dtype=DTYPE)
+    cdef np.uint32_t cur_example,cur_detection,filter_timepoint,frequency,part_identity, max_time
+    for cur_example in range(num_examples):
+        # cur_detection is the time point in the overall vector
+        for cur_detection in range(lengths[cur_example]):
+        # filter_timepoint is where we are in the filter for
+        # computing these parallel convolutions
+            max_time = min( F_dim_0 - cur_detection,
+                            LF_dim_0)
+            for filter_timepoint in range(max_time):
+                for frequency in range(F_dim_1):
+                    for part_identity in range(F_dim_2):
+                        if F[cur_example,
+                             cur_detection+filter_timepoint,
+                             frequency,
+                             part_identity]:
+                            detect_scores[cur_example,
+                                          cur_detection] += (
+                        
+                                LF[filter_timepoint,
+                                   frequency,
+                                   part_identity])
+    return detect_scores
+
+
 
 def detect(np.ndarray[ndim=3,
                       dtype=UINT_t] F,
