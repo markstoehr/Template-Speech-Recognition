@@ -245,46 +245,107 @@ def testSimpleTwoModelComputeLogLikelihood():
                          background_model=background_model,
                          )
 
-    L = np.zeros((num_examples,num_models,num_start_times,
-                  num_lengths))
+    M,weights,L = EM_loc_length.EM(E,.0001,min_lengths,example_labeled_start_times,
+                     num_start_times,num_lengths,background_model,
+                     min_prob=0.01,verbose=True)
+    
+    # need to compare the answer to the other question, but we'll do that
+    # after running this one a bit
+    
 
+def getTestingDefaults(min_lengths,
+                       num_start_times,
+                       num_lengths,
+                       num_examples,
+                       random_seed=0,
+                       num_ridges =4,
+                       num_features=100,
+                       min_probability=0.01):
+    np.random.seed(random_seed)
+
+    M = createRandomModels(min_lengths=min_lengths,
+                           num_features=num_features,
+                           num_lengths=num_lengths,
+                           num_ridges=num_ridges,
+                           blurring_bandwidth=2,
+                           min_probability=min_probability
+                           )
+
+    num_models = len(M)
+
+    background_model = M.min() * np.ones(num_features)
+    # generate the data set
+    # num_start_times specifies how many start times are allowed
+    # for the models
+
+
+    E,example_labeled_start_times = createRandomData(models=M,
+                         num_examples=num_examples,
+                         min_lengths=min_lengths,
+                         num_lengths=num_lengths,
+                         num_start_times=num_start_times,
+                         background_model=background_model,
+                         )
+    return E, min_lengths,example_labeled_start_times,background_model
+
+
+def testTranslationAbility():
+    # 
+    min_lengths = np.array((20,))
+    num_start_times = 5
+    num_lengths = 1
+    num_examples = 100
+    min_prob = 0.01
+    (E, 
+     min_lengths, 
+     example_labeled_start_times, 
+     background_model) = getTestingDefaults(min_lengths,
+                                            num_start_times,
+                                            num_lengths,
+                                            num_examples)
+    # run through the experiment step by step
+    num_examples = len(E)
+    num_models = len(min_lengths)
     max_loglikes_by_example = np.zeros(num_examples)
 
+    log_background_model = np.log(background_model)
+    log_inv_background_model = np.log(1-background_model)
 
+    L,example_lls,M,M_normalizations,weights = EM_loc_length.initSuffStats(E,
+                                                             num_models,
+                                                             num_start_times,
+                                                             num_lengths,
+                                                             min_prob=min_prob)
+    M_normalizations[:] = 0
+    M, weights = EM_loc_length.MStep(E,L,min_lengths,
+          example_labeled_start_times,
+          M,M_normalizations,weights,
+          example_lls,min_prob=min_prob
+          )
 
     (E_bgd_frame_scores,
      E_bgd_scores_prefix,
-     E_all_bgd_scores) = EM_loc_length.computeBackgroundLogLikelihoods(E,np.log(background_model),np.log(1-background_model))
-
-    log_weights = np.log(np.ones((num_models,num_lengths)) * 1./(num_models * num_lengths))
-
-    EM_loc_length.computeLogLikelihood(E,L,
-                         min_lengths,
-                         example_labeled_start_times,
-                         log_weights,
-                         log_M,
-                         log_inv_M,
-                         max_loglikes_by_example,
-                         E_bgd_frame_scores,
-                       E_bgd_scores_prefix,E_all_bgd_scores)
-
-    example_lls = np.zeros((num_examples,num_lengths))
-    L[:] = 0.
-    out_ll = EM_loc_length.EStep(E,L,min_lengths,
-                   example_labeled_start_times,log_weights,log_M,
-                   log_inv_M,max_loglikes_by_example, E_bgd_frame_scores,
+     E_all_bgd_scores) = EM_loc_length.computeBackgroundLogLikelihoods(E,log_background_model,log_inv_background_model)
+    
+    log_like,L = EM_loc_length.EStep(E,L,min_lengths,
+                   example_labeled_start_times,np.log(weights),np.log(M),
+                   np.log(1-M),max_loglikes_by_example,E_bgd_frame_scores,
                    E_bgd_scores_prefix,E_all_bgd_scores,example_lls)
 
-    weights = np.zeros(log_weights.shape)
-    M_normalizations = np.zeros(log_M.shape)
-    M_old = M.copy()
-    M[:] = 0
-
-    EM_loc_length.MStep(E,L,min_lengths,
-           example_labeled_start_times,M,M_normalizations,weights,
-          example_lls
-           )
+    M_normalizations[:] = 0
+    M, weights = EM_loc_length.MStep(E,L,min_lengths,
+          example_labeled_start_times,
+          M,M_normalizations,weights,
+          example_lls,min_prob=min_prob
+          )
     
+    
+
+    
+
+    M,weights,L = EM_loc_length.EM(E,.0001,min_lengths,example_labeled_start_times,
+                     num_start_times,num_lengths,background_model,
+                     min_prob=0.01,verbose=True)
 
 def testComputeLogLikelihood():
     # create a test
