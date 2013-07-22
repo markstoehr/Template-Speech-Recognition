@@ -15,7 +15,7 @@ import numpy as np
 import os;
 from scipy import linalg
 from scipy.fftpack import fft
-from scipy.signal.windows import hanning
+from scipy.signal import hanning
 from scipy.signal import convolve
 from scipy.ndimage.filters import generic_filter, correlate,correlate1d, median_filter, maximum_filter
 
