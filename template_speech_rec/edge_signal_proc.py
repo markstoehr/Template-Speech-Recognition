@@ -12,8 +12,9 @@
 
 
 import numpy as np
+import os;
 from scipy import linalg
-from scipy.fftpack import fft,dct
+from scipy.fftpack import fft
 from scipy.signal.windows import hanning
 from scipy.signal import convolve
 from scipy.ndimage.filters import generic_filter, correlate,correlate1d, median_filter, maximum_filter
@@ -200,6 +201,7 @@ dctm13_40 = np.array([[  1.58113883e-01,   1.58113883e-01,   1.58113883e-01,
          -2.20853827e-01,  -1.58113883e-01,   3.49798098e-02,
           1.99235116e-01]])
 
+E_slep160 = np.load('%s/E_slep160.npy' % '/home/mark/Template-Speech-Recognition/template_speech_rec').T
 
 # windows to be used for the slepian sequence
 # assumes that we are applying the slepian sequences to a
@@ -2128,7 +2130,10 @@ def _spectrograms(s,num_window_samples,
             signal = s[win_id*num_window_step_samples:win_id*num_window_step_samples+num_window_samples]
             zero_crossings_energy_wiener[win_id,0] = np.sum(signal[:-1]*signal[1:] > 0)/t
             zero_crossings_energy_wiener[win_id,1] = np.log(np.var(signal))
-            J = fft(E_slep[:5] * signal,fft_length)
+            if num_window_samples == 320:
+                J = fft(E_slep[:5] * signal,fft_length)
+            elif num_window_samples == 160:
+                J = fft(E_slep160[:5] * signal,fft_length)
             J=J[:,:fft_length/2]
             Slep[win_id] = (np.abs(J)**2).sum(0)/5
             zero_crossings_energy_wiener[win_id,2] = np.exp(np.mean(np.log(Slep[win_id])))/np.mean(Slep[win_id])
