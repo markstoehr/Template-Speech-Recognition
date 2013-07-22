@@ -2120,7 +2120,8 @@ def _spectrograms(s,num_window_samples,
     num_windows = int(.5 + (len(s)-num_window_samples)/float(num_window_step_samples))
     Slep = np.zeros((num_windows,
                      fft_length/2))
-    zero_crossings_energy_wiener = np.zeros((num_windows,3))
+    if auxiliary_data:
+        zero_crossings_energy_wiener = np.zeros((num_windows,3))
     H = np.hamming(num_window_samples)
     t = float(num_window_samples)
     for win_id in xrange(num_windows):
@@ -2128,15 +2129,17 @@ def _spectrograms(s,num_window_samples,
             Slep[win_id] = np.abs(fft( H * s[win_id*num_window_step_samples:win_id*num_window_step_samples+num_window_samples],fft_length)[:fft_length/2])**2
         else:
             signal = s[win_id*num_window_step_samples:win_id*num_window_step_samples+num_window_samples]
-            zero_crossings_energy_wiener[win_id,0] = np.sum(signal[:-1]*signal[1:] > 0)/t
-            zero_crossings_energy_wiener[win_id,1] = np.log(np.var(signal))
+            if auxiliary_data:
+                zero_crossings_energy_wiener[win_id,0] = np.sum(signal[:-1]*signal[1:] > 0)/t
+                zero_crossings_energy_wiener[win_id,1] = np.log(np.var(signal))
             if num_window_samples == 320:
                 J = fft(E_slep[:5] * signal,fft_length)
             elif num_window_samples == 160:
                 J = fft(E_slep160[:5] * signal,fft_length)
             J=J[:,:fft_length/2]
             Slep[win_id] = (np.abs(J)**2).sum(0)/5
-            zero_crossings_energy_wiener[win_id,2] = np.exp(np.mean(np.log(Slep[win_id])))/np.mean(Slep[win_id])
+            if auxiliary_data:
+                zero_crossings_energy_wiener[win_id,2] = np.exp(np.mean(np.log(Slep[win_id])))/np.mean(Slep[win_id])
             
     if auxiliary_data:
         return Slep, zero_crossings_energy_wiener
