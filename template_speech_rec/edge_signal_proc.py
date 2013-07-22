@@ -961,8 +961,8 @@ def get_spectrogram_features(s,sample_rate,num_window_samples,
     # we want each row of S to correspond to a frequency
     # and we want the bottom row to represent the lowest
     # frequency
-    if np.any(S==0):
-        import pdb; pdb.set_trace()
+
+    S[S== 0] = S[S!=0].min()
     S = np.log(S)
     # S = S[::-1,:]
     # smooth the spectrogram
